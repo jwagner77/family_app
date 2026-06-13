@@ -28,13 +28,13 @@ COPY backend/ ./
 COPY --from=frontend-builder /app/frontend/dist ./public
 
 # Environment variables
-ENV PORT=80
+ENV PORT=8282
 ENV DATA_DIR=/data
 ENV DATABASE_PATH=/data/base.db
 ENV NODE_ENV=production
 
-# Expose port 80 and 443 for server mapping
-EXPOSE 80 443
+# Expose port 8282 and 443 for server mapping
+EXPOSE 8282 443
 
 # Mountable volume for data persistence
 VOLUME [ "/data" ]

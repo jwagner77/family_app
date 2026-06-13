@@ -74,7 +74,7 @@ To run the application inside docker with hot reloading or production compilatio
    docker compose up -d
    ```
 2. **Access URL**:
-   Open `http://localhost:8888` (HTTP) or `https://localhost:8989` (HTTPS) in your web browser.
+   Open `http://localhost:8282` in your web browser.
 
 ### Local Development Setup
 
