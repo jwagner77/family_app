@@ -1802,7 +1802,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       });
                       if (res.ok) {
                         const data = await res.json();
-                        setAvailableCalendars(data.calendars || []);
+                        const calendars = Array.isArray(data) ? data : (data.calendars || []);
+                        setAvailableCalendars(calendars);
                         showToast('Successfully loaded available calendars!', 'success');
                       } else if (res.status === 401) {
                         // Redirect as fallback

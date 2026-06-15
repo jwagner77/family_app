@@ -1002,7 +1002,7 @@ app.get('/api/users/calendars', authenticate, async (req, res) => {
     if (graphRes.ok) {
       const data = await graphRes.json();
       const writable = (data.value || []).filter(c => c.canEdit);
-      res.json(writable);
+      res.json({ calendars: writable });
     } else {
       const text = await graphRes.text();
       res.status(graphRes.status).json({ error: text });
