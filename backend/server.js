@@ -963,12 +963,12 @@ app.get('/api/auth/ms-calendar/callback', async (req, res) => {
 
     // If callback is for listing calendars
     if (action === 'list_calendars') {
-      const graphRes = await fetch('https://graph.microsoft.com/v1.0/me/calendars?$select=id,name,canWrite', {
+      const graphRes = await fetch('https://graph.microsoft.com/v1.0/me/calendars?$select=id,name,canEdit', {
         headers: { 'Authorization': `Bearer ${accessToken}` }
       });
       if (graphRes.ok) {
         const calData = await graphRes.json();
-        const writableCalendars = (calData.value || []).filter(c => c.canWrite);
+        const writableCalendars = (calData.value || []).filter(c => c.canEdit);
         
         res.redirect(`/?calendars_list=success&calendars_data=${encodeURIComponent(JSON.stringify(writableCalendars))}`);
       } else {
@@ -995,13 +995,13 @@ app.get('/api/users/calendars', authenticate, async (req, res) => {
       return res.status(401).json({ needs_auth: true, login_type: 'ms-calendar' });
     }
 
-    const graphRes = await fetch('https://graph.microsoft.com/v1.0/me/calendars?$select=id,name,canWrite', {
+    const graphRes = await fetch('https://graph.microsoft.com/v1.0/me/calendars?$select=id,name,canEdit', {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
     if (graphRes.ok) {
       const data = await graphRes.json();
-      const writable = (data.value || []).filter(c => c.canWrite);
+      const writable = (data.value || []).filter(c => c.canEdit);
       res.json(writable);
     } else {
       const text = await graphRes.text();
