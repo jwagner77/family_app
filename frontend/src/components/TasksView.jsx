@@ -334,7 +334,7 @@ export default function TasksView({ showToast, currentUser }) {
                   <h2 style={{ fontSize: '1.5rem', fontWeight: '800', margin: 0 }}>{activeList.name}</h2>
                   <span className={`badge ${activeList.list_type === 'm365' ? 'badge-info' : 'badge-success'}`} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: activeList.list_type === 'm365' ? 'rgba(0, 120, 212, 0.15)' : 'rgba(76, 175, 80, 0.15)', color: activeList.list_type === 'm365' ? '#0078d4' : '#4caf50' }}>
                     {activeList.list_type === 'm365' ? (
-                      <><CloudSync size={12} /> Microsoft To-Do</>
+                      <><Cloud size={12} /> Microsoft To-Do</>
                     ) : (
                       <><Tag size={12} /> Local List</>
                     )}
