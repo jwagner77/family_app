@@ -877,6 +877,9 @@ app.get('/api/auth/oidc/callback', async (req, res) => {
 app.get('/api/auth/ms-calendar/list-login', authenticate, async (req, res) => {
   try {
     const settings = await getSettings();
+    if (!settings.oidc_tenant_id || !settings.oidc_client_id) {
+      return res.status(400).send('Microsoft 365 SSO settings are not configured. Please configure them in Settings > SSO.');
+    }
     const rootUrl = `${req.protocol}://${req.get('host')}`;
     const redirectUri = encodeURIComponent(`${rootUrl}/api/auth/ms-calendar/callback`);
     
@@ -886,15 +889,18 @@ app.get('/api/auth/ms-calendar/list-login', authenticate, async (req, res) => {
     
     const authUrl = `https://login.microsoftonline.com/${settings.oidc_tenant_id}/oauth2/v2.0/authorize?client_id=${settings.oidc_client_id}&response_type=code&redirect_uri=${redirectUri}&response_mode=query&scope=${scope}&state=${state}`;
     
-    res.json({ url: authUrl });
+    res.redirect(authUrl);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).send('Microsoft Calendar redirect failed: ' + error.message);
   }
 });
 
 app.get('/api/auth/ms-calendar/login', authenticate, async (req, res) => {
   try {
     const settings = await getSettings();
+    if (!settings.oidc_tenant_id || !settings.oidc_client_id) {
+      return res.status(400).send('Microsoft 365 SSO settings are not configured. Please configure them in Settings > SSO.');
+    }
     const rootUrl = `${req.protocol}://${req.get('host')}`;
     const redirectUri = encodeURIComponent(`${rootUrl}/api/auth/ms-calendar/callback`);
     
@@ -979,6 +985,11 @@ app.get('/api/auth/ms-calendar/callback', async (req, res) => {
 
 app.get('/api/users/calendars', authenticate, async (req, res) => {
   try {
+    const settings = await getSettings();
+    if (!settings.oidc_tenant_id || !settings.oidc_client_id) {
+      return res.status(400).json({ error: 'Microsoft 365 SSO settings are not configured. Please configure them in Settings > SSO.' });
+    }
+
     const token = await getValidM365Token(req.user.id);
     if (!token) {
       return res.status(401).json({ needs_auth: true, login_type: 'ms-calendar' });
