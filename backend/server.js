@@ -435,7 +435,7 @@ app.get('/api/auth/me', authenticate, (req, res) => {
 
 app.post('/api/users/profile', authenticate, async (req, res) => {
   try {
-    const { primary_color, theme, display_name, timezone } = req.body;
+    const { primary_color, theme, display_name, timezone, calendar_guid } = req.body;
     const db = await getDb();
     
     const updates = [];
@@ -456,6 +456,10 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
     if (timezone !== undefined) {
       updates.push('timezone = ?');
       values.push(timezone);
+    }
+    if (calendar_guid !== undefined) {
+      updates.push('calendar_guid = ?');
+      values.push(calendar_guid === '' ? null : calendar_guid);
     }
     
     if (updates.length === 0) {
