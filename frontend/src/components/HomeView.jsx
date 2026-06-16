@@ -7,18 +7,21 @@ import {
   AlertCircle, 
   ArrowRight,
   TrendingUp,
-  ListTodo
+  ListTodo,
+  Receipt
 } from 'lucide-react';
 
 export default function HomeView({ onNavigateTab, user }) {
   const [tasks, setTasks] = useState([]);
   const [events, setEvents] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
+  const [bills, setBills] = useState([]);
   
   useEffect(() => {
     fetchTasks();
     fetchEvents();
     fetchSubscriptions();
+    fetchBills();
   }, []);
 
   const fetchTasks = async () => {
@@ -51,6 +54,18 @@ export default function HomeView({ onNavigateTab, user }) {
       if (res.ok) {
         const data = await res.json();
         setSubscriptions(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchBills = async () => {
+    try {
+      const res = await fetch('/api/bills');
+      if (res.ok) {
+        const data = await res.json();
+        setBills(data);
       }
     } catch (err) {
       console.error(err);
@@ -94,14 +109,34 @@ export default function HomeView({ onNavigateTab, user }) {
     return diffDays >= 0 && diffDays <= 7;
   });
 
+  // Active bills renewals (next 7 days)
+  const activeBills = bills.filter(b => b.active === 1);
+  const upcomingBillsSoon = activeBills.filter(b => {
+    const nextDate = new Date(b.next_billing_date);
+    const today = new Date();
+    const diffTime = nextDate - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 7;
+  });
+
   // Sum monthly spending
-  const totalMonthlySpend = activeSubs.reduce((acc, curr) => {
+  const monthlySubscriptionSpend = activeSubs.reduce((acc, curr) => {
     if (curr.billing_cycle === 'monthly') {
       return acc + curr.amount;
     } else {
       return acc + (curr.amount / 12);
     }
   }, 0);
+
+  const monthlyBillSpend = activeBills.reduce((acc, curr) => {
+    if (curr.billing_cycle === 'monthly') {
+      return acc + curr.amount;
+    } else {
+      return acc + (curr.amount / 12);
+    }
+  }, 0);
+
+  const totalMonthlySpend = monthlySubscriptionSpend + monthlyBillSpend;
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '3rem' }}>
@@ -117,13 +152,21 @@ export default function HomeView({ onNavigateTab, user }) {
           </p>
         </div>
         
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>TASKS TO DO</span>
             <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800' }}>{pendingTasks.length}</h4>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>MONTHLY SPEND</span>
+          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>SUBSCRIPTION SPEND</span>
+            <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${monthlySubscriptionSpend.toFixed(0)}</h4>
+          </div>
+          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>BILL SPEND</span>
+            <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${monthlyBillSpend.toFixed(0)}</h4>
+          </div>
+          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>TOTAL SPEND</span>
             <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${totalMonthlySpend.toFixed(0)}</h4>
           </div>
         </div>
@@ -254,6 +297,44 @@ export default function HomeView({ onNavigateTab, user }) {
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '0.5rem' }}>
                 <TrendingUp size={32} style={{ color: '#ff9800', opacity: 0.5 }} />
                 No subscription renewals in the next 7 days.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Column 4: Upcoming Bills */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
+              <Receipt size={20} style={{ color: '#03a9f4' }} /> Upcoming Bills
+            </h3>
+            <button 
+              className="btn btn-outline" 
+              style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+              onClick={() => onNavigateTab('bills')}
+            >
+              Manage <ArrowRight size={12} />
+            </button>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            {upcomingBillsSoon.map(bill => (
+              <div key={bill.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '12px', background: 'rgba(3, 169, 244, 0.08)', border: '1px solid rgba(3, 169, 244, 0.2)' }}>
+                <div>
+                  <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{bill.name}</h5>
+                  <span style={{ fontSize: '0.75rem', color: '#0288d1', fontWeight: '600' }}>
+                    Due: {bill.next_billing_date} {bill.tag && `• ${bill.tag}`}
+                  </span>
+                </div>
+                <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0288d1' }}>
+                  ${bill.amount.toFixed(2)}
+                </div>
+              </div>
+            ))}
+            {upcomingBillsSoon.length === 0 && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '0.5rem' }}>
+                <TrendingUp size={32} style={{ color: '#03a9f4', opacity: 0.5 }} />
+                No bill renewals in the next 7 days.
               </div>
             )}
           </div>

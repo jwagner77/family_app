@@ -96,6 +96,24 @@ export async function getDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS recurring_bills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      amount REAL NOT NULL,
+      billing_cycle TEXT CHECK( billing_cycle IN ('monthly', 'annual') ) DEFAULT 'monthly',
+      next_billing_date TEXT NOT NULL,
+      tag TEXT,
+      active INTEGER DEFAULT 1,
+      payment_method TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS bill_tags (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Home Hub');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('primary_color', '#3f51b5');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'system');
@@ -170,6 +188,7 @@ export async function getDb() {
     todo: 'full',
     calendar: 'full',
     subscriptions: 'full',
+    bills: 'full',
     settings_general: 'full',
     settings_users: 'full',
     settings_roles: 'full',
@@ -202,6 +221,7 @@ export async function getDb() {
     todo: 'read',
     calendar: 'read',
     subscriptions: 'read',
+    bills: 'read',
     settings_general: 'read',
     settings_users: 'none',
     settings_roles: 'none',

@@ -1342,6 +1342,93 @@ app.delete('/api/subscriptions/:id', authenticate, async (req, res) => {
 });
 
 
+// --- RECURRING BILLS API ---
+
+app.get('/api/bills', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const bills = await db.all("SELECT * FROM recurring_bills ORDER BY next_billing_date ASC");
+    res.json(bills);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/bills', authenticate, async (req, res) => {
+  try {
+    const { name, amount, billing_cycle, next_billing_date, tag, active, payment_method } = req.body;
+    if (!name || amount === undefined || !next_billing_date) {
+      return res.status(400).json({ error: 'Name, amount, and next billing date are required' });
+    }
+    const db = await getDb();
+    
+    // Auto-save the custom tag in bill_tags if provided
+    if (tag && tag.trim()) {
+      await db.run("INSERT OR IGNORE INTO bill_tags (name) VALUES (?)", [tag.trim()]);
+    }
+
+    const result = await db.run(
+      "INSERT INTO recurring_bills (name, amount, billing_cycle, next_billing_date, tag, active, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [name, amount, billing_cycle || 'monthly', next_billing_date, tag || '', active !== undefined ? active : 1, payment_method || '']
+    );
+    res.status(201).json({ id: result.lastID, name, amount, billing_cycle, next_billing_date, tag, active, payment_method });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/bills/:id', authenticate, async (req, res) => {
+  try {
+    const { name, amount, billing_cycle, next_billing_date, tag, active, payment_method } = req.body;
+    const db = await getDb();
+    const bill = await db.get("SELECT * FROM recurring_bills WHERE id = ?", [req.params.id]);
+    if (!bill) return res.status(404).json({ error: 'Recurring bill not found' });
+    
+    // Auto-save the custom tag in bill_tags if updated
+    if (tag && tag.trim()) {
+      await db.run("INSERT OR IGNORE INTO bill_tags (name) VALUES (?)", [tag.trim()]);
+    }
+
+    await db.run(
+      "UPDATE recurring_bills SET name = ?, amount = ?, billing_cycle = ?, next_billing_date = ?, tag = ?, active = ?, payment_method = ? WHERE id = ?",
+      [
+        name !== undefined ? name : bill.name,
+        amount !== undefined ? amount : bill.amount,
+        billing_cycle !== undefined ? billing_cycle : bill.billing_cycle,
+        next_billing_date !== undefined ? next_billing_date : bill.next_billing_date,
+        tag !== undefined ? tag : bill.tag,
+        active !== undefined ? active : bill.active,
+        payment_method !== undefined ? payment_method : bill.payment_method,
+        req.params.id
+      ]
+    );
+    res.json({ message: 'Recurring bill updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/bills/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run("DELETE FROM recurring_bills WHERE id = ?", [req.params.id]);
+    res.json({ message: 'Recurring bill deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/bills/tags', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const tags = await db.all("SELECT name FROM bill_tags ORDER BY name ASC");
+    res.json(tags.map(t => t.name));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // --- M365 BACKGROUND SYNC IMPLEMENTATION ---
 
 async function syncTasksForUser(userId) {

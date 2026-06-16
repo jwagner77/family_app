@@ -18,7 +18,8 @@ import {
   Key,
   CheckCircle,
   AlertCircle,
-  CreditCard
+  CreditCard,
+  Receipt
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -56,6 +57,7 @@ import HomeView from './components/HomeView';
 import TasksView from './components/TasksView';
 import CalendarView from './components/CalendarView';
 import SubscriptionsView from './components/SubscriptionsView';
+import BillsView from './components/BillsView';
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -176,7 +178,7 @@ export default function App() {
       const tab = parts[0] || 'home';
       const subTab = parts[1] || 'general';
       
-      const validTabs = ['home', 'todo', 'calendar', 'subscriptions', 'settings'];
+      const validTabs = ['home', 'todo', 'calendar', 'subscriptions', 'bills', 'settings'];
       if (validTabs.includes(tab)) {
         setActiveTab(tab);
         if (tab === 'settings') {
@@ -412,6 +414,14 @@ export default function App() {
                 <CreditCard />
                 <span>Subscriptions</span>
               </a>
+
+              <a 
+                className={`nav-link ${activeTab === 'bills' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('bills'); setIsMobileMenuOpen(false); }}
+              >
+                <Receipt />
+                <span>Recurring Bills</span>
+              </a>
             </>
           ) : (
             <>
@@ -573,6 +583,12 @@ export default function App() {
 
         {activeTab === 'subscriptions' && (
           <SubscriptionsView 
+            showToast={showToast} 
+          />
+        )}
+
+        {activeTab === 'bills' && (
+          <BillsView 
             showToast={showToast} 
           />
         )}
