@@ -66,6 +66,13 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState('home');
   const [settingsSubTab, setSettingsSubTab] = useState('general');
+  const [lastTab, setLastTab] = useState('home');
+
+  useEffect(() => {
+    if (activeTab !== 'settings') {
+      setLastTab(activeTab);
+    }
+  }, [activeTab]);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   
@@ -146,6 +153,46 @@ export default function App() {
   useEffect(() => {
     document.title = appName;
   }, [appName]);
+  // Synchronize hash with active tab state
+  useEffect(() => {
+    if (!token || !user) {
+      if (window.location.hash) {
+        window.location.hash = '';
+      }
+      return;
+    }
+    const targetHash = activeTab === 'settings' ? `#/settings/${settingsSubTab}` : `#/${activeTab}`;
+    if (window.location.hash !== targetHash) {
+      window.location.hash = targetHash;
+    }
+  }, [activeTab, settingsSubTab, token, user]);
+
+  // Listen for browser back/forward navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      if (!token || !user) return;
+      const hash = window.location.hash || '#/home';
+      const parts = hash.replace(/^#\/?/, '').split('/');
+      const tab = parts[0] || 'home';
+      const subTab = parts[1] || 'general';
+      
+      const validTabs = ['home', 'todo', 'calendar', 'subscriptions', 'settings'];
+      if (validTabs.includes(tab)) {
+        setActiveTab(tab);
+        if (tab === 'settings') {
+          setSettingsSubTab(subTab);
+        }
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    if (token && user) {
+      handleHashChange();
+    }
+
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [token, user]);
+
 
   const toggleSidebar = () => {
     const nextState = !isSidebarCollapsed;
@@ -331,150 +378,159 @@ export default function App() {
           </button>
         </div>
         
-        <nav className="sidebar-nav">
-          <a 
-            className={`nav-link ${activeTab === 'home' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}
-          >
-            <LayoutDashboard />
-            <span>Dashboard</span>
-          </a>
+        <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.25rem' }}>
+          {activeTab !== 'settings' ? (
+            <>
+              <a 
+                className={`nav-link ${activeTab === 'home' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}
+              >
+                <LayoutDashboard />
+                <span>Dashboard</span>
+              </a>
 
-          <a 
-            className={`nav-link ${activeTab === 'todo' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('todo'); setIsMobileMenuOpen(false); }}
-          >
-            <FileCheck />
-            <span>Tasks</span>
-          </a>
+              <a 
+                className={`nav-link ${activeTab === 'todo' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('todo'); setIsMobileMenuOpen(false); }}
+              >
+                <FileCheck />
+                <span>Tasks</span>
+              </a>
 
-          <a 
-            className={`nav-link ${activeTab === 'calendar' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('calendar'); setIsMobileMenuOpen(false); }}
-          >
-            <Calendar />
-            <span>Calendar</span>
-          </a>
+              <a 
+                className={`nav-link ${activeTab === 'calendar' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('calendar'); setIsMobileMenuOpen(false); }}
+              >
+                <Calendar />
+                <span>Calendar</span>
+              </a>
 
-          <a 
-            className={`nav-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
-            onClick={() => { setActiveTab('subscriptions'); setIsMobileMenuOpen(false); }}
-          >
-            <CreditCard />
-            <span>Subscriptions</span>
-          </a>
+              <a 
+                className={`nav-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('subscriptions'); setIsMobileMenuOpen(false); }}
+              >
+                <CreditCard />
+                <span>Subscriptions</span>
+              </a>
+            </>
+          ) : (
+            <>
+              <a 
+                className="nav-link" 
+                onClick={() => {
+                  setActiveTab(lastTab);
+                  setIsMobileMenuOpen(false);
+                }} 
+                style={{ marginBottom: '0.5rem', color: 'var(--primary)', fontWeight: 'bold' }}
+              >
+                <ChevronLeft />
+                <span>Back to Menu</span>
+              </a>
+              
+              <a 
+                className={`nav-link ${settingsSubTab === 'general' ? 'active' : ''}`}
+                onClick={() => { setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
+                title="General Settings"
+              >
+                <Sliders />
+                <span>General Settings</span>
+              </a>
+              {canReadUsers && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'users' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('users'); setIsMobileMenuOpen(false); }}
+                  title="User Management"
+                >
+                  <Users />
+                  <span>User Management</span>
+                </a>
+              )}
+              {user.auth_provider === 'sso' && canReadCalendar && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'calendar' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('calendar'); setIsMobileMenuOpen(false); }}
+                  title="Calendar Settings"
+                >
+                  <Calendar />
+                  <span>Calendar Settings</span>
+                </a>
+              )}
+              {canReadRoles && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'roles' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('roles'); setIsMobileMenuOpen(false); }}
+                  title="Role & RBAC Settings"
+                >
+                  <Shield />
+                  <span>Role & RBAC Settings</span>
+                </a>
+              )}
+              {canReadSSO && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'sso' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('sso'); setIsMobileMenuOpen(false); }}
+                  title="SSO Configuration"
+                >
+                  <Lock />
+                  <span>SSO Configuration</span>
+                </a>
+              )}
+              {canReadBranding && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'branding' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('branding'); setIsMobileMenuOpen(false); }}
+                  title="Branding Settings"
+                >
+                  <Palette />
+                  <span>Branding Settings</span>
+                </a>
+              )}
 
-          <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {user.role_name === 'Administrator' && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'notifications' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('notifications'); setIsMobileMenuOpen(false); }}
+                  title="Notifications"
+                >
+                  <Bell />
+                  <span>Notifications</span>
+                </a>
+              )}
+              {user.role_name === 'Administrator' && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'integrations' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('integrations'); setIsMobileMenuOpen(false); }}
+                  title="Integrations"
+                >
+                  <Key />
+                  <span>Integrations</span>
+                </a>
+              )}
+            </>
+          )}
+        </nav>
+
+        <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', width: '100%', flexShrink: 0 }}>
+          {activeTab !== 'settings' && (
             <a 
               className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => { setActiveTab('settings'); setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
+              title="Settings"
             >
               <Settings />
               <span>Settings</span>
             </a>
-            {activeTab === 'settings' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
-                <a 
-                  className={`nav-link ${settingsSubTab === 'general' ? 'active' : ''}`}
-                  onClick={() => { setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
-                  style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                  title="General Settings"
-                >
-                  <Sliders />
-                  <span>General Settings</span>
-                </a>
-                {canReadUsers && (
-                  <a 
-                    className={`nav-link ${settingsSubTab === 'users' ? 'active' : ''}`}
-                    onClick={() => { setSettingsSubTab('users'); setIsMobileMenuOpen(false); }}
-                    style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                    title="User Management"
-                  >
-                    <Users />
-                    <span>User Management</span>
-                  </a>
-                )}
-                {user.auth_provider === 'sso' && canReadCalendar && (
-                  <a 
-                    className={`nav-link ${settingsSubTab === 'calendar' ? 'active' : ''}`}
-                    onClick={() => { setSettingsSubTab('calendar'); setIsMobileMenuOpen(false); }}
-                    style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                    title="Calendar Settings"
-                  >
-                    <Calendar />
-                    <span>Calendar Settings</span>
-                  </a>
-                )}
-                {canReadRoles && (
-                  <a 
-                    className={`nav-link ${settingsSubTab === 'roles' ? 'active' : ''}`}
-                    onClick={() => { setSettingsSubTab('roles'); setIsMobileMenuOpen(false); }}
-                    style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                    title="Role & RBAC Settings"
-                  >
-                    <Shield />
-                    <span>Role & RBAC Settings</span>
-                  </a>
-                )}
-                {canReadSSO && (
-                  <a 
-                    className={`nav-link ${settingsSubTab === 'sso' ? 'active' : ''}`}
-                    onClick={() => { setSettingsSubTab('sso'); setIsMobileMenuOpen(false); }}
-                    style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                    title="SSO Configuration"
-                  >
-                    <Lock />
-                    <span>SSO Configuration</span>
-                  </a>
-                )}
-                {canReadBranding && (
-                  <a 
-                    className={`nav-link ${settingsSubTab === 'branding' ? 'active' : ''}`}
-                    onClick={() => { setSettingsSubTab('branding'); setIsMobileMenuOpen(false); }}
-                    style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                    title="Branding Settings"
-                  >
-                    <Palette />
-                    <span>Branding Settings</span>
-                  </a>
-                )}
-
-                {user.role_name === 'Administrator' && (
-                  <a 
-                    className={`nav-link ${settingsSubTab === 'notifications' ? 'active' : ''}`}
-                    onClick={() => { setSettingsSubTab('notifications'); setIsMobileMenuOpen(false); }}
-                    style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                    title="Notifications"
-                  >
-                    <Bell />
-                    <span>Notifications</span>
-                  </a>
-                )}
-                {user.role_name === 'Administrator' && (
-                  <a 
-                    className={`nav-link ${settingsSubTab === 'integrations' ? 'active' : ''}`}
-                    onClick={() => { setSettingsSubTab('integrations'); setIsMobileMenuOpen(false); }}
-                    style={!isSidebarCollapsed ? { paddingLeft: '2.5rem', fontSize: '0.85rem' } : {}}
-                    title="Integrations"
-                  >
-                    <Key />
-                    <span>Integrations</span>
-                  </a>
-                )}
-              </div>
-            )}
-
-            <a 
-              className="nav-link" 
-              onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} 
-              style={{ color: 'var(--danger)' }}
-              title="Logout"
-            >
-              <LogOut />
-              <span>Logout</span>
-            </a>
-          </div>
-        </nav>
+          )}
+          <a 
+            className="nav-link" 
+            onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} 
+            style={{ color: 'var(--danger)' }}
+            title="Logout"
+          >
+            <LogOut />
+            <span>Logout</span>
+          </a>
+        </div>
       </aside>
 
       {/* Main Viewport */}
