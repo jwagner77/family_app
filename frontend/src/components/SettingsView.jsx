@@ -916,12 +916,13 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     borderRadius: '50%', 
                     overflow: 'hidden',
                     border: '3px solid var(--border-color)',
-                    boxShadow: 'var(--shadow-sm)'
+                    boxShadow: 'var(--shadow-sm)',
+                    flexShrink: 0
                   }}
                 >
                   <input 
                     type="color" 
-                    value={primaryColor}
+                    value={/^#[0-9A-F]{6}$/i.test(primaryColor) ? primaryColor : '#d35400'}
                     onChange={(e) => setPrimaryColor(e.target.value)}
                     style={{ 
                       position: 'absolute', 
@@ -935,10 +936,20 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     title="Choose accent color"
                   />
                 </div>
-                <div>
-                  <strong style={{ fontSize: '1rem', display: 'block' }}>Accent Color: {primaryColor.toUpperCase()}</strong>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flexGrow: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: '700', whiteSpace: 'nowrap' }}>Accent Color:</span>
+                    <input 
+                      type="text"
+                      className="input-control"
+                      value={primaryColor}
+                      onChange={(e) => setPrimaryColor(e.target.value)}
+                      placeholder="#d35400"
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.9rem', width: '150px' }}
+                    />
+                  </div>
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Use the color selector to customize the primary highlights, badges, and button accents.
+                    Use the color selector or enter a custom hex, RGB, HSL, or named CSS color.
                   </span>
                 </div>
               </div>
