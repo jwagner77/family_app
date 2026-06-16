@@ -12,6 +12,18 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+const formatDateForInput = (dateStr) => {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  } catch (e) {}
+  return '';
+};
+
 export default function SubscriptionsView({ showToast }) {
   const [subscriptions, setSubscriptions] = useState([]);
   
@@ -60,28 +72,43 @@ export default function SubscriptionsView({ showToast }) {
   const openEditModal = (sub) => {
     setModalMode('edit');
     setSelectedSubId(sub.id);
-    setSubName(sub.name);
-    setSubAmount(sub.amount);
-    setSubCycle(sub.billing_cycle);
-    setSubBillingDate(sub.next_billing_date);
+    setSubName(sub.name || '');
+    setSubAmount(sub.amount !== undefined && sub.amount !== null ? sub.amount : '');
+    setSubCycle(sub.billing_cycle || 'monthly');
+    setSubBillingDate(formatDateForInput(sub.next_billing_date));
     setSubCategory(sub.category || 'Entertainment');
     setSubPaymentMethod(sub.payment_method || '');
-    setSubActive(sub.active);
+    setSubActive(sub.active !== undefined && sub.active !== null ? sub.active : 1);
     setIsModalOpen(true);
   };
 
   const handleSaveSubscription = async (e) => {
     e.preventDefault();
-    if (!subName.trim() || !subAmount || !subBillingDate) return;
+    if (!subName || !subName.trim()) {
+      showToast('Subscription Name is required.', 'error');
+      return;
+    }
+    if (subAmount === '' || subAmount === undefined || subAmount === null) {
+      showToast('Amount is required.', 'error');
+      return;
+    }
+    if (isNaN(parseFloat(subAmount))) {
+      showToast('Amount must be a valid number.', 'error');
+      return;
+    }
+    if (!subBillingDate) {
+      showToast('Billing Date is required.', 'error');
+      return;
+    }
 
     const body = {
-      name: subName,
+      name: subName.trim(),
       amount: parseFloat(subAmount),
       billing_cycle: subCycle,
       next_billing_date: subBillingDate,
       category: subCategory,
       payment_method: subPaymentMethod,
-      active: parseInt(subActive, 10)
+      active: (subActive !== undefined && subActive !== null && !isNaN(parseInt(subActive, 10))) ? parseInt(subActive, 10) : 1
     };
 
     try {

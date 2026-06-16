@@ -14,6 +14,18 @@ import {
   Tag
 } from 'lucide-react';
 
+const formatDateForInput = (dateStr) => {
+  if (!dateStr) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+  try {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+  } catch (e) {}
+  return '';
+};
+
 export default function BillsView({ showToast }) {
   const [bills, setBills] = useState([]);
   const [tags, setTags] = useState([]);
@@ -76,28 +88,43 @@ export default function BillsView({ showToast }) {
   const openEditModal = (bill) => {
     setModalMode('edit');
     setSelectedBillId(bill.id);
-    setBillName(bill.name);
-    setBillAmount(bill.amount);
-    setBillCycle(bill.billing_cycle);
-    setBillBillingDate(bill.next_billing_date);
+    setBillName(bill.name || '');
+    setBillAmount(bill.amount !== undefined && bill.amount !== null ? bill.amount : '');
+    setBillCycle(bill.billing_cycle || 'monthly');
+    setBillBillingDate(formatDateForInput(bill.next_billing_date));
     setBillTag(bill.tag || '');
     setBillPaymentMethod(bill.payment_method || '');
-    setBillActive(bill.active);
+    setBillActive(bill.active !== undefined && bill.active !== null ? bill.active : 1);
     setIsModalOpen(true);
   };
 
   const handleSaveBill = async (e) => {
     e.preventDefault();
-    if (!billName.trim() || !billAmount || !billBillingDate) return;
+    if (!billName || !billName.trim()) {
+      showToast('Bill Name is required.', 'error');
+      return;
+    }
+    if (billAmount === '' || billAmount === undefined || billAmount === null) {
+      showToast('Amount is required.', 'error');
+      return;
+    }
+    if (isNaN(parseFloat(billAmount))) {
+      showToast('Amount must be a valid number.', 'error');
+      return;
+    }
+    if (!billBillingDate) {
+      showToast('Due Date is required.', 'error');
+      return;
+    }
 
     const body = {
-      name: billName,
+      name: billName.trim(),
       amount: parseFloat(billAmount),
       billing_cycle: billCycle,
       next_billing_date: billBillingDate,
       tag: billTag.trim(),
       payment_method: billPaymentMethod,
-      active: parseInt(billActive, 10)
+      active: (billActive !== undefined && billActive !== null && !isNaN(parseInt(billActive, 10))) ? parseInt(billActive, 10) : 1
     };
 
     try {
