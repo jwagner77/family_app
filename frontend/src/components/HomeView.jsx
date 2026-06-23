@@ -99,25 +99,20 @@ export default function HomeView({ onNavigateTab, user }) {
     return eventDate >= todayStr && eventDate <= nextWeekStr;
   });
 
+  const formatDueDays = (dueInDays) => {
+    if (dueInDays === 0) return 'Today';
+    if (dueInDays === 1) return 'Tomorrow';
+    if (dueInDays < 0) return `Overdue by ${Math.abs(dueInDays)} days`;
+    return `due in ${dueInDays} days`;
+  };
+
   // Active subscriptions renewal alerts (next 7 days)
   const activeSubs = subscriptions.filter(s => s.active === 1);
-  const renewingSubsSoon = activeSubs.filter(s => {
-    const nextDate = new Date(s.next_billing_date);
-    const today = new Date();
-    const diffTime = nextDate - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 && diffDays <= 7;
-  });
+  const renewingSubsSoon = activeSubs.filter(s => s.due_in_days !== undefined && s.due_in_days !== null && s.due_in_days >= 0 && s.due_in_days <= 7);
 
   // Active bills renewals (next 7 days)
   const activeBills = bills.filter(b => b.active === 1);
-  const upcomingBillsSoon = activeBills.filter(b => {
-    const nextDate = new Date(b.next_billing_date);
-    const today = new Date();
-    const diffTime = nextDate - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays >= 0 && diffDays <= 7;
-  });
+  const upcomingBillsSoon = activeBills.filter(b => b.due_in_days !== undefined && b.due_in_days !== null && b.due_in_days >= 0 && b.due_in_days <= 7);
 
   // Sum monthly spending
   const monthlySubscriptionSpend = activeSubs.reduce((acc, curr) => {
@@ -285,7 +280,7 @@ export default function HomeView({ onNavigateTab, user }) {
                 <div>
                   <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{sub.name}</h5>
                   <span style={{ fontSize: '0.75rem', color: '#e65100', fontWeight: '600' }}>
-                    Renews: {sub.next_billing_date}
+                    Renews: {sub.next_billing_date} ({formatDueDays(sub.due_in_days)})
                   </span>
                 </div>
                 <div style={{ fontWeight: '800', fontSize: '1rem', color: '#e65100' }}>
@@ -323,7 +318,7 @@ export default function HomeView({ onNavigateTab, user }) {
                 <div>
                   <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{bill.name}</h5>
                   <span style={{ fontSize: '0.75rem', color: '#0288d1', fontWeight: '600' }}>
-                    Due: {bill.next_billing_date} {bill.tag && `• ${bill.tag}`}
+                    Due: {bill.next_billing_date} ({formatDueDays(bill.due_in_days)}) {bill.tag && `• ${bill.tag}`}
                   </span>
                 </div>
                 <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0288d1' }}>

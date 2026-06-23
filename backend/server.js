@@ -172,6 +172,37 @@ function normalizeTimezone(tz) {
   return mapping[tz] || tz || 'America/New_York';
 }
 
+// Timezone-aware helper to calculate remaining days until a billing date string (YYYY-MM-DD)
+function getDaysRemaining(nextBillingDateStr, userTimezone = 'America/New_York') {
+  if (!nextBillingDateStr) return null;
+  
+  try {
+    const [year, month, day] = nextBillingDateStr.split('-').map(Number);
+    const now = new Date();
+    
+    // Format current date components in user's timezone
+    const tzTodayStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: normalizeTimezone(userTimezone),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now);
+    
+    const [tMonth, tDay, tYear] = tzTodayStr.split('/').map(Number);
+    
+    const targetDate = new Date(year, month - 1, day);
+    const todayAtMidnight = new Date(tYear, tMonth - 1, tDay);
+    
+    const diffTime = targetDate - todayAtMidnight;
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  } catch (error) {
+    console.error('Error calculating days remaining:', error);
+    return null;
+  }
+}
+
+
 // Helper to retrieve a valid M365 access token from database, refreshing silently if expired
 async function getValidM365Token(userId) {
   const user = await getUserById(userId);
@@ -1282,7 +1313,12 @@ app.get('/api/subscriptions', authenticate, async (req, res) => {
   try {
     const db = await getDb();
     const subs = await db.all("SELECT * FROM subscriptions ORDER BY next_billing_date ASC");
-    res.json(subs);
+    const userTz = req.user?.timezone || 'America/New_York';
+    const mappedSubs = subs.map(sub => ({
+      ...sub,
+      due_in_days: getDaysRemaining(sub.next_billing_date, userTz)
+    }));
+    res.json(mappedSubs);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1348,7 +1384,12 @@ app.get('/api/bills', authenticate, async (req, res) => {
   try {
     const db = await getDb();
     const bills = await db.all("SELECT * FROM recurring_bills ORDER BY next_billing_date ASC");
-    res.json(bills);
+    const userTz = req.user?.timezone || 'America/New_York';
+    const mappedBills = bills.map(bill => ({
+      ...bill,
+      due_in_days: getDaysRemaining(bill.next_billing_date, userTz)
+    }));
+    res.json(mappedBills);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1710,8 +1751,8 @@ async function syncAllUsersM365() {
   }
 }
 
-// Run background sync every 5 minutes (300,000 ms)
-setInterval(syncAllUsersM365, 300000);
+// Run background sync every 1 hour (3,600,000 ms)
+setInterval(syncAllUsersM365, 3600000);
 
 
 // Serve frontend build static files (production ready)

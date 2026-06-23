@@ -213,12 +213,54 @@ export default function CalendarView({ showToast, currentUser }) {
     daysArr.push({ day: d, isCurrentMonth: false, dateStr });
   }
 
+  // Helper to calculate all YYYY-MM-DD dates that an event spans
+  const getDatesSpanned = (startStr, endStr) => {
+    if (!startStr || !endStr) return [];
+    const startDateOnly = startStr.split('T')[0];
+    const endDateOnly = endStr.split('T')[0];
+    
+    if (startDateOnly === endDateOnly) {
+      return [startDateOnly];
+    }
+    
+    const start = new Date(startStr);
+    let end = new Date(endStr);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return [startDateOnly];
+    }
+    
+    // Adjust end date if it is exactly midnight to handle all-day events correctly (e.g. 2026-06-23T00:00 to 2026-06-24T00:00 should only show on the 23rd)
+    const endHours = end.getHours();
+    const endMinutes = end.getMinutes();
+    const endSeconds = end.getSeconds();
+    const endMs = end.getMilliseconds();
+    if (endHours === 0 && endMinutes === 0 && endSeconds === 0 && endMs === 0) {
+      end = new Date(end.getTime() - 1000);
+    }
+    
+    const dates = [];
+    const current = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endCompare = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    
+    while (current <= endCompare) {
+      const yearStr = current.getFullYear();
+      const monthStr = String(current.getMonth() + 1).padStart(2, '0');
+      const dayStr = String(current.getDate()).padStart(2, '0');
+      dates.push(`${yearStr}-${monthStr}-${dayStr}`);
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  };
+
   // Group events and tasks by date
   const eventsByDate = {};
   events.forEach(e => {
-    const datePart = e.start_time.split('T')[0];
-    if (!eventsByDate[datePart]) eventsByDate[datePart] = [];
-    eventsByDate[datePart].push({ ...e, calendar_type: 'event' });
+    const dates = getDatesSpanned(e.start_time, e.end_time);
+    dates.forEach(datePart => {
+      if (!eventsByDate[datePart]) eventsByDate[datePart] = [];
+      eventsByDate[datePart].push({ ...e, calendar_type: 'event' });
+    });
   });
 
   tasks.forEach(t => {
