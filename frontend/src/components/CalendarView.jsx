@@ -417,87 +417,89 @@ export default function CalendarView({ showToast, currentUser }) {
               <button className="close-btn" onClick={() => setIsModalOpen(false)}>×</button>
             </div>
             
-            <form onSubmit={handleSaveEvent} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingTop: '0.5rem' }}>
-              <div className="form-group">
-                <label>Event Subject / Title</label>
-                <input 
-                  type="text" 
-                  className="input-control" 
-                  placeholder="e.g. Family Dinner" 
-                  value={eventTitle}
-                  onChange={e => setEventTitle(e.target.value)}
-                  required 
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label><Clock size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> Start Time</label>
+            <form onSubmit={handleSaveEvent}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0 1.5rem 1.5rem 1.5rem' }}>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Event Subject / Title</label>
                   <input 
-                    type="datetime-local" 
+                    type="text" 
                     className="input-control" 
-                    value={eventStartTime}
-                    onChange={e => setEventStartTime(e.target.value)}
-                    required
+                    placeholder="e.g. Family Dinner" 
+                    value={eventTitle}
+                    onChange={e => setEventTitle(e.target.value)}
+                    required 
                   />
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label><Clock size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> End Time</label>
+
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: 0 }}>
+                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label><Clock size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> Start Time</label>
+                    <input 
+                      type="datetime-local" 
+                      className="input-control" 
+                      value={eventStartTime}
+                      onChange={e => setEventStartTime(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                    <label><Clock size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> End Time</label>
+                    <input 
+                      type="datetime-local" 
+                      className="input-control" 
+                      value={eventEndTime}
+                      onChange={e => setEventEndTime(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label><MapPin size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> Location</label>
                   <input 
-                    type="datetime-local" 
+                    type="text" 
                     className="input-control" 
-                    value={eventEndTime}
-                    onChange={e => setEventEndTime(e.target.value)}
-                    required
+                    placeholder="e.g. Dining Room, or Online" 
+                    value={eventLocation}
+                    onChange={e => setEventLocation(e.target.value)}
                   />
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label><MapPin size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> Location</label>
-                <input 
-                  type="text" 
-                  className="input-control" 
-                  placeholder="e.g. Dining Room, or Online" 
-                  value={eventLocation}
-                  onChange={e => setEventLocation(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Description / Notes</label>
-                <textarea 
-                  className="input-control" 
-                  value={eventDesc}
-                  onChange={e => setEventDesc(e.target.value)}
-                  rows={3}
-                  placeholder="Add notes..."
-                  style={{ resize: 'none' }}
-                />
-              </div>
-
-              {currentUser.calendar_guid && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem', background: 'var(--bg-main)', padding: '0.75rem', borderRadius: '12px' }}>
-                  <Info size={14} style={{ color: 'var(--primary)' }} />
-                  <span>Events created here will sync to your Microsoft Calendar.</span>
+                <div className="form-group" style={{ marginBottom: 0 }}>
+                  <label>Description / Notes</label>
+                  <textarea 
+                    className="input-control" 
+                    value={eventDesc}
+                    onChange={e => setEventDesc(e.target.value)}
+                    rows={2}
+                    placeholder="Add notes..."
+                    style={{ resize: 'none', minHeight: '70px' }}
+                  />
                 </div>
-              )}
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.5rem' }}>
-                {modalMode === 'edit' ? (
-                  <button 
-                    type="button" 
-                    className="btn btn-outline" 
-                    style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                    onClick={handleDeleteEvent}
-                  >
-                    <Trash2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> Delete
-                  </button>
-                ) : <div />}
-                
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  <button type="button" className="btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancel</button>
-                  <button type="submit" className="btn btn-primary">Save Event</button>
+                {currentUser.calendar_guid && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', background: 'var(--bg-main)', padding: '0.5rem 0.75rem', borderRadius: '12px' }}>
+                    <Info size={14} style={{ color: 'var(--primary)' }} />
+                    <span>Events created here will sync to your Microsoft Calendar.</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', marginTop: '0.25rem' }}>
+                  {modalMode === 'edit' ? (
+                    <button 
+                      type="button" 
+                      className="btn btn-outline" 
+                      style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }}
+                      onClick={handleDeleteEvent}
+                    >
+                      <Trash2 size={16} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> Delete
+                    </button>
+                  ) : <div />}
+                  
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <button type="button" className="btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary">Save Event</button>
+                  </div>
                 </div>
               </div>
             </form>
