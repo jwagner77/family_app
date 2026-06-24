@@ -409,7 +409,7 @@ export default function CalendarView({ showToast, currentUser }) {
       {/* Modal Dialog for Create/Edit Calendar Event */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '560px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '580px' }}>
             <div className="modal-header">
               <h2 style={{ fontSize: '1.25rem', fontWeight: '800' }}>
                 {modalMode === 'create' ? 'Create Calendar Event' : 'Event Details'}
@@ -432,7 +432,7 @@ export default function CalendarView({ showToast, currentUser }) {
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: 0 }}>
-                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
                     <label><Clock size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> Start Time</label>
                     <input 
                       type="datetime-local" 
@@ -442,7 +442,7 @@ export default function CalendarView({ showToast, currentUser }) {
                       required
                     />
                   </div>
-                  <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                  <div className="form-group" style={{ flex: 1, minWidth: 0, marginBottom: 0 }}>
                     <label><Clock size={14} style={{ verticalAlign: 'middle', marginRight: '0.25rem' }} /> End Time</label>
                     <input 
                       type="datetime-local" 
