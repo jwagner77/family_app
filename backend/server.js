@@ -202,6 +202,13 @@ function getDaysRemaining(nextBillingDateStr, userTimezone = 'America/New_York')
   }
 }
 
+// Normalizes any datetime string to YYYY-MM-DDTHH:mm format (minute precision)
+function formatToMinutes(dtStr) {
+  if (!dtStr) return '';
+  return dtStr.includes('T') ? dtStr.substring(0, 16) : dtStr;
+}
+
+
 
 // Helper to retrieve a valid M365 access token from database, refreshing silently if expired
 async function getValidM365Token(userId) {
@@ -1625,8 +1632,12 @@ async function syncCalendarForUser(userId) {
   const db = await getDb();
 
   try {
+    const userTz = normalizeTimezone(user.timezone);
     const calRes = await fetch(`https://graph.microsoft.com/v1.0/me/calendars/${user.calendar_guid}/events?$top=100`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Prefer': `outlook.timezone="${userTz}"`
+      }
     });
 
     if (!calRes.ok) {
@@ -1642,8 +1653,8 @@ async function syncCalendarForUser(userId) {
       
       const title = me.subject || 'No Title';
       const description = me.body?.content || '';
-      const start = me.start?.dateTime;
-      const end = me.end?.dateTime;
+      const start = formatToMinutes(me.start?.dateTime);
+      const end = formatToMinutes(me.end?.dateTime);
       const location = me.location?.displayName || '';
 
       if (!localEvent) {
@@ -1652,9 +1663,9 @@ async function syncCalendarForUser(userId) {
           [title, description, start, end, location, me.id]
         );
       } else {
-        if (localEvent.title !== title || localEvent.description !== description || localEvent.start_time !== start || localEvent.end_time !== end || localEvent.location !== location) {
+        if (localEvent.title !== title || localEvent.description !== description || formatToMinutes(localEvent.start_time) !== start || formatToMinutes(localEvent.end_time) !== end || localEvent.location !== location) {
           await db.run(
-            "UPDATE calendar_events SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            "UPDATE calendar_events SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, updated_at = created_at WHERE id = ?",
             [title, description, start, end, location, localEvent.id]
           );
         }
@@ -1720,7 +1731,7 @@ async function syncCalendarForUser(userId) {
         }
       };
 
-      await fetch(`https://graph.microsoft.com/v1.0/me/events/${ue.m365_event_id}`, {
+      const patchRes = await fetch(`https://graph.microsoft.com/v1.0/me/events/${ue.m365_event_id}`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1728,6 +1739,12 @@ async function syncCalendarForUser(userId) {
         },
         body: JSON.stringify(body)
       });
+
+      if (patchRes.ok) {
+        await db.run("UPDATE calendar_events SET updated_at = created_at WHERE id = ?", [ue.id]);
+      } else {
+        console.error(`Failed to patch event ${ue.id} to MS Graph:`, await patchRes.text());
+      }
     }
 
   } catch (err) {
