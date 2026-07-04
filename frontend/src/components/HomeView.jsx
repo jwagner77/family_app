@@ -137,31 +137,31 @@ export default function HomeView({ onNavigateTab, user }) {
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '3rem' }}>
       
       {/* Welcome Banner */}
-      <div className="card" style={{ padding: '2.5rem', background: 'linear-gradient(135deg, var(--bg-card), var(--primary-light))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
+      <div className="card" style={{ padding: '2.5rem', background: 'linear-gradient(135deg, var(--card), var(--primary-light))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
         <div>
           <h2 style={{ fontSize: '2.25rem', fontWeight: '800', margin: 0, letterSpacing: '-0.5px' }}>
             {getGreeting()}, {user?.display_name || user?.username}! 🏠
           </h2>
-          <p style={{ color: 'var(--text-muted)', marginTop: '0.5rem', fontSize: '1.05rem', marginBottom: 0 }}>
+          <p style={{ color: 'var(--muted-foreground)', marginTop: '0.5rem', fontSize: '1.05rem', marginBottom: 0 }}>
             Here is a summary of what's happening in your household.
           </p>
         </div>
         
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>TASKS TO DO</span>
+          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>TASKS TO DO</span>
             <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800' }}>{pendingTasks.length}</h4>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>SUBSCRIPTION SPEND</span>
+          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>SUBSCRIPTION SPEND</span>
             <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${monthlySubscriptionSpend.toFixed(0)}</h4>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>BILL SPEND</span>
+          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>BILL SPEND</span>
             <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${monthlyBillSpend.toFixed(0)}</h4>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--bg-card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border-color)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '700' }}>TOTAL SPEND</span>
+          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>TOTAL SPEND</span>
             <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${totalMonthlySpend.toFixed(0)}</h4>
           </div>
         </div>
@@ -172,7 +172,7 @@ export default function HomeView({ onNavigateTab, user }) {
         
         {/* Column 1: Tasks Due Soon */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
             <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
               <ListTodo size={20} style={{ color: '#4caf50' }} /> Tasks Due Soon
             </h3>
@@ -187,16 +187,16 @@ export default function HomeView({ onNavigateTab, user }) {
 
           <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {upcomingTasks.slice(0, 5).map(task => (
-              <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.5rem', borderRadius: '12px', background: 'var(--bg-main)' }}>
-                <CheckCircle size={18} style={{ color: 'var(--text-muted)', marginTop: '0.15rem', shrink: 0 }} />
+              <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.5rem', borderRadius: '12px', background: 'var(--muted)' }}>
+                <CheckCircle size={18} style={{ color: 'var(--muted-foreground)', marginTop: '0.15rem', shrink: 0 }} />
                 <div style={{ overflow: 'hidden' }}>
                   <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{task.title}</h5>
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--danger)', fontWeight: '600' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--destructive)', fontWeight: '600' }}>
                       Due: {task.due_date}
                     </span>
                     {task.list_name && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                         in {task.list_name}
                       </span>
                     )}
@@ -205,7 +205,7 @@ export default function HomeView({ onNavigateTab, user }) {
               </div>
             ))}
             {upcomingTasks.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '0.5rem' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
                 <CheckCircle size={32} style={{ color: '#4caf50', opacity: 0.5 }} />
                 No tasks due this week!
               </div>
@@ -215,7 +215,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
         {/* Column 2: Upcoming Events */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
             <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
               <Calendar size={20} style={{ color: 'var(--primary)' }} /> Next 7 Days Events
             </h3>
@@ -233,7 +233,7 @@ export default function HomeView({ onNavigateTab, user }) {
               const datePart = event.start_time.split('T')[0];
               const timePart = event.start_time.split('T')[1]?.substring(0, 5) || '';
               return (
-                <div key={event.id} style={{ display: 'flex', gap: '0.75rem', padding: '0.65rem', borderRadius: '12px', background: 'var(--bg-main)' }}>
+                <div key={event.id} style={{ display: 'flex', gap: '0.75rem', padding: '0.65rem', borderRadius: '12px', background: 'var(--muted)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--primary-light)', color: 'var(--primary)', padding: '0.4rem 0.6rem', borderRadius: '10px', minWidth: '50px', fontWeight: '700', fontSize: '0.8rem' }}>
                     <span style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
                       {new Date(datePart + 'T12:00:00').toLocaleString('default', { month: 'short' })}
@@ -243,7 +243,7 @@ export default function HomeView({ onNavigateTab, user }) {
                   
                   <div style={{ overflow: 'hidden' }}>
                     <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{event.title}</h5>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
                       <Clock size={12} /> {timePart || 'All day'} {event.location ? `• ${event.location}` : ''}
                     </span>
                   </div>
@@ -251,7 +251,7 @@ export default function HomeView({ onNavigateTab, user }) {
               );
             })}
             {upcomingEvents.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '0.5rem' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
                 <Calendar size={32} style={{ color: 'var(--primary)', opacity: 0.5 }} />
                 No events scheduled this week.
               </div>
@@ -261,7 +261,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
         {/* Column 3: Subscription Alerts */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
             <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
               <CreditCard size={20} style={{ color: '#ff9800' }} /> Subscription Alerts
             </h3>
@@ -289,7 +289,7 @@ export default function HomeView({ onNavigateTab, user }) {
               </div>
             ))}
             {renewingSubsSoon.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '0.5rem' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
                 <TrendingUp size={32} style={{ color: '#ff9800', opacity: 0.5 }} />
                 No subscription renewals in the next 7 days.
               </div>
@@ -299,7 +299,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
         {/* Column 4: Upcoming Bills */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
             <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
               <Receipt size={20} style={{ color: '#03a9f4' }} /> Upcoming Bills
             </h3>
@@ -327,7 +327,7 @@ export default function HomeView({ onNavigateTab, user }) {
               </div>
             ))}
             {upcomingBillsSoon.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '0.5rem' }}>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
                 <TrendingUp size={32} style={{ color: '#03a9f4', opacity: 0.5 }} />
                 No bill renewals in the next 7 days.
               </div>

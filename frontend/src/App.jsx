@@ -18,12 +18,12 @@ import {
   Key,
   CheckCircle,
   AlertCircle,
-  CreditCard,
-  Receipt,
   Sun,
   Moon,
   Lightbulb,
-  Bug
+  Bug,
+  CreditCard,
+  Receipt
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -58,12 +58,12 @@ window.fetch = async (url, options = {}) => {
 // Components
 import SettingsView from './components/SettingsView';
 import HomeView from './components/HomeView';
+import FeatureRequestsView from './components/FeatureRequestsView';
+import BugReportsView from './components/BugReportsView';
 import TasksView from './components/TasksView';
 import CalendarView from './components/CalendarView';
 import SubscriptionsView from './components/SubscriptionsView';
 import BillsView from './components/BillsView';
-import FeatureRequestsView from './components/FeatureRequestsView';
-import BugReportsView from './components/BugReportsView';
 
 // Contrast checking function using relative luminance
 function getContrastColor(hexColor) {
@@ -107,6 +107,7 @@ export default function App() {
       setLastTab(activeTab);
     }
   }, [activeTab]);
+
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState(null);
   
@@ -116,10 +117,38 @@ export default function App() {
   const [theme, setTheme] = useState(localStorage.getItem('last_theme') || 'system');
   const [brandingIcon, setBrandingIcon] = useState('⚙️');
   const [brandingLogo, setBrandingLogo] = useState('');
+  const [brandingLogoLight, setBrandingLogoLight] = useState('');
+  const [brandingLogoDark, setBrandingLogoDark] = useState('');
   const [brandingFavicon, setBrandingFavicon] = useState('');
+
+  const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const resolvedTheme = theme === 'system' ? (isSystemDark ? 'dark' : 'light') : theme;
+  const currentLogo = resolvedTheme === 'dark' 
+    ? (brandingLogoDark || brandingLogoLight || brandingLogo) 
+    : (brandingLogoLight || brandingLogoDark || brandingLogo);
+  const isTextWhite = getContrastColor(primaryColor) === '#ffffff';
+  const currentNavBarLogo = isTextWhite
+    ? (brandingLogoLight || brandingLogo)
+    : (brandingLogoDark || brandingLogo);
 
   // Demo Modal state
   const [isDemoModalOpen, setIsDemoModalOpen] = useState(false);
+  const [isModalRendered, setIsModalRendered] = useState(false);
+  const [isModalClosing, setIsModalClosing] = useState(false);
+
+  useEffect(() => {
+    if (isDemoModalOpen) {
+      setIsModalRendered(true);
+      setIsModalClosing(false);
+    } else if (isModalRendered) {
+      setIsModalClosing(true);
+      const timer = setTimeout(() => {
+        setIsModalRendered(false);
+        setIsModalClosing(false);
+      }, 250); // Match CSS animation duration
+      return () => clearTimeout(timer);
+    }
+  }, [isDemoModalOpen]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -131,7 +160,7 @@ export default function App() {
     
     const syncStatus = params.get('calendar_sync');
     if (syncStatus === 'success') {
-      showToast('Weekly meal plan synced successfully to your Microsoft Calendar!', 'success');
+      showToast('Events synced successfully to your Microsoft Calendar!', 'success');
     } else if (syncStatus === 'error') {
       const details = params.get('details') || '';
       showToast(`Failed to sync to Microsoft Calendar: ${details}`, 'error');
@@ -187,6 +216,15 @@ export default function App() {
   useEffect(() => {
     document.title = appName;
   }, [appName]);
+
+  const goBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      setActiveTab('home');
+    }
+  };
+
   // Synchronize hash with active tab state
   useEffect(() => {
     if (!token || !user) {
@@ -210,7 +248,7 @@ export default function App() {
       const tab = parts[0] || 'home';
       const subTab = parts[1] || 'general';
       
-      const validTabs = ['home', 'todo', 'calendar', 'subscriptions', 'bills', 'settings'];
+      const validTabs = ['home', 'settings', 'features', 'bugs', 'todo', 'calendar', 'subscriptions', 'bills'];
       if (validTabs.includes(tab)) {
         setActiveTab(tab);
         if (tab === 'settings') {
@@ -226,7 +264,6 @@ export default function App() {
 
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, [token, user]);
-
 
   const toggleSidebar = () => {
     const nextState = !isSidebarCollapsed;
@@ -268,6 +305,16 @@ export default function App() {
     }
   };
 
+  const applyTheme = (themeValue) => {
+    const root = document.documentElement;
+    root.classList.remove('theme-light', 'theme-dark');
+    if (themeValue === 'light') {
+      root.classList.add('theme-light');
+    } else if (themeValue === 'dark') {
+      root.classList.add('theme-dark');
+    }
+  };
+
   const toggleTheme = async () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
@@ -293,25 +340,17 @@ export default function App() {
           });
         }
       } catch (err) {
-        console.error('Error saving theme settings:', err);
+        console.error('Failed to update theme in profile:', err);
       }
     }
   };
 
-  const applyTheme = (themeValue) => {
-    const root = document.documentElement;
-    root.classList.remove('theme-light', 'theme-dark');
-    if (themeValue === 'light') {
-      root.classList.add('theme-light');
-    } else if (themeValue === 'dark') {
-      root.classList.add('theme-dark');
-    }
-  };
-
-  const handleSettingsChange = ({ appName, primaryColor, theme, brandingIcon, brandingLogo, brandingFavicon, displayName, calendarGuid, timezone }) => {
+  const handleSettingsChange = ({ appName, primaryColor, theme, brandingIcon, brandingLogo, brandingLogoLight, brandingLogoDark, brandingFavicon, displayName, calendarGuid, timezone }) => {
     if (appName !== undefined) setAppName(appName);
     if (brandingIcon !== undefined) setBrandingIcon(brandingIcon);
     if (brandingLogo !== undefined) setBrandingLogo(brandingLogo);
+    if (brandingLogoLight !== undefined) setBrandingLogoLight(brandingLogoLight);
+    if (brandingLogoDark !== undefined) setBrandingLogoDark(brandingLogoDark);
     if (brandingFavicon !== undefined) setBrandingFavicon(brandingFavicon);
     if (primaryColor !== undefined) {
       setPrimaryColor(primaryColor);
@@ -354,6 +393,8 @@ export default function App() {
         if (data.app_name) setAppName(data.app_name);
         setBrandingIcon(data.branding_icon !== undefined ? data.branding_icon : '⚙️');
         setBrandingLogo(data.branding_logo || '');
+        setBrandingLogoLight(data.branding_logo_light || '');
+        setBrandingLogoDark(data.branding_logo_dark || '');
         setBrandingFavicon(data.branding_favicon || '');
       }
     } catch (err) {
@@ -414,13 +455,15 @@ export default function App() {
       {/* Mobile Header Bar */}
       <header className="mobile-header">
         <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)} title="Open Menu">
-          <Menu size={24} />
+          <Menu size={20} />
         </button>
         <span className="mobile-header-title">
-          {brandingLogo ? (
-            <img src={brandingLogo} alt={appName} style={{ maxHeight: '32px', maxWidth: '180px', objectFit: 'contain', display: 'block' }} />
+          {currentNavBarLogo ? (
+            <img src={currentNavBarLogo} alt={appName} style={{ maxHeight: '24px', maxWidth: '140px', objectFit: 'contain', display: 'block' }} />
           ) : (
-            <>{brandingIcon !== 'none' && brandingIcon} {appName}</>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-foreground)' }}>
+              {brandingIcon !== 'none' && brandingIcon} {appName}
+            </span>
           )}
         </span>
       </header>
@@ -432,23 +475,45 @@ export default function App() {
 
       {/* Sidebar Navigation */}
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
-        <div className="sidebar-brand">
-          <h1 className="sidebar-logo-text" style={{ color: 'var(--primary-foreground)' }}>
-            {brandingLogo ? (
-              <img src={brandingLogo} alt={appName} style={{ maxHeight: '40px', maxWidth: '180px', objectFit: 'contain', display: 'block' }} />
-            ) : (
-              <span style={{ color: 'var(--primary-foreground)' }}>{brandingIcon !== 'none' && brandingIcon} {appName}</span>
-            )}
-          </h1>
-          <h1 className="sidebar-logo-collapsed" style={{ color: 'var(--primary-foreground)' }}>
-            {brandingIcon !== 'none' ? brandingIcon : (brandingLogo ? <img src={brandingLogo} alt="" style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }} /> : '⚙️')}
-          </h1>
-          <button className="sidebar-toggle-btn" onClick={toggleSidebar} title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"} style={{ color: 'var(--primary-foreground)' }}>
-            {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+        <div className="sidebar-brand" style={{ position: 'relative', width: '100%', paddingBottom: '0.5rem' }}>
+          {!isSidebarCollapsed && (
+            <div className="sidebar-logo-text" style={{ width: '100%', paddingRight: '2rem', boxSizing: 'border-box' }}>
+              {currentNavBarLogo ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <img src={currentNavBarLogo} alt={appName} style={{ maxHeight: '28px', maxWidth: '120px', objectFit: 'contain', display: 'block' }} />
+                  <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--primary-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '100px' }}>{appName}</span>
+                </div>
+              ) : (
+                <h1 style={{ fontSize: '1rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--primary-foreground)' }}>
+                  {brandingIcon !== 'none' && brandingIcon} {appName}
+                </h1>
+              )}
+            </div>
+          )}
+          {isSidebarCollapsed && (
+            <h1 className="sidebar-logo-collapsed" style={{ margin: 0 }}>
+              {brandingFavicon && (
+                <img src={brandingFavicon} alt="" style={{ maxHeight: '24px', maxWidth: '24px', objectFit: 'contain' }} />
+              )}
+            </h1>
+          )}
+          <button 
+            className="sidebar-toggle-btn" 
+            onClick={toggleSidebar} 
+            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"} 
+            style={{ 
+              position: isSidebarCollapsed ? 'relative' : 'absolute', 
+              right: isSidebarCollapsed ? 'auto' : '-0.25rem', 
+              top: isSidebarCollapsed ? 'auto' : '50%', 
+              transform: isSidebarCollapsed ? 'none' : 'translateY(-50%)', 
+              marginTop: isSidebarCollapsed ? '0.75rem' : '0' 
+            }}
+          >
+            {isSidebarCollapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
           </button>
         </div>
         
-        <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingRight: '0.25rem' }}>
+        <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', minHeight: 0, marginTop: '1rem' }}>
           {activeTab !== 'settings' ? (
             <>
               <a 
@@ -456,17 +521,15 @@ export default function App() {
                 onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}
               >
                 <LayoutDashboard />
-                <span>Dashboard</span>
+                <span>Home</span>
               </a>
-
               <a 
                 className={`nav-link ${activeTab === 'todo' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('todo'); setIsMobileMenuOpen(false); }}
               >
                 <FileCheck />
-                <span>Tasks</span>
+                <span>Todo List</span>
               </a>
-
               <a 
                 className={`nav-link ${activeTab === 'calendar' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('calendar'); setIsMobileMenuOpen(false); }}
@@ -474,7 +537,6 @@ export default function App() {
                 <Calendar />
                 <span>Calendar</span>
               </a>
-
               <a 
                 className={`nav-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('subscriptions'); setIsMobileMenuOpen(false); }}
@@ -482,13 +544,12 @@ export default function App() {
                 <CreditCard />
                 <span>Subscriptions</span>
               </a>
-
               <a 
                 className={`nav-link ${activeTab === 'bills' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('bills'); setIsMobileMenuOpen(false); }}
               >
                 <Receipt />
-                <span>Recurring Bills</span>
+                <span>Bills</span>
               </a>
             </>
           ) : (
@@ -588,7 +649,7 @@ export default function App() {
           )}
         </nav>
 
-        <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', width: '100%', flexShrink: 0 }}>
+        <div className="sidebar-footer">
           {activeTab !== 'settings' && (
             <>
               <a 
@@ -651,7 +712,7 @@ export default function App() {
         {toast && (
           <div className={`alert-banner ${toast.type === 'success' ? 'alert-success' : 'alert-error'}`}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {toast.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+              {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
               {toast.text}
             </span>
             <button className="close-btn" onClick={() => setToast(null)}>×</button>
@@ -661,6 +722,7 @@ export default function App() {
         {/* Main tabs routing */}
         {activeTab === 'home' && (
           <HomeView 
+            onOpenModal={() => setIsDemoModalOpen(true)}
             onNavigateTab={(tab) => {
               setActiveTab(tab);
             }}
@@ -694,6 +756,20 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'features' && (
+          <FeatureRequestsView 
+            showToast={showToast}
+            currentUser={user}
+          />
+        )}
+
+        {activeTab === 'bugs' && (
+          <BugReportsView 
+            showToast={showToast}
+            currentUser={user}
+          />
+        )}
+
         {activeTab === 'settings' && (
           <SettingsView 
             showToast={showToast} 
@@ -703,33 +779,19 @@ export default function App() {
             setActiveSubTab={setSettingsSubTab}
           />
         )}
-
-        {activeTab === 'features' && (
-          <FeatureRequestsView 
-            showToast={showToast} 
-            currentUser={user} 
-          />
-        )}
-
-        {activeTab === 'bugs' && (
-          <BugReportsView 
-            showToast={showToast} 
-            currentUser={user} 
-          />
-        )}
       </main>
 
       {/* Showcase Modal Dialog Reference */}
-      {isDemoModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsDemoModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+      {isModalRendered && (
+        <div className={`modal-overlay ${isModalClosing ? 'closing' : ''}`} onClick={() => setIsDemoModalOpen(false)}>
+          <div className={`modal-content ${isModalClosing ? 'closing' : ''}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="modal-header">
-              <h2 style={{ fontSize: '1.5rem', fontWeight: '800' }}>Reference Modal Showcase</h2>
-              <button className="close-btn" style={{ fontSize: '1.75rem' }} onClick={() => setIsDemoModalOpen(false)}>×</button>
+              <h2>Reference Modal Showcase</h2>
+              <button className="close-btn" onClick={() => setIsDemoModalOpen(false)}>×</button>
             </div>
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingTop: '0.5rem' }}>
-              <p style={{ margin: 0, color: 'var(--text-main)', lineHeight: '1.6', fontSize: '0.95rem' }}>
-                This modal showcases the standard dialog overlay styling used throughout the application. Notice the soft background blur backdrop, container padding, elegant Material Design 3 rounded corners (`--radius-lg` of 28px), and shadow depth.
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <p style={{ margin: 0, color: 'var(--muted-foreground)', lineHeight: '1.5', fontSize: '0.875rem' }}>
+                This modal showcases the standard dialog overlay styling used throughout the application. Notice the soft background blur backdrop, content padding, crisp borders, and subtle corner radiuses (`--radius` of 0.5rem).
               </p>
               
               <div className="form-group">
@@ -737,7 +799,7 @@ export default function App() {
                 <input id="ref-input-val" type="text" className="input-control" placeholder="Sample input field..." />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
                 <button className="btn btn-outline" onClick={() => setIsDemoModalOpen(false)}>
                   Cancel
                 </button>
@@ -757,7 +819,6 @@ export default function App() {
 function LoginView({ onLoginSuccess }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [oidcEnabled, setOidcEnabled] = useState(false);
@@ -765,13 +826,28 @@ function LoginView({ onLoginSuccess }) {
   const [appName, setAppName] = useState('Base App');
   const [brandingIcon, setBrandingIcon] = useState('⚙️');
   const [brandingLogo, setBrandingLogo] = useState('');
+  const [brandingLogoLight, setBrandingLogoLight] = useState('');
+  const [brandingLogoDark, setBrandingLogoDark] = useState('');
+
+  const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const lastTheme = localStorage.getItem('last_theme') || 'system';
+  const resolvedTheme = lastTheme === 'system' ? (isSystemDark ? 'dark' : 'light') : lastTheme;
+  const currentLogo = resolvedTheme === 'dark' 
+    ? (brandingLogoDark || brandingLogoLight || brandingLogo) 
+    : (brandingLogoLight || brandingLogoDark || brandingLogo);
 
   useEffect(() => {
     const lastColor = localStorage.getItem('last_primary_color');
     if (lastColor) {
       document.documentElement.style.setProperty('--primary', lastColor);
+      try {
+        document.documentElement.style.setProperty('--primary-foreground', getContrastColor(lastColor));
+      } catch (err) {
+        console.error('Error setting login view primary foreground:', err);
+      }
     } else {
-      document.documentElement.style.setProperty('--primary', '#2c3e50');
+      document.documentElement.style.setProperty('--primary', '#0f172a');
+      document.documentElement.style.setProperty('--primary-foreground', '#ffffff');
     }
 
     const lastTheme = localStorage.getItem('last_theme') || 'system';
@@ -790,6 +866,8 @@ function LoginView({ onLoginSuccess }) {
         if (data.app_name) setAppName(data.app_name);
         setBrandingIcon(data.branding_icon !== undefined ? data.branding_icon : '⚙️');
         setBrandingLogo(data.branding_logo || '');
+        setBrandingLogoLight(data.branding_logo_light || '');
+        setBrandingLogoDark(data.branding_logo_dark || '');
         
         // Dynamically update favicon on mount
         const favicon = document.querySelector('link[rel="icon"]');
@@ -845,34 +923,61 @@ function LoginView({ onLoginSuccess }) {
       setLoading(false);
     }
   };
+  
+  const lastColor = localStorage.getItem('last_primary_color') || '#0f172a';
+  const isCardDark = getContrastColor(lastColor) === '#ffffff';
+
+  let buttonStyle = {};
+  let microsoftButtonStyle = {};
+  let separatorStyle = {};
+  let borderLineColor = 'rgba(0, 0, 0, 0.15)';
+
+  if (resolvedTheme === 'light') {
+    buttonStyle = isCardDark
+      ? { backgroundColor: '#ffffff', color: lastColor, border: 'none' }
+      : { backgroundColor: '#09090b', color: '#ffffff', border: 'none' };
+    microsoftButtonStyle = isCardDark
+      ? { backgroundColor: 'transparent', color: '#ffffff', borderColor: 'rgba(255, 255, 255, 0.4)' }
+      : { backgroundColor: 'transparent', color: '#09090b', borderColor: 'rgba(9, 9, 11, 0.4)' };
+    separatorStyle = { color: isCardDark ? 'rgba(255, 255, 255, 0.6)' : 'rgba(9, 9, 11, 0.6)' };
+    borderLineColor = isCardDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(9, 9, 11, 0.15)';
+  } else {
+    buttonStyle = isCardDark
+      ? { backgroundColor: '#27272a', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)' }
+      : { backgroundColor: '#18181b', color: '#fafafa', border: '1px solid rgba(255, 255, 255, 0.1)' };
+    microsoftButtonStyle = { backgroundColor: 'transparent', color: '#ffffff', borderColor: 'rgba(255, 255, 255, 0.2)' };
+    separatorStyle = { color: 'rgba(255, 255, 255, 0.4)' };
+    borderLineColor = 'rgba(255, 255, 255, 0.15)';
+  }
 
   return (
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          {brandingLogo ? (
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
-              <img src={brandingLogo} alt={appName} style={{ maxHeight: '80px', maxWidth: '100%', objectFit: 'contain' }} />
+          {currentLogo ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <img src={currentLogo} alt={appName} style={{ maxHeight: '48px', maxWidth: '100%', objectFit: 'contain' }} />
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--primary-foreground)', margin: 0 }}>{appName}</h2>
             </div>
           ) : (
-            <h2 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.65rem', color: 'var(--primary)' }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: 'var(--primary-foreground)', fontSize: '1.25rem', fontWeight: '700' }}>
               {brandingIcon !== 'none' && brandingIcon} {appName}
             </h2>
           )}
-          <p style={{ marginTop: '0.5rem', color: 'var(--text-muted)' }}>
+          <p style={{ marginTop: '0.25rem', color: 'var(--primary-foreground)', opacity: 0.8, fontSize: '0.875rem' }}>
             Sign in to access the system and configure settings.
           </p>
         </div>
         
         {error && (
-          <div className="alert-banner alert-error" style={{ padding: '0.75rem 1rem', marginBottom: '1.25rem', fontSize: '0.85rem' }}>
+          <div className="alert-banner alert-error" style={{ padding: '0.5rem 0.75rem', marginBottom: '1rem', fontSize: '0.8125rem' }}>
             <span>{error}</span>
           </div>
         )}
         
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <div className="form-group">
-            <label htmlFor="login-username">Username</label>
+            <label htmlFor="login-username" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Username</label>
             <input 
               id="login-username"
               type="text" 
@@ -886,58 +991,43 @@ function LoginView({ onLoginSuccess }) {
           </div>
 
           <div className="form-group">
-            <label htmlFor="login-password">Password</label>
+            <label htmlFor="login-password" style={{ fontSize: '0.75rem', fontWeight: '600' }}>Password</label>
             <input 
               id="login-password"
-              type={showPassword ? "text" : "password"} 
+              type="password" 
               className="input-control" 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required 
             />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <input 
-                id="show-login-password"
-                type="checkbox"
-                checked={showPassword}
-                onChange={(e) => setShowPassword(e.target.checked)}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <label htmlFor="show-login-password" style={{ fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
-                Show Password
-              </label>
-            </div>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }} disabled={loading}>
+          <button type="submit" className="btn" style={{ width: '100%', marginTop: '0.5rem', ...buttonStyle }} disabled={loading}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
         {oidcEnabled && (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', margin: '1.5rem 0', gap: '0.75rem' }}>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>or</span>
-              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', margin: '1.25rem 0', gap: '0.5rem' }}>
+              <div style={{ flex: 1, height: '1px', background: borderLineColor }} />
+              <span style={{ fontSize: '0.6875rem', ...separatorStyle, textTransform: 'uppercase', letterSpacing: '0.05em' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: borderLineColor }} />
             </div>
             <button 
               type="button" 
-              className="btn btn-outline" 
+              className="btn" 
               onClick={handleOidcLogin}
               style={{ 
                 width: '100%', 
                 display: 'flex', 
                 alignItems: 'center', 
                 justifyContent: 'center', 
-                gap: '0.75rem',
-                borderColor: 'var(--border-color)',
-                background: 'var(--bg-card)',
-                color: 'var(--text-main)',
-                fontWeight: '600'
+                gap: '0.5rem',
+                ...microsoftButtonStyle
               }}
             >
-              <svg width="18" height="18" viewBox="0 0 23 23">
+              <svg width="16" height="16" viewBox="0 0 23 23">
                 <path fill="#f35325" d="M0 0h11v11H0z"/>
                 <path fill="#81bc06" d="M12 0h11v11H12z"/>
                 <path fill="#05a6f0" d="M0 12h11v11H0z"/>

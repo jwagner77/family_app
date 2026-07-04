@@ -640,6 +640,8 @@ app.get('/api/settings/public', async (req, res) => {
       app_name: settings.app_name || 'Base App',
       branding_icon: settings.branding_icon || '⚙️',
       branding_logo: settings.branding_logo || '',
+      branding_logo_light: settings.branding_logo_light || '',
+      branding_logo_dark: settings.branding_logo_dark || '',
       branding_favicon: settings.branding_favicon || ''
     });
   } catch (error) {
@@ -683,31 +685,48 @@ app.post('/api/settings', authenticate, requirePermission('settings_general', 'f
   }
 });
 
-app.post('/api/settings/branding/logo', authenticate, requirePermission('settings_branding', 'full'), upload.single('logo'), async (req, res) => {
+app.post('/api/settings/branding/logo/:type?', authenticate, requirePermission('settings_branding', 'full'), upload.single('logo'), async (req, res) => {
   try {
+    const type = req.params.type || 'general';
+    if (!['light', 'dark', 'general'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid logo type. Must be light or dark' });
+    }
     if (!req.file) {
       return res.status(400).json({ error: 'No logo file provided' });
     }
     
     const logoUrl = `/uploads/${req.file.filename}`;
-    await saveSettings({ branding_logo: logoUrl });
+    const settingKey = type === 'general' ? 'branding_logo' : `branding_logo_${type}`;
+    await saveSettings({ [settingKey]: logoUrl });
     
-    res.json({ logoUrl, message: 'Logo uploaded successfully' });
+    res.json({ 
+      logoUrl, 
+      branding_logo: settingKey === 'branding_logo' ? logoUrl : undefined,
+      branding_logo_light: settingKey === 'branding_logo_light' ? logoUrl : undefined,
+      branding_logo_dark: settingKey === 'branding_logo_dark' ? logoUrl : undefined,
+      message: 'Logo uploaded successfully' 
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-app.delete('/api/settings/branding/logo', authenticate, requirePermission('settings_branding', 'full'), async (req, res) => {
+app.delete('/api/settings/branding/logo/:type?', authenticate, requirePermission('settings_branding', 'full'), async (req, res) => {
   try {
+    const type = req.params.type || 'general';
+    if (!['light', 'dark', 'general'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid logo type. Must be light or dark' });
+    }
     const settings = await getSettings();
-    if (settings.branding_logo) {
-      const fullPath = path.join(DATA_DIR, settings.branding_logo.replace(/^\//, ''));
+    const settingKey = type === 'general' ? 'branding_logo' : `branding_logo_${type}`;
+    const logoPath = settings[settingKey];
+    if (logoPath) {
+      const fullPath = path.join(DATA_DIR, logoPath.replace(/^\//, ''));
       if (fs.existsSync(fullPath)) {
         fs.unlinkSync(fullPath);
       }
     }
-    await saveSettings({ branding_logo: '' });
+    await saveSettings({ [settingKey]: '' });
     res.json({ message: 'Branding logo deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });

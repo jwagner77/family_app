@@ -144,6 +144,8 @@ export async function getDb() {
     INSERT OR IGNORE INTO settings (key, value) VALUES ('oidc_default_role', 'Viewer');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_icon', '🏠');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo_light', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo_dark', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_favicon', '');
 
     INSERT OR IGNORE INTO settings (key, value) VALUES ('fr_notify_smtp_enabled', 'false');
@@ -189,6 +191,12 @@ export async function getDb() {
   // Safe Migration to add timezone column to users table if missing
   try {
     await dbInstance.run("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'US/New_York'");
+  } catch (err) {}
+
+  // Safe Migration to add branding_logo_light and branding_logo_dark settings if missing
+  try {
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo_light', '')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo_dark', '')");
   } catch (err) {}
 
   // Safe Migration to add m365 token columns to users table if missing

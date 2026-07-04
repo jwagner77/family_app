@@ -44,7 +44,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [resettingPassword, setResettingPassword] = useState(false);
-  const [showResetPasswords, setShowResetPasswords] = useState(false);
 
   // App Settings states
   const [appName, setAppName] = useState('');
@@ -52,6 +51,23 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [theme, setTheme] = useState(currentUser?.theme || 'system');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Helper to expand and format accent color for HTML color picker
+  const getValidColorPickerValue = (colorStr) => {
+    if (!colorStr) return '#d35400';
+    let s = colorStr.trim();
+    if (!s.startsWith('#')) {
+      s = '#' + s;
+    }
+    // Expand 3-digit hex (#rgb) to 6-digit hex (#rrggbb)
+    if (/^#[0-9A-Fa-f]{3}$/.test(s)) {
+      return '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+    }
+    if (/^#[0-9A-Fa-f]{6}$/.test(s)) {
+      return s;
+    }
+    return '#d35400';
+  };
 
   // OIDC Settings states
   const [oidcEnabled, setOidcEnabled] = useState(false);
@@ -61,11 +77,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [oidcRedirectUri, setOidcRedirectUri] = useState('');
   const [oidcAutoProvision, setOidcAutoProvision] = useState(true);
   const [oidcDefaultRole, setOidcDefaultRole] = useState('Viewer');
-  const [showSSOSecret, setShowSSOSecret] = useState(false);
 
   // Branding Settings states
   const [brandingIcon, setBrandingIcon] = useState('🍳');
   const [brandingLogo, setBrandingLogo] = useState('');
+  const [brandingLogoLight, setBrandingLogoLight] = useState('');
+  const [brandingLogoDark, setBrandingLogoDark] = useState('');
   const [brandingFavicon, setBrandingFavicon] = useState('');
 
   // User Management states
@@ -76,7 +93,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [roleSelectInput, setRoleSelectInput] = useState('');
-  const [showUserPassword, setShowUserPassword] = useState(false);
 
   // Role Management states
   const [roleFormOpen, setRoleFormOpen] = useState(false);
@@ -191,9 +207,21 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   
   const [notifyWebhookUrl, setNotifyWebhookUrl] = useState('');
   const [notifyWebhookSecret, setNotifyWebhookSecret] = useState('');
-  const [showSMTPPassword, setShowSMTPPassword] = useState(false);
-  const [showWebhookSecret, setShowWebhookSecret] = useState(false);
   
+  const [frNotifySmtpEnabled, setFrNotifySmtpEnabled] = useState(false);
+  const [frNotifySmtpTo, setFrNotifySmtpTo] = useState('');
+  const [frNotifyDiscordEnabled, setFrNotifyDiscordEnabled] = useState(false);
+  const [frNotifyDiscordWebhookUrl, setFrNotifyDiscordWebhookUrl] = useState('');
+  const [frNotifyWebhookEnabled, setFrNotifyWebhookEnabled] = useState(false);
+  const [frNotifyWebhookUrl, setFrNotifyWebhookUrl] = useState('');
+
+  const [bugNotifySmtpEnabled, setBugNotifySmtpEnabled] = useState(false);
+  const [bugNotifySmtpTo, setBugNotifySmtpTo] = useState('');
+  const [bugNotifyDiscordEnabled, setBugNotifyDiscordEnabled] = useState(false);
+  const [bugNotifyDiscordWebhookUrl, setBugNotifyDiscordWebhookUrl] = useState('');
+  const [bugNotifyWebhookEnabled, setBugNotifyWebhookEnabled] = useState(false);
+  const [bugNotifyWebhookUrl, setBugNotifyWebhookUrl] = useState('');
+
   // Toggles
   const [notifyRecipeAdded, setNotifyRecipeAdded] = useState(false);
   const [notifyRecipeDeleted, setNotifyRecipeDeleted] = useState(false);
@@ -202,25 +230,9 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [notifyLeftoversExpiring, setNotifyLeftoversExpiring] = useState(false);
   const [notifyInventoryExpiring, setNotifyInventoryExpiring] = useState(false);
   
-  // Days settings
+  // Lead days
   const [notifyLeftoversExpiryDays, setNotifyLeftoversExpiryDays] = useState(2);
   const [notifyInventoryExpiryDays, setNotifyInventoryExpiryDays] = useState(3);
-
-  // Features notification dispatch rules
-  const [frNotifySmtpEnabled, setFrNotifySmtpEnabled] = useState(false);
-  const [frNotifySmtpTo, setFrNotifySmtpTo] = useState('');
-  const [frNotifyDiscordEnabled, setFrNotifyDiscordEnabled] = useState(false);
-  const [frNotifyDiscordWebhookUrl, setFrNotifyDiscordWebhookUrl] = useState('');
-  const [frNotifyWebhookEnabled, setFrNotifyWebhookEnabled] = useState(false);
-  const [frNotifyWebhookUrl, setFrNotifyWebhookUrl] = useState('');
-
-  // Bugs notification dispatch rules
-  const [bugNotifySmtpEnabled, setBugNotifySmtpEnabled] = useState(false);
-  const [bugNotifySmtpTo, setBugNotifySmtpTo] = useState('');
-  const [bugNotifyDiscordEnabled, setBugNotifyDiscordEnabled] = useState(false);
-  const [bugNotifyDiscordWebhookUrl, setBugNotifyDiscordWebhookUrl] = useState('');
-  const [bugNotifyWebhookEnabled, setBugNotifyWebhookEnabled] = useState(false);
-  const [bugNotifyWebhookUrl, setBugNotifyWebhookUrl] = useState('');
   
   // Log list
   const [notificationLogs, setNotificationLogs] = useState([]);
@@ -251,18 +263,18 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setNotifyLeftoversExpiryDays(parseInt(data.notify_leftovers_expiry_days, 10) || 2);
         setNotifyInventoryExpiryDays(parseInt(data.notify_inventory_expiry_days, 10) || 3);
 
-        setFrNotifySmtpEnabled(data.fr_notify_smtp_enabled === 'true' || data.fr_notify_smtp_enabled === true);
+        setFrNotifySmtpEnabled(data.fr_notify_smtp_enabled === 'true');
         setFrNotifySmtpTo(data.fr_notify_smtp_to || '');
-        setFrNotifyDiscordEnabled(data.fr_notify_discord_enabled === 'true' || data.fr_notify_discord_enabled === true);
+        setFrNotifyDiscordEnabled(data.fr_notify_discord_enabled === 'true');
         setFrNotifyDiscordWebhookUrl(data.fr_notify_discord_webhook_url || '');
-        setFrNotifyWebhookEnabled(data.fr_notify_webhook_enabled === 'true' || data.fr_notify_webhook_enabled === true);
+        setFrNotifyWebhookEnabled(data.fr_notify_webhook_enabled === 'true');
         setFrNotifyWebhookUrl(data.fr_notify_webhook_url || '');
 
-        setBugNotifySmtpEnabled(data.bug_notify_smtp_enabled === 'true' || data.bug_notify_smtp_enabled === true);
+        setBugNotifySmtpEnabled(data.bug_notify_smtp_enabled === 'true');
         setBugNotifySmtpTo(data.bug_notify_smtp_to || '');
-        setBugNotifyDiscordEnabled(data.bug_notify_discord_enabled === 'true' || data.bug_notify_discord_enabled === true);
+        setBugNotifyDiscordEnabled(data.bug_notify_discord_enabled === 'true');
         setBugNotifyDiscordWebhookUrl(data.bug_notify_discord_webhook_url || '');
-        setBugNotifyWebhookEnabled(data.bug_notify_webhook_enabled === 'true' || data.bug_notify_webhook_enabled === true);
+        setBugNotifyWebhookEnabled(data.bug_notify_webhook_enabled === 'true');
         setBugNotifyWebhookUrl(data.bug_notify_webhook_url || '');
       }
     } catch (err) {
@@ -308,12 +320,14 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         notify_inventory_expiring: String(notifyInventoryExpiring),
         notify_leftovers_expiry_days: String(notifyLeftoversExpiryDays),
         notify_inventory_expiry_days: String(notifyInventoryExpiryDays),
+
         fr_notify_smtp_enabled: String(frNotifySmtpEnabled),
         fr_notify_smtp_to: frNotifySmtpTo.trim(),
         fr_notify_discord_enabled: String(frNotifyDiscordEnabled),
         fr_notify_discord_webhook_url: frNotifyDiscordWebhookUrl.trim(),
         fr_notify_webhook_enabled: String(frNotifyWebhookEnabled),
         fr_notify_webhook_url: frNotifyWebhookUrl.trim(),
+
         bug_notify_smtp_enabled: String(bugNotifySmtpEnabled),
         bug_notify_smtp_to: bugNotifySmtpTo.trim(),
         bug_notify_discord_enabled: String(bugNotifyDiscordEnabled),
@@ -388,7 +402,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       const settingsRes = await fetch('/api/settings');
       if (settingsRes.ok) {
         const data = await settingsRes.json();
-        setAppName(data.app_name || 'Family Cookbook');
+        setAppName(data.app_name || 'Base App');
         setOidcEnabled(data.oidc_enabled === 'true');
         setOidcClientId(data.oidc_client_id || '');
         setOidcClientSecret(data.oidc_client_secret || '');
@@ -398,6 +412,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setOidcDefaultRole(data.oidc_default_role || 'Viewer');
         setBrandingIcon(data.branding_icon !== undefined ? data.branding_icon : '🍳');
         setBrandingLogo(data.branding_logo || '');
+        setBrandingLogoLight(data.branding_logo_light || '');
+        setBrandingLogoDark(data.branding_logo_dark || '');
         setBrandingFavicon(data.branding_favicon || '');
       }
 
@@ -433,11 +449,32 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     setSaving(true);
 
     try {
+      // Normalize and validate primaryColor hex code
+      let validatedColor = primaryColor.trim();
+      if (!validatedColor) {
+        validatedColor = '#d35400';
+      } else {
+        if (!validatedColor.startsWith('#')) {
+          validatedColor = '#' + validatedColor;
+        }
+        // Expand 3-digit hex to 6-digit hex if needed
+        if (/^#[0-9A-Fa-f]{3}$/.test(validatedColor)) {
+          validatedColor = '#' + validatedColor[1] + validatedColor[1] + validatedColor[2] + validatedColor[2] + validatedColor[3] + validatedColor[3];
+        }
+        const hexRegex = /^#[0-9A-Fa-f]{6}$/;
+        if (!hexRegex.test(validatedColor)) {
+          throw new Error('Please enter a valid hex color code (e.g. #7B0000 or #333).');
+        }
+      }
+
+      // Update local state to show the validated, normalized color code
+      setPrimaryColor(validatedColor);
+
       // 1. Update personal profile primary color, theme, display name, and timezone
       const profileRes = await fetch('/api/users/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ primary_color: primaryColor, theme: theme, display_name: displayName, timezone: timezone })
+        body: JSON.stringify({ primary_color: validatedColor, theme: theme, display_name: displayName, timezone: timezone })
       });
       if (!profileRes.ok) throw new Error('Failed to save personal settings');
 
@@ -462,7 +499,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       showToast('Settings saved successfully!');
       onSettingsChange({
         appName: canSaveGlobal ? appName.trim() : undefined,
-        primaryColor: primaryColor,
+        primaryColor: validatedColor,
         theme: theme,
         displayName: displayName,
         timezone: timezone
@@ -501,7 +538,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     }
   };
 
-  const handleUploadLogo = async (e) => {
+  const handleUploadLogo = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
     
@@ -510,16 +547,26 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     
     setSaving(true);
     try {
-      const res = await fetch('/api/settings/branding/logo', {
+      const res = await fetch(`/api/settings/branding/logo/${type}`, {
         method: 'POST',
         body: formData
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to upload logo');
-      setBrandingLogo(data.branding_logo);
-      showToast('Logo uploaded successfully!', 'success');
-      if (onSettingsChange) {
-        onSettingsChange({ brandingLogo: data.branding_logo });
+      
+      const logoUrl = data.logoUrl;
+      if (type === 'light') {
+        setBrandingLogoLight(logoUrl);
+        showToast('Light theme logo uploaded successfully!', 'success');
+        if (onSettingsChange) {
+          onSettingsChange({ brandingLogoLight: logoUrl });
+        }
+      } else {
+        setBrandingLogoDark(logoUrl);
+        showToast('Dark theme logo uploaded successfully!', 'success');
+        if (onSettingsChange) {
+          onSettingsChange({ brandingLogoDark: logoUrl });
+        }
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -528,19 +575,28 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     }
   };
 
-  const handleRemoveLogo = async () => {
-    if (!window.confirm('Are you sure you want to remove the logo?')) return;
+  const handleRemoveLogo = async (type) => {
+    if (!window.confirm(`Are you sure you want to remove the ${type} theme logo?`)) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/settings/branding/logo', {
+      const res = await fetch(`/api/settings/branding/logo/${type}`, {
         method: 'DELETE'
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to remove logo');
-      setBrandingLogo('');
-      showToast('Logo removed successfully!', 'success');
-      if (onSettingsChange) {
-        onSettingsChange({ brandingLogo: '' });
+      
+      if (type === 'light') {
+        setBrandingLogoLight('');
+        showToast('Light theme logo removed successfully!', 'success');
+        if (onSettingsChange) {
+          onSettingsChange({ brandingLogoLight: '' });
+        }
+      } else {
+        setBrandingLogoDark('');
+        showToast('Dark theme logo removed successfully!', 'success');
+        if (onSettingsChange) {
+          onSettingsChange({ brandingLogoDark: '' });
+        }
       }
     } catch (err) {
       showToast(err.message, 'error');
@@ -620,8 +676,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
   const handleResetSettings = () => {
     if (!window.confirm('Reset all settings to default values?')) return;
-    setAppName('Family Cookbook');
-    setPrimaryColor('#d35400');
+    setAppName('Base App');
+    setPrimaryColor('#2c3e50');
     setTheme('system');
   };
 
@@ -658,7 +714,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       setEditUser(null);
       setUsernameInput('');
       setPasswordInput('');
-      setShowUserPassword(false);
       setRoleSelectInput('');
       
       // Reload users list
@@ -673,7 +728,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     setEditUser(user);
     setUsernameInput(user.username);
     setPasswordInput('');
-    setShowUserPassword(false);
     setRoleSelectInput(user.role_id || '');
     setUserFormOpen(true);
   };
@@ -728,9 +782,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       setEditRole(null);
       setRoleNameInput('');
       setRolePermsInput({
-        recipes: 'none',
-        planner: 'none',
-        shopping_list: 'none',
         users: 'none',
         roles: 'none',
         settings_general: 'none',
@@ -753,9 +804,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     setEditRole(role);
     setRoleNameInput(role.name);
     let perms = {
-      recipes: 'none',
-      planner: 'none',
-      shopping_list: 'none',
       users: 'none',
       roles: 'none',
       settings_general: 'none',
@@ -870,20 +918,22 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '850px', margin: '0 auto' }}>
-      <div className="content-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
-        <h2 style={{ margin: 0 }}>Settings Dashboard</h2>
-        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-          Configure app behavior, manage access roles, Single Sign-On configurations and notification dispatching.
-        </p>
+      <div className="content-header">
+        <div>
+          <h2>Settings Dashboard</h2>
+          <p>
+            Configure app behavior, manage access roles, Single Sign-On configurations and notification dispatching.
+          </p>
+        </div>
       </div>
 
 
 
       {/* GENERAL APP SETTINGS TAB */}
       {activeSubTab === 'general' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          <div className="card" style={{ padding: '2rem' }}>
-            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          <div className="card">
+            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             
             <div className="form-group">
               <label htmlFor="settings-display-name" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -897,7 +947,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="e.g. Joshua"
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                 This is how your name will appear throughout the application (e.g. in greetings).
               </span>
             </div>
@@ -911,7 +961,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 className="input-control" 
                 value={timezone}
                 onChange={(e) => setTimezone(e.target.value)}
-                style={{ background: 'var(--bg-app)', color: 'var(--text-main)', cursor: 'pointer' }}
               >
                 <option value="US/New_York">Eastern Time (US/New_York)</option>
                 <option value="US/Central">Central Time (US/Central)</option>
@@ -921,8 +970,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 <option value="US/Hawaii">Hawaii Time (US/Hawaii)</option>
                 <option value="UTC">Coordinated Universal Time (UTC)</option>
               </select>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                This time zone is used to schedule meals on your synchronized Microsoft 365 Calendar.
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                This time zone is used to schedule events on your synchronized Microsoft 365 Calendar.
               </span>
             </div>
 
@@ -936,132 +985,143 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 className="input-control" 
                 value={appName}
                 onChange={(e) => setAppName(e.target.value)}
-                placeholder="e.g. Grandma's Recipe Vault"
+                placeholder="e.g. WagnerTech Portal"
                 required 
                 disabled={!canManageGeneral && currentUser?.permissions?.roles !== 'full'} // settings save endpoint mapped to roles write access
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                 This modifies the application title displayed in the sidebar.
               </span>
             </div>
 
             <div className="form-group">
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Palette size={16} /> Theme Primary Color
+                <Palette size={16} /> Theme Accent Color
               </label>
-              <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
                 <div 
                   style={{ 
                     position: 'relative',
-                    width: '60px', 
-                    height: '60px', 
+                    width: '44px', 
+                    height: '44px', 
                     borderRadius: '50%', 
                     overflow: 'hidden',
-                    border: '3px solid var(--border-color)',
+                    border: '1px solid var(--border)',
                     boxShadow: 'var(--shadow-sm)',
                     flexShrink: 0
                   }}
                 >
                   <input 
                     type="color" 
-                    value={/^#[0-9A-F]{6}$/i.test(primaryColor) ? primaryColor : '#d35400'}
+                    value={getValidColorPickerValue(primaryColor)}
                     onChange={(e) => setPrimaryColor(e.target.value)}
                     style={{ 
                       position: 'absolute', 
                       top: '-10px', 
                       left: '-10px', 
-                      width: '80px', 
-                      height: '80px', 
+                      width: '64px', 
+                      height: '64px', 
                       border: 'none',
                       cursor: 'pointer'
                     }}
                     title="Choose accent color"
                   />
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', flexGrow: 1 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.9rem', fontWeight: '700', whiteSpace: 'nowrap' }}>Accent Color:</span>
+                    <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Accent Color Hex:</span>
                     <input 
-                      type="text"
-                      className="input-control"
-                      value={primaryColor}
+                      type="text" 
+                      value={primaryColor} 
                       onChange={(e) => setPrimaryColor(e.target.value)}
                       placeholder="#d35400"
-                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.9rem', width: '150px' }}
+                      maxLength={7}
+                      style={{ 
+                        width: '90px', 
+                        padding: '0.25rem 0.5rem', 
+                        borderRadius: 'var(--radius)', 
+                        border: '1px solid var(--border)', 
+                        background: 'var(--background)', 
+                        color: 'var(--foreground)', 
+                        fontFamily: 'monospace',
+                        fontWeight: '600',
+                        fontSize: '0.8125rem' 
+                      }}
+                      title="Accent Color hex code"
                     />
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Use the color selector or enter a custom hex, RGB, HSL, or named CSS color.
+                  <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                    Use the color selector or enter a hex code to customize highlights, badges, and accents.
                   </span>
                 </div>
               </div>
             </div>
 
             <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                Theme Settings
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                Theme Mode
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem', marginTop: '0.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.125rem' }}>
                 <div 
                   onClick={() => setTheme('system')}
                   style={{ 
-                    padding: '1rem', 
-                    border: `2px solid ${theme === 'system' ? 'var(--primary)' : 'var(--border-color)'}`,
-                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.75rem', 
+                    border: `1px solid ${theme === 'system' ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius)',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    background: theme === 'system' ? 'var(--primary-light)' : 'var(--bg-app)',
+                    gap: '0.375rem',
+                    background: theme === 'system' ? 'var(--accent)' : 'transparent',
                     transition: 'var(--transition-fast)'
                   }}
                 >
-                  <Laptop size={20} style={{ color: theme === 'system' ? 'var(--primary)' : 'var(--text-muted)' }} />
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>System Default</span>
+                  <Laptop size={16} style={{ color: 'var(--foreground)' }} />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: '500' }}>System</span>
                 </div>
 
                 <div 
                   onClick={() => setTheme('light')}
                   style={{ 
-                    padding: '1rem', 
-                    border: `2px solid ${theme === 'light' ? 'var(--primary)' : 'var(--border-color)'}`,
-                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.75rem', 
+                    border: `1px solid ${theme === 'light' ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius)',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    background: theme === 'light' ? 'var(--primary-light)' : 'var(--bg-app)',
+                    gap: '0.375rem',
+                    background: theme === 'light' ? 'var(--accent)' : 'transparent',
                     transition: 'var(--transition-fast)'
                   }}
                 >
-                  <Sun size={20} style={{ color: theme === 'light' ? 'var(--primary)' : 'var(--text-muted)' }} />
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Light Theme</span>
+                  <Sun size={16} style={{ color: 'var(--foreground)' }} />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: '500' }}>Light</span>
                 </div>
 
                 <div 
                   onClick={() => setTheme('dark')}
                   style={{ 
-                    padding: '1rem', 
-                    border: `2px solid ${theme === 'dark' ? 'var(--primary)' : 'var(--border-color)'}`,
-                    borderRadius: 'var(--radius-sm)',
+                    padding: '0.75rem', 
+                    border: `1px solid ${theme === 'dark' ? 'var(--primary)' : 'var(--border)'}`,
+                    borderRadius: 'var(--radius)',
                     cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
-                    gap: '0.5rem',
-                    background: theme === 'dark' ? 'var(--primary-light)' : 'var(--bg-app)',
+                    gap: '0.375rem',
+                    background: theme === 'dark' ? 'var(--accent)' : 'transparent',
                     transition: 'var(--transition-fast)'
                   }}
                 >
-                  <Moon size={20} style={{ color: theme === 'dark' ? 'var(--primary)' : 'var(--text-muted)' }} />
-                  <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>Dark Theme</span>
+                  <Moon size={16} style={{ color: 'var(--foreground)' }} />
+                  <span style={{ fontSize: '0.8125rem', fontWeight: '500' }}>Dark</span>
                 </div>
               </div>
             </div>
 
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '0.25rem 0' }} />
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <button 
@@ -1071,7 +1131,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 style={{ gap: '0.25rem' }}
                 disabled={saving}
               >
-                <RotateCcw size={16} /> Reset defaults
+                <RotateCcw size={14} /> Reset defaults
               </button>
               <button 
                 type="submit" 
@@ -1079,7 +1139,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 style={{ gap: '0.5rem' }}
                 disabled={saving}
               >
-                <Save size={18} /> {saving ? 'Saving...' : 'Save Settings'}
+                <Save size={16} /> {saving ? 'Saving...' : 'Save Settings'}
               </button>
             </div>
           </form>
@@ -1087,20 +1147,20 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
         {/* Local User Password Reset Form */}
         {currentUser?.auth_provider === 'local' && (
-          <div className="card" style={{ padding: '2rem' }}>
-            <h3 style={{ marginBottom: '1rem', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Lock size={20} /> Reset Your Password
+          <div className="card">
+            <h3 style={{ marginBottom: '0.5rem', fontSize: '1.125rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+              <Lock size={18} /> Reset Your Password
             </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem' }}>
               Change the password you use to log in to the application.
             </p>
             
-            <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
                 <label htmlFor="current-password">Current Password *</label>
                 <input 
                   id="current-password"
-                  type={showResetPasswords ? "text" : "password"} 
+                  type="password" 
                   className="input-control" 
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
@@ -1111,7 +1171,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 <label htmlFor="new-password">New Password *</label>
                 <input 
                   id="new-password"
-                  type={showResetPasswords ? "text" : "password"} 
+                  type="password" 
                   className="input-control" 
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -1122,30 +1182,18 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 <label htmlFor="confirm-password">Confirm New Password *</label>
                 <input 
                   id="confirm-password"
-                  type={showResetPasswords ? "text" : "password"} 
+                  type="password" 
                   className="input-control" 
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                 />
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <input 
-                    id="show-reset-passwords"
-                    type="checkbox"
-                    checked={showResetPasswords}
-                    onChange={(e) => setShowResetPasswords(e.target.checked)}
-                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                  />
-                  <label htmlFor="show-reset-passwords" style={{ fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
-                    Show Passwords
-                  </label>
-                </div>
               </div>
               
               <button 
                 type="submit" 
                 className="btn btn-primary" 
-                style={{ alignSelf: 'flex-start', marginTop: '0.5rem' }} 
+                style={{ alignSelf: 'flex-start', marginTop: '0.25rem' }} 
                 disabled={resettingPassword}
               >
                 {resettingPassword ? 'Updating...' : 'Update Password'}
@@ -1156,10 +1204,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
         {/* SSO User Notice */}
         {currentUser?.auth_provider === 'sso' && (
-          <div className="card" style={{ padding: '2rem', textAlign: 'center' }}>
-            <Shield size={36} style={{ color: 'var(--primary)', margin: '0 auto 1rem auto' }} />
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>M365 Single Sign-On Active</h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          <div className="card" style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+            <Shield size={28} style={{ color: 'var(--primary)' }} />
+            <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>M365 Single Sign-On Active</h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', maxWidth: '460px', margin: 0, lineHeight: '1.5' }}>
               Your account is managed via Microsoft 365 Single Sign-On. 
               Passwords and directory settings must be managed by your organization's IT department.
             </p>
@@ -1170,16 +1218,16 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       {/* USER MANAGEMENT TAB */}
       {activeSubTab === 'users' && canReadUsers && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {/* User management panel card */}
           {canManageUsers && (
             <>
               {userFormOpen ? (
-                <div className="card" style={{ padding: '2rem' }}>
-                  <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem' }}>
+                <div className="card">
+                  <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem', fontWeight: '600' }}>
                     {editUser ? `Edit User: ${editUser.username}` : 'Add New User'}
                   </h3>
-                  <form onSubmit={handleSaveUser} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <form onSubmit={handleSaveUser} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div className="form-group">
                       <label htmlFor="user-username">Username *</label>
                       <input 
@@ -1196,24 +1244,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       <label htmlFor="user-password">{editUser ? 'New Password (Leave blank to keep current)' : 'Password *'}</label>
                       <input 
                         id="user-password"
-                        type={showUserPassword ? "text" : "password"} 
+                        type="password" 
                         className="input-control" 
                         value={passwordInput}
                         onChange={(e) => setPasswordInput(e.target.value)}
                         required={!editUser}
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <input 
-                          id="show-user-password"
-                          type="checkbox"
-                          checked={showUserPassword}
-                          onChange={(e) => setShowUserPassword(e.target.checked)}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <label htmlFor="show-user-password" style={{ fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
-                          Show Password
-                        </label>
-                      </div>
                     </div>
                     <div className="form-group">
                       <label htmlFor="user-role">Role</label>
@@ -1222,7 +1258,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         className="input-control"
                         value={roleSelectInput}
                         onChange={(e) => setRoleSelectInput(e.target.value)}
-                        style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                         disabled={editUser?.username === 'admin'} // Admin user role locked to Administrator
                       >
                         <option value="">No Role (None)</option>
@@ -1232,14 +1267,14 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       </select>
                     </div>
                     
-                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                       <button type="submit" className="btn btn-primary">
                         {editUser ? 'Save Changes' : 'Create User'}
                       </button>
                       <button 
                         type="button" 
                         className="btn btn-outline" 
-                        onClick={() => { setUserFormOpen(false); setEditUser(null); setShowUserPassword(false); }}
+                        onClick={() => { setUserFormOpen(false); setEditUser(null); setUsernameInput(''); setPasswordInput(''); setRoleSelectInput(''); }}
                       >
                         Cancel
                       </button>
@@ -1254,17 +1289,16 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       setEditUser(null);
                       setUsernameInput('');
                       setPasswordInput('');
-                      setShowUserPassword(false);
                       setRoleSelectInput('');
                       setUserFormOpen(true);
                     }}
                   >
-                    <Plus size={20} /> Add User
+                    <Plus size={16} /> Add User
                   </button>
                 </div>
               )}
 
-              <div className="card" style={{ padding: '0.5rem 0', overflowX: 'auto' }}>
+              <div className="card" style={{ padding: '0.25rem 0', overflowX: 'auto' }}>
                 <table className="data-table">
                   <thead>
                     <tr>
@@ -1279,7 +1313,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   <tbody>
                     {users.map(u => (
                       <tr key={u.id}>
-                        <td><strong>{u.username}</strong> {u.id === currentUser?.id && <span className="badge badge-primary">You</span>}</td>
+                        <td><strong>{u.username}</strong> {u.id === currentUser?.id && <span className="badge badge-primary" style={{ fontSize: '0.625rem', padding: '0.05rem 0.35rem' }}>You</span>}</td>
                         <td>{u.display_name || '-'}</td>
                         <td>
                           <span className={`badge ${u.auth_provider === 'sso' ? 'badge-primary' : 'badge-secondary'}`}>
@@ -1293,23 +1327,23 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         </td>
                         <td>{new Date(u.created_at).toLocaleDateString()}</td>
                         <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
                             <button 
                               className="btn btn-outline" 
-                              style={{ padding: '0.35rem 0.5rem' }}
+                              style={{ padding: '0.35rem 0.5rem', height: '1.75rem', width: '1.75rem' }}
                               onClick={() => handleEditUserClick(u)}
                               title="Edit User"
                             >
-                              <Edit2 size={14} />
+                              <Edit2 size={12} />
                             </button>
                             <button 
                               className="btn btn-secondary" 
-                              style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)' }}
+                              style={{ padding: '0.35rem 0.5rem', height: '1.75rem', width: '1.75rem', color: 'var(--destructive)' }}
                               onClick={() => handleDeleteUser(u.id, u.username)}
                               title="Delete User"
                               disabled={u.username === 'admin' || u.id === currentUser?.id}
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={12} />
                             </button>
                           </div>
                         </td>
@@ -1325,13 +1359,13 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       {/* ROLE MANAGEMENT TAB */}
       {activeSubTab === 'roles' && canReadRoles && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {roleFormOpen && canManageRoles ? (
-            <div className="card" style={{ padding: '2rem' }}>
-              <h3 style={{ marginBottom: '1.5rem', fontSize: '1.25rem' }}>
+            <div className="card">
+              <h3 style={{ marginBottom: '1rem', fontSize: '1.125rem', fontWeight: '600' }}>
                 {editRole ? `Edit Role: ${editRole.name}` : 'Add New Role'}
               </h3>
-              <form onSubmit={handleSaveRole} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <form onSubmit={handleSaveRole} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div className="form-group">
                   <label htmlFor="role-name">Role Name *</label>
                   <input 
@@ -1346,9 +1380,9 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 </div>
                 
                 <div className="form-group">
-                  <label>Assign Function Permissions</label>
-                  <div style={{ overflowX: 'auto', width: '100%', marginBottom: '1rem' }}>
-                    <table className="permission-matrix">
+                  <label style={{ fontWeight: '600', fontSize: '0.875rem' }}>Assign Function Permissions</label>
+                  <div style={{ overflowX: 'auto', width: '100%', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginTop: '0.25rem' }}>
+                    <table className="permission-matrix" style={{ marginTop: 0 }}>
                       <thead>
                         <tr>
                           <th>Function</th>
@@ -1372,7 +1406,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                                     onChange={() => handlePermChange(catKey, 'full')}
                                     disabled={editRole?.name === 'Administrator'} // Administrator permissions are locked
                                   />
-                                  Full Access
+                                  Full
                                 </label>
                               </td>
                               <td>
@@ -1384,7 +1418,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                                     onChange={() => handlePermChange(catKey, 'read')}
                                     disabled={editRole?.name === 'Administrator'}
                                   />
-                                  Read Only
+                                  Read
                                 </label>
                               </td>
                               <td>
@@ -1407,14 +1441,14 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                   <button type="submit" className="btn btn-primary">
                     {editRole ? 'Save Changes' : 'Create Role'}
                   </button>
                   <button 
                     type="button" 
                     className="btn btn-outline" 
-                    onClick={() => { setRoleFormOpen(false); setEditRole(null); }}
+                    onClick={() => { setRoleFormOpen(false); setEditRole(null); setRoleNameInput(''); }}
                   >
                     Cancel
                   </button>
@@ -1430,22 +1464,25 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     setEditRole(null);
                     setRoleNameInput('');
                     setRolePermsInput({
-                      recipes: 'none',
-                      planner: 'none',
-                      shopping_list: 'none',
                       users: 'none',
-                      roles: 'none'
+                      roles: 'none',
+                      settings_general: 'none',
+                      settings_users: 'none',
+                      settings_roles: 'none',
+                      settings_sso: 'none',
+                      settings_branding: 'none',
+                      settings_calendar: 'none'
                     });
                     setRoleFormOpen(true);
                   }}
                 >
-                  <Plus size={20} /> Add Role
+                  <Plus size={16} /> Add Role
                 </button>
               </div>
             )
           )}
 
-          <div className="card" style={{ padding: '0.5rem 0', overflowX: 'auto' }}>
+          <div className="card" style={{ padding: '0.25rem 0', overflowX: 'auto' }}>
             <table className="data-table">
               <thead>
                 <tr>
@@ -1466,12 +1503,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     <tr key={r.id}>
                       <td><strong>{r.name}</strong></td>
                       <td>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
                           {Object.entries(perms).map(([k, v]) => (
                             <span 
                               key={k} 
                               className={`badge ${v === 'full' ? 'badge-primary' : 'badge-secondary'}`}
-                              style={{ opacity: v === 'none' ? 0.4 : 1, fontSize: '0.7rem' }}
+                              style={{ opacity: v === 'none' ? 0.35 : 1, fontSize: '0.6875rem', padding: '0.05rem 0.4rem' }}
                             >
                               {k.replace('_', ' ')}: {v}
                             </span>
@@ -1480,23 +1517,23 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       </td>
                       {canManageRoles && (
                         <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
+                          <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
                             <button 
                               className="btn btn-outline" 
-                              style={{ padding: '0.35rem 0.5rem' }}
+                              style={{ padding: '0.35rem 0.5rem', height: '1.75rem', width: '1.75rem' }}
                               onClick={() => handleEditRoleClick(r)}
                               title="Edit Role"
                             >
-                              <Edit2 size={14} />
+                              <Edit2 size={12} />
                             </button>
                             <button 
                               className="btn btn-secondary" 
-                              style={{ padding: '0.35rem 0.5rem', color: 'var(--danger)' }}
+                              style={{ padding: '0.35rem 0.5rem', height: '1.75rem', width: '1.75rem', color: 'var(--destructive)' }}
                               onClick={() => handleDeleteRole(r.id, r.name)}
                               title="Delete Role"
                               disabled={r.name === 'Administrator'}
                             >
-                              <Trash2 size={14} />
+                              <Trash2 size={12} />
                             </button>
                           </div>
                         </td>
@@ -1512,22 +1549,23 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       {/* OIDC SSO SETTINGS TAB */}
       {activeSubTab === 'sso' && canManageRoles && (
-        <div className="card" style={{ padding: '2rem' }}>
-          <form onSubmit={handleSaveSSOSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', borderBottom: '2px solid var(--border-color)', paddingBottom: '0.5rem' }}>
+        <div className="card">
+          <form onSubmit={handleSaveSSOSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', fontWeight: '600' }}>
               Microsoft 365 Single Sign-On (OIDC)
             </h3>
             
-            <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-              <input 
-                id="sso-enabled"
-                type="checkbox"
-                checked={oidcEnabled}
-                onChange={(e) => setOidcEnabled(e.target.checked)}
-                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-              />
-              <label htmlFor="sso-enabled" style={{ cursor: 'pointer', fontWeight: 'bold', margin: 0 }}>
-                Enable Microsoft 365 OIDC SSO
+            <div className="form-group">
+              <label className="switch-container">
+                <input 
+                  id="sso-enabled"
+                  type="checkbox"
+                  className="switch-input"
+                  checked={oidcEnabled}
+                  onChange={(e) => setOidcEnabled(e.target.checked)}
+                />
+                <div className="switch-control" />
+                <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Enable Microsoft 365 OIDC SSO</span>
               </label>
             </div>
 
@@ -1542,7 +1580,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 placeholder="e.g. common, organizations, or Azure Directory Tenant GUID"
                 required={oidcEnabled} 
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                 Use 'common' for multi-tenant applications or your specific Entra ID Directory (Tenant) ID GUID.
               </span>
             </div>
@@ -1564,25 +1602,13 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               <label htmlFor="sso-secret">Client Secret *</label>
               <input 
                 id="sso-secret"
-                type={showSSOSecret ? "text" : "password"} 
+                type="password" 
                 className="input-control" 
                 value={oidcClientSecret}
                 onChange={(e) => setOidcClientSecret(e.target.value)}
                 placeholder="Enter client secret value"
                 required={oidcEnabled} 
               />
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <input 
-                  id="show-sso-secret"
-                  type="checkbox"
-                  checked={showSSOSecret}
-                  onChange={(e) => setShowSSOSecret(e.target.checked)}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                <label htmlFor="show-sso-secret" style={{ fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
-                  Show Secret
-                </label>
-              </div>
             </div>
 
             <div className="form-group">
@@ -1596,25 +1622,26 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 placeholder="e.g. http://localhost:5000/api/auth/oidc/callback"
                 required={oidcEnabled} 
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                 Must match exactly one of the Redirect URIs configured in the Azure App Registration. Recommended: <strong>{window.location.origin}/api/auth/oidc/callback</strong>
               </span>
             </div>
 
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '0.25rem 0' }} />
 
-            <h4 style={{ fontSize: '1.05rem', margin: 0 }}>User Provisioning & Roles</h4>
+            <h4 style={{ fontSize: '1rem', margin: 0, fontWeight: '600' }}>User Provisioning & Roles</h4>
 
-            <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-              <input 
-                id="sso-provision"
-                type="checkbox"
-                checked={oidcAutoProvision}
-                onChange={(e) => setOidcAutoProvision(e.target.checked)}
-                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-              />
-              <label htmlFor="sso-provision" style={{ cursor: 'pointer', fontWeight: 'bold', margin: 0 }}>
-                Auto-provision new users on first login
+            <div className="form-group">
+              <label className="switch-container">
+                <input 
+                  id="sso-provision"
+                  type="checkbox"
+                  className="switch-input"
+                  checked={oidcAutoProvision}
+                  onChange={(e) => setOidcAutoProvision(e.target.checked)}
+                />
+                <div className="switch-control" />
+                <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Auto-provision new users on first login</span>
               </label>
             </div>
 
@@ -1625,26 +1652,25 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 className="input-control"
                 value={oidcDefaultRole}
                 onChange={(e) => setOidcDefaultRole(e.target.value)}
-                style={{ background: 'var(--bg-app)', color: 'var(--text-main)', cursor: 'pointer' }}
                 disabled={!oidcAutoProvision}
               >
                 {roles.map(role => (
                   <option key={role.id} value={role.name}>{role.name}</option>
                 ))}
               </select>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                 New accounts created via SSO login will automatically be assigned this role.
               </span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
               <button 
                 type="submit" 
                 className="btn btn-primary" 
                 style={{ gap: '0.5rem' }}
                 disabled={saving}
               >
-                <Save size={18} /> {saving ? 'Saving...' : 'Save SSO Settings'}
+                <Save size={16} /> {saving ? 'Saving...' : 'Save SSO Settings'}
               </button>
             </div>
           </form>
@@ -1652,19 +1678,19 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       )}
       {/* BRANDING CONFIGURATION TAB */}
       {activeSubTab === 'branding' && canManageRoles && (
-        <div className="card" style={{ padding: '2rem' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="card">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
             
             {/* Title Icon Customization */}
-            <form onSubmit={handleSaveBrandingIcon} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '2rem' }}>
-              <h3 style={{ fontSize: '1.25rem', margin: 0 }}>App Title Icon</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+            <form onSubmit={handleSaveBrandingIcon} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>App Title Icon</h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0 }}>
                 Customize or remove the emoji/icon shown in the application title (e.g. in the sidebar and mobile header).
               </p>
               
               <div className="form-group" style={{ maxWidth: '400px' }}>
                 <label htmlFor="branding-icon-input">Title Icon / Emoji</label>
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <input 
                     id="branding-icon-input"
                     type="text" 
@@ -1672,7 +1698,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     value={brandingIcon}
                     onChange={(e) => setBrandingIcon(e.target.value)}
                     placeholder="Enter an emoji or text (e.g. 🍳)"
-                    style={{ fontSize: '1.2rem', textAlign: 'center', width: '100px', flex: '0 0 auto' }}
+                    style={{ fontSize: '1.15rem', textAlign: 'center', width: '90px', flex: '0 0 auto' }}
                   />
                   <button 
                     type="button" 
@@ -1684,7 +1710,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     Remove Icon
                   </button>
                 </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.125rem' }}>
                   Setting to 'none' will hide the icon completely.
                 </span>
               </div>
@@ -1697,63 +1723,115 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             </form>
 
             {/* Custom Logo Upload */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '2rem' }}>
-              <h3 style={{ fontSize: '1.25rem', margin: 0 }}>App Logo</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-                Upload a custom logo to replace the app title text in the sidebar / mobile headers, and display on the login page.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>App Logos</h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                Upload custom logos for Light and Dark themes to replace the app title text in the sidebar / mobile headers, and display on the login page.
               </p>
               
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
-                <div style={{ flex: '1 1 300px' }}>
-                  <input 
-                    type="file" 
-                    id="logo-upload-input" 
-                    accept="image/*" 
-                    onChange={handleUploadLogo} 
-                    style={{ display: 'none' }}
-                  />
-                  <label 
-                    htmlFor="logo-upload-input" 
-                    className="btn btn-secondary" 
-                    style={{ cursor: 'pointer', display: 'inline-flex', width: 'auto' }}
-                  >
-                    Choose Logo Image
-                  </label>
-                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                    Supported formats: PNG, JPG, WEBP, SVG. Replaces text headers when uploaded.
-                  </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem' }}>
+                {/* Light Theme Logo */}
+                <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--foreground)' }}>
+                    <Sun size={14} style={{ color: '#f39c12' }} /> Light Theme Logo
+                  </h4>
+                  <div>
+                    <input 
+                      type="file" 
+                      id="logo-light-upload-input" 
+                      accept="image/*" 
+                      onChange={(e) => handleUploadLogo(e, 'light')} 
+                      style={{ display: 'none' }}
+                    />
+                    <label 
+                      htmlFor="logo-light-upload-input" 
+                      className="btn btn-secondary" 
+                      style={{ cursor: 'pointer', display: 'inline-flex', width: 'auto' }}
+                    >
+                      Choose Light Logo
+                    </label>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.375rem' }}>
+                      Supported formats: PNG, JPG, WEBP, SVG.
+                    </span>
+                  </div>
+
+                  {brandingLogoLight && (
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: 'var(--radius)', background: 'white' }}>
+                      <span style={{ fontSize: '0.625rem', fontWeight: 'bold', color: '#7f8c8d' }}>Light Theme Preview</span>
+                      <img 
+                        src={brandingLogoLight} 
+                        alt="Light Logo" 
+                        style={{ maxHeight: '44px', maxWidth: '100%', objectFit: 'contain' }}
+                      />
+                      <button 
+                        type="button" 
+                        className="btn btn-danger" 
+                        style={{ padding: '0.25rem 0.5rem', height: '1.75rem', fontSize: '0.75rem', marginTop: '0.25rem' }} 
+                        onClick={() => handleRemoveLogo('light')}
+                        disabled={saving}
+                      >
+                        Remove Light Logo
+                      </button>
+                    </div>
+                  )}
                 </div>
 
-                {brandingLogo && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', border: '1px solid var(--border-color)', padding: '1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Current Logo Preview</span>
-                    <img 
-                      src={brandingLogo} 
-                      alt="App Logo" 
-                      style={{ maxHeight: '60px', maxWidth: '200px', objectFit: 'contain' }}
+                {/* Dark Theme Logo */}
+                <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: '0.75rem', border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--foreground)' }}>
+                    <Moon size={14} style={{ color: '#9b59b6' }} /> Dark Theme Logo
+                  </h4>
+                  <div>
+                    <input 
+                      type="file" 
+                      id="logo-dark-upload-input" 
+                      accept="image/*" 
+                      onChange={(e) => handleUploadLogo(e, 'dark')} 
+                      style={{ display: 'none' }}
                     />
-                    <button 
-                      type="button" 
-                      className="btn btn-danger" 
-                      style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', marginTop: '0.5rem' }} 
-                      onClick={handleRemoveLogo}
-                      disabled={saving}
+                    <label 
+                      htmlFor="logo-dark-upload-input" 
+                      className="btn btn-secondary" 
+                      style={{ cursor: 'pointer', display: 'inline-flex', width: 'auto' }}
                     >
-                      Remove Logo
-                    </button>
+                      Choose Dark Logo
+                    </label>
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.375rem' }}>
+                      Supported formats: PNG, JPG, WEBP, SVG.
+                    </span>
                   </div>
-                )}
+
+                  {brandingLogoDark && (
+                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', border: '1px solid var(--border)', padding: '0.5rem', borderRadius: 'var(--radius)', background: '#18181b' }}>
+                      <span style={{ fontSize: '0.625rem', fontWeight: 'bold', color: '#bdc3c7' }}>Dark Theme Preview</span>
+                      <img 
+                        src={brandingLogoDark} 
+                        alt="Dark Logo" 
+                        style={{ maxHeight: '44px', maxWidth: '100%', objectFit: 'contain' }}
+                      />
+                      <button 
+                        type="button" 
+                        className="btn btn-danger" 
+                        style={{ padding: '0.25rem 0.5rem', height: '1.75rem', fontSize: '0.75rem', marginTop: '0.25rem' }} 
+                        onClick={() => handleRemoveLogo('dark')}
+                        disabled={saving}
+                      >
+                        Remove Dark Logo
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Custom Favicon Upload */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Favicon</h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Favicon</h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0 }}>
                 Upload a custom favicon image (.ico, .png, or .svg) to replace the default browser tab icon.
               </p>
               
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2rem', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem', alignItems: 'center' }}>
                 <div style={{ flex: '1 1 300px' }}>
                   <input 
                     type="file" 
@@ -1769,23 +1847,23 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   >
                     Choose Favicon Image
                   </label>
-                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
+                  <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.375rem' }}>
                     Supported formats: ICO, PNG, SVG.
                   </span>
                 </div>
 
                 {brandingFavicon && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', border: '1px solid var(--border-color)', padding: '1rem', borderRadius: 'var(--radius-md)', background: 'var(--bg-app)' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Current Favicon Preview</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', border: '1px solid var(--border)', padding: '0.75rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Current Favicon</span>
                     <img 
                       src={brandingFavicon} 
                       alt="Favicon" 
-                      style={{ height: '32px', width: '32px', objectFit: 'contain' }}
+                      style={{ height: '24px', width: '24px', objectFit: 'contain' }}
                     />
                     <button 
                       type="button" 
                       className="btn btn-danger" 
-                      style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', marginTop: '0.5rem' }} 
+                      style={{ padding: '0.25rem 0.5rem', height: '1.75rem', fontSize: '0.75rem', marginTop: '0.25rem' }} 
                       onClick={handleRemoveFavicon}
                       disabled={saving}
                     >
@@ -1802,13 +1880,13 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       {/* CALENDAR SETTINGS TAB */}
       {activeSubTab === 'calendar' && currentUser?.auth_provider === 'sso' && canReadCalendar && (
-        <div className="card" style={{ padding: '2rem' }}>
-          <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '500px' }}>
-            <h3 style={{ fontSize: '1.25rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <Calendar size={20} /> Microsoft Calendar Sync Settings
+        <div className="card">
+          <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px' }}>
+            <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+              <Calendar size={18} /> Microsoft Calendar Sync Settings
             </h3>
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Configure which Microsoft 365 calendar you want your weekly meal plans to sync to.
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
+              Configure which Microsoft 365 calendar you want your events to sync to.
             </p>
 
             <div className="form-group">
@@ -1821,30 +1899,30 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 onChange={(e) => setCalendarGuid(e.target.value)}
                 placeholder="e.g. AAMkAGI2TAAA="
               />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                 Leave this field blank to use your default <strong>M365 Calendar</strong>.
               </span>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
               <button 
                 type="submit" 
                 className="btn btn-primary" 
                 style={{ gap: '0.5rem' }}
                 disabled={saving}
               >
-                <Save size={18} /> {saving ? 'Saving...' : 'Save Calendar Settings'}
+                <Save size={16} /> {saving ? 'Saving...' : 'Save Calendar Settings'}
               </button>
             </div>
 
             {/* Available Calendars Section */}
-            <div style={{ marginTop: '2rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h4 style={{ fontSize: '1.05rem', margin: 0 }}>Available M365 Calendars</h4>
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '600' }}>Available M365 Calendars</h4>
                 <button 
                   type="button" 
                   className="btn btn-outline" 
-                  style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
+                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem' }}
                   onClick={async () => {
                     const tokenVal = localStorage.getItem('token') || '';
                     try {
@@ -1855,8 +1933,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       });
                       if (res.ok) {
                         const data = await res.json();
-                        const calendars = Array.isArray(data) ? data : (data.calendars || []);
-                        setAvailableCalendars(calendars);
+                        setAvailableCalendars(data.calendars || []);
                         showToast('Successfully loaded available calendars!', 'success');
                       } else if (res.status === 401) {
                         // Redirect as fallback
@@ -1870,12 +1947,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     }
                   }}
                 >
-                  {availableCalendars.length > 0 ? 'Refresh Calendar List' : 'Load Calendars from Microsoft'}
+                  {availableCalendars.length > 0 ? 'Refresh List' : 'Load Calendars from Microsoft'}
                 </button>
               </div>
 
               {availableCalendars.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
                   {availableCalendars.map(cal => (
                     <div 
                       key={cal.id} 
@@ -1883,28 +1960,28 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         display: 'flex', 
                         justifyContent: 'space-between', 
                         alignItems: 'center', 
-                        padding: '0.75rem 1rem', 
-                        border: '1px solid var(--border-color)', 
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--bg-app)',
-                        gap: '1rem'
+                        padding: '0.5rem 0.75rem', 
+                        border: '1px solid var(--border)', 
+                        borderRadius: 'var(--radius)',
+                        background: 'var(--muted)',
+                        gap: '0.75rem'
                       }}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', overflow: 'hidden' }}>
-                        <span style={{ fontWeight: '600', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', overflow: 'hidden' }}>
+                        <span style={{ fontWeight: '600', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                           {cal.name}
                           {cal.isDefault && (
-                            <span className="badge badge-primary" style={{ fontSize: '0.65rem', padding: '0.1rem 0.35rem' }}>Default</span>
+                            <span className="badge badge-primary" style={{ fontSize: '0.5625rem', padding: '0.05rem 0.3rem' }}>Default</span>
                           )}
                         </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '350px' }} title={cal.id}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }} title={cal.id}>
                           ID: {cal.id}
                         </span>
                       </div>
                       <button 
                         type="button" 
                         className="btn btn-outline" 
-                        style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', flexShrink: 0 }}
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem', flexShrink: 0 }}
                         onClick={() => {
                           setCalendarGuid(cal.id);
                           showToast(`Selected "${cal.name}" calendar. Don't forget to click Save!`, 'success');
@@ -1916,7 +1993,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0.25rem 0' }}>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: '0.125rem 0' }}>
                   Connect your Microsoft 365 account to list and select from your custom calendars.
                 </p>
               )}
@@ -1927,22 +2004,22 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       {/* INTEGRATIONS & API KEY TAB */}
       {activeSubTab === 'integrations' && currentUser?.role_name === 'Administrator' && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           {/* Key Management Card */}
-          <div className="card" style={{ padding: '2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-              <Cpu size={24} style={{ color: 'var(--primary)' }} />
-              <h3 style={{ fontSize: '1.25rem', margin: 0 }}>API Key Integration</h3>
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <Cpu size={20} style={{ color: 'var(--primary)' }} />
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>API Key Integration</h3>
             </div>
-            <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
-              Generate an API key to securely integrate this cookbook with external applications, browser extensions, or automated tools. 
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
+              Generate an API key to securely integrate this application with external applications, browser extensions, or automated tools. 
               API requests using this key will authenticate with Administrator-level privileges.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <div className="form-group">
                 <label htmlFor="api-key-input">Active API Key</label>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                   <div style={{ position: 'relative', flex: 1 }}>
                     <input 
                       id="api-key-input"
@@ -1952,10 +2029,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       placeholder={loadingApiKey ? "Loading key..." : "No API key generated yet"}
                       readOnly
                       style={{ 
-                        fontFamily: apiKey ? 'monospace' : 'inherit', 
-                        paddingRight: '3rem',
-                        background: 'var(--bg-app-dark, rgba(0,0,0,0.05))',
-                        color: apiKey ? 'var(--text-main)' : 'var(--text-muted)'
+                        fontFamily: apiKey ? 'var(--font-mono)' : 'inherit', 
+                        paddingRight: '2.5rem',
+                        background: 'var(--muted)',
+                        color: apiKey ? 'var(--foreground)' : 'var(--muted-foreground)'
                       }}
                     />
                     {apiKey && (
@@ -1964,12 +2041,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         onClick={() => setRevealKey(!revealKey)}
                         style={{
                           position: 'absolute',
-                          right: '0.75rem',
+                          right: '0.5rem',
                           top: '50%',
                           transform: 'translateY(-50%)',
                           background: 'none',
                           border: 'none',
-                          color: 'var(--text-muted)',
+                          color: 'var(--muted-foreground)',
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',
@@ -1978,7 +2055,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         }}
                         title={revealKey ? "Hide API Key" : "Reveal API Key"}
                       >
-                        {revealKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                        {revealKey ? <EyeOff size={16} /> : <Eye size={16} />}
                       </button>
                     )}
                   </div>
@@ -1988,25 +2065,25 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       type="button"
                       className="btn btn-outline"
                       onClick={() => handleCopyText(apiKey, 'API Key')}
-                      style={{ padding: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}
+                      style={{ padding: '0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}
                       title="Copy API Key to Clipboard"
                     >
-                      <Copy size={16} /> Copy
+                      <Copy size={14} /> Copy
                     </button>
                   )}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
                 <button
                   type="button"
                   className="btn btn-primary"
                   onClick={handleGenerateApiKey}
                   disabled={loadingApiKey}
-                  style={{ gap: '0.5rem', display: 'flex', alignItems: 'center' }}
+                  style={{ gap: '0.35rem', display: 'flex', alignItems: 'center' }}
                 >
-                  <Key size={16} />
-                  {apiKey ? 'Regenerate API Key' : 'Generate API Key'}
+                  <Key size={14} />
+                  {apiKey ? 'Regenerate Key' : 'Generate Key'}
                 </button>
 
                 {apiKey && (
@@ -2015,10 +2092,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     className="btn btn-secondary"
                     onClick={handleRevokeApiKey}
                     disabled={loadingApiKey}
-                    style={{ gap: '0.5rem', display: 'flex', alignItems: 'center', color: 'var(--danger)' }}
+                    style={{ gap: '0.35rem', display: 'flex', alignItems: 'center', color: 'var(--destructive)' }}
                   >
-                    <Trash2 size={16} />
-                    Revoke API Key
+                    <Trash2 size={14} />
+                    Revoke Key
                   </button>
                 )}
               </div>
@@ -2026,189 +2103,189 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
           </div>
 
           {/* Documentation Card */}
-          <div className="card" style={{ padding: '2rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem' }}>
-              <Code size={24} style={{ color: 'var(--primary)' }} />
-              <h3 style={{ fontSize: '1.25rem', margin: 0 }}>API Documentation</h3>
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+              <Code size={20} />
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>API Documentation</h3>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: 0 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: '1.5' }}>
                 Integrations authenticate via standard HTTP requests. You can pass the API key using either the 
                 <code>X-API-Key</code> request header, or the <code>api_key</code> query parameter.
               </p>
 
               {/* API Endpoints */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 
-                {/* Endpoint 1: List Recipes */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/recipes</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>List and search recipes</span>
+                {/* Endpoint 1: List Users */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
+                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/users</code>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List all users</span>
                   </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Retrieves a list of all recipes. You can optionally filter by search query using the <code>q</code> query parameter.
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
+                      Retrieves a list of all user accounts, display names, authentication providers, and assigned role IDs.
                     </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request (Header):</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
                       <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/users`}
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/users`, 'curl command')}
+                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          <Copy size={10} /> Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Endpoint 2: Create User */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>POST</span>
+                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/users</code>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>Create user account</span>
+                  </div>
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
+                      Creates a new local user credentials account. The `role_id` should correspond to an active role.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
+                      <div style={{ display: 'flex', position: 'relative' }}>
+                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                          {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"username": "johndoe", "password": "securepassword", "role_id": 2}' ${window.location.origin}/api/users`}
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"username": "johndoe", "password": "securepassword", "role_id": 2}' ${window.location.origin}/api/users`, 'curl command')}
+                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          <Copy size={10} /> Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Endpoint 3: List Roles */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
+                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/roles</code>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List roles</span>
+                  </div>
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
+                      Retrieves all configured access control roles and their permission matrix mappings.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
+                      <div style={{ display: 'flex', position: 'relative' }}>
+                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
+                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/roles`}
+                        </pre>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/roles`, 'curl command')}
+                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                        >
+                          <Copy size={10} /> Copy
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Endpoint 4: List Recipes */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
+                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/recipes</code>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List recipes</span>
+                  </div>
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
+                      Retrieves a list of all culinary recipes in the database, optionally filtering by query.
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
+                      <div style={{ display: 'flex', position: 'relative' }}>
+                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
                           {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/recipes`}
                         </pre>
                         <button
                           type="button"
                           onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/recipes`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                         >
-                          <Copy size={12} /> Copy
+                          <Copy size={10} /> Copy
                         </button>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Endpoint 2: Get Recipe Details */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/recipes/:id</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>Get single recipe details</span>
+                {/* Endpoint 5: Get Recipe Details */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
+                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/recipes/:id</code>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>Get recipe details</span>
                   </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Fetches details for a specific recipe, including its full ingredients list and step-by-step instructions.
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
+                      Retrieves full ingredients and step-by-step instructions for a single recipe.
                     </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request (Query Parameter):</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
                       <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
                           {`curl "${window.location.origin}/api/recipes/1?api_key=${apiKey || 'YOUR_API_KEY'}"`}
                         </pre>
                         <button
                           type="button"
                           onClick={() => handleCopyText(`curl "${window.location.origin}/api/recipes/1?api_key=${apiKey || 'YOUR_API_KEY'}"`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                         >
-                          <Copy size={12} /> Copy
+                          <Copy size={10} /> Copy
                         </button>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Endpoint 3: Retrieve Menu */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/menu</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>Get current weekly menu</span>
+                {/* Endpoint 6: List Leftovers */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
+                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/leftovers</code>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List leftovers in fridge</span>
                   </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Retrieves all meals scheduled on the weekly planner.
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
+                      Retrieves active leftovers in the fridge along with their expiration calculations.
                     </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request:</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
                       <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
-                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/menu`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/menu`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={12} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 4: Create/Update Menu Item */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>POST</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/menu</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>Update day meal plan</span>
-                  </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Schedules a recipe, leftover, or custom meal for a given day and meal type.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
-                          {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"day_of_week": "Monday", "meal_type": "Dinner", "custom_meal": "Tacos"}' ${window.location.origin}/api/menu`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"day_of_week": "Monday", "meal_type": "Dinner", "custom_meal": "Tacos"}' ${window.location.origin}/api/menu`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={12} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 5: Get Leftovers */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/leftovers</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>List leftovers in fridge</span>
-                  </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Retrieves all active leftovers recorded in the fridge.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
                           {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/leftovers`}
                         </pre>
                         <button
                           type="button"
                           onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/leftovers`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                         >
-                          <Copy size={12} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 6: List Active Notifications */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/notifications/active</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>List active/sent notifications</span>
-                  </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Retrieves a list of the 100 most recently triggered and sent notifications.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
-                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/notifications/active`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/notifications/active`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={12} /> Copy
+                          <Copy size={10} /> Copy
                         </button>
                       </div>
                     </div>
@@ -2216,57 +2293,28 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 </div>
 
                 {/* Endpoint 7: Toggle Notification Rule */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>POST</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/notifications/toggle</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>Enable/Disable notification rule</span>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                    <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>POST</span>
+                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/notifications/toggle</code>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>Toggle notification event</span>
                   </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Enables or disables a specific notification event rule (e.g., "Recipe Added", "Recipe Deleted", "Meal Plan Updated", "Meal Added to Leftovers", "Leftovers Expiring", "Inventory Item Expiring").
+                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
+                      Enables or disables a specific notification event rule (e.g. Recipe Added, Expiring Leftovers).
                     </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request:</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
                       <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
+                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
                           {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Recipe Added", "enabled": true}' ${window.location.origin}/api/notifications/toggle`}
                         </pre>
                         <button
                           type="button"
                           onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Recipe Added", "enabled": true}' ${window.location.origin}/api/notifications/toggle`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                         >
-                          <Copy size={12} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 8: Trigger Expiration Check */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius-sm)' }}>POST</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>/api/notifications/check-expiry</code>
-                    <span style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>Trigger manual expiration check</span>
-                  </div>
-                  <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <p style={{ fontSize: '0.875rem', margin: 0 }}>
-                      Manually triggers an immediate scan of expiring leftovers and inventory items, sending any configured notification alerts.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.75rem 1rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius-sm)', width: '100%', overflowX: 'auto', fontSize: '0.8rem', fontFamily: 'monospace' }}>
-                          {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/notifications/check-expiry`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/notifications/check-expiry`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-app)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-main)', cursor: 'pointer', padding: '0.25rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={12} /> Copy
+                          <Copy size={10} /> Copy
                         </button>
                       </div>
                     </div>
@@ -2281,27 +2329,27 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       {/* NOTIFICATIONS TAB */}
       {activeSubTab === 'notifications' && currentUser?.role_name === 'Administrator' && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
-          <form onSubmit={handleSaveNotificationSettings} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <form onSubmit={handleSaveNotificationSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
             
             {/* Notification Channels Card */}
-            <div className="card" style={{ padding: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                <Bell size={24} style={{ color: 'var(--primary)' }} />
-                <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Notification Channels</h3>
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                <Bell size={20} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Notification Channels</h3>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 
                 {/* SMTP Config */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                    <Mail size={18} style={{ color: 'var(--primary)' }} />
-                    <h4 style={{ margin: 0, fontSize: '1.05rem' }}>SMTP Email Configuration</h4>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--muted)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1rem' }}>
+                    <Mail size={16} />
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>SMTP Email Configuration</h4>
                   </div>
                   
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
                     <div className="form-group">
                       <label htmlFor="smtp-host">SMTP Host</label>
                       <input 
@@ -2324,19 +2372,22 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         placeholder="e.g. 587 or 465" 
                       />
                     </div>
-                    <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem' }}>
-                      <input 
-                        id="smtp-secure"
-                        type="checkbox" 
-                        checked={notifySmtpSecure} 
-                        onChange={(e) => setNotifySmtpSecure(e.target.checked)} 
-                        style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                      />
-                      <label htmlFor="smtp-secure" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Use SSL/TLS (Port 465)</label>
+                    <div className="form-group" style={{ justifyContent: 'center', marginTop: '1.25rem' }}>
+                      <label className="switch-container">
+                        <input 
+                          id="smtp-secure"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifySmtpSecure} 
+                          onChange={(e) => setNotifySmtpSecure(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Use SSL/TLS (Port 465)</span>
+                      </label>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
                     <div className="form-group">
                       <label htmlFor="smtp-user">Username</label>
                       <input 
@@ -2352,28 +2403,16 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       <label htmlFor="smtp-pass">Password</label>
                       <input 
                         id="smtp-pass"
-                        type={showSMTPPassword ? "text" : "password"} 
+                        type="password" 
                         className="input-control" 
                         value={notifySmtpPass} 
                         onChange={(e) => setNotifySmtpPass(e.target.value)} 
                         placeholder="Enter SMTP password" 
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <input 
-                          id="show-smtp-password"
-                          type="checkbox"
-                          checked={showSMTPPassword}
-                          onChange={(e) => setShowSMTPPassword(e.target.checked)}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <label htmlFor="show-smtp-password" style={{ fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
-                          Show Password
-                        </label>
-                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem', marginTop: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginTop: '0.5rem' }}>
                     <div className="form-group">
                       <label htmlFor="smtp-from">From Email Address</label>
                       <input 
@@ -2382,7 +2421,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         className="input-control" 
                         value={notifySmtpFrom} 
                         onChange={(e) => setNotifySmtpFrom(e.target.value)} 
-                        placeholder="e.g. no-reply@cookbook.com" 
+                        placeholder="e.g. no-reply@baseapp.com" 
                       />
                     </div>
                     <div className="form-group">
@@ -2400,12 +2439,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 </div>
 
                 {/* Discord Config */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                    <MessageSquare size={18} style={{ color: 'var(--primary)' }} />
-                    <h4 style={{ margin: 0, fontSize: '1.05rem' }}>Discord Integration</h4>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--muted)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1rem' }}>
+                    <MessageSquare size={16} />
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>Discord Integration</h4>
                   </div>
-                  <div className="form-group">
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label htmlFor="discord-url">Discord Webhook URL</label>
                     <input 
                       id="discord-url"
@@ -2415,19 +2454,19 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       onChange={(e) => setNotifyDiscordWebhookUrl(e.target.value)} 
                       placeholder="e.g. https://discord.com/api/webhooks/..." 
                     />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.125rem' }}>
                       Incoming alerts will be pushed as rich message embeds into the linked Discord channel.
                     </span>
                   </div>
                 </div>
 
                 {/* Webhook Config */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                    <Webhook size={18} style={{ color: 'var(--primary)' }} />
-                    <h4 style={{ margin: 0, fontSize: '1.05rem' }}>HTTP Webhook Notifications</h4>
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--muted)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '1rem' }}>
+                    <Webhook size={16} />
+                    <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>HTTP Webhook Notifications</h4>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
                     <div className="form-group">
                       <label htmlFor="webhook-url">Webhook URL</label>
                       <input 
@@ -2436,34 +2475,22 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         className="input-control" 
                         value={notifyWebhookUrl} 
                         onChange={(e) => setNotifyWebhookUrl(e.target.value)} 
-                        placeholder="e.g. https://api.myhouse.com/cookbook-alert" 
+                        placeholder="e.g. https://api.myhouse.com/baseapp-alert" 
                       />
                     </div>
                     <div className="form-group">
                       <label htmlFor="webhook-secret">Webhook Secret Signature Token</label>
                       <input 
                         id="webhook-secret"
-                        type={showWebhookSecret ? "text" : "password"} 
+                        type="password" 
                         className="input-control" 
                         value={notifyWebhookSecret} 
                         onChange={(e) => setNotifyWebhookSecret(e.target.value)} 
                         placeholder="Enter secret token for HMAC validation" 
                       />
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.5rem' }}>
-                        <input 
-                          id="show-webhook-secret"
-                          type="checkbox"
-                          checked={showWebhookSecret}
-                          onChange={(e) => setShowWebhookSecret(e.target.checked)}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <label htmlFor="show-webhook-secret" style={{ fontSize: '0.85rem', cursor: 'pointer', userSelect: 'none', margin: 0 }}>
-                          Show Secret
-                        </label>
-                      </div>
                     </div>
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.5rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'block', marginTop: '0.375rem' }}>
                     Posts a JSON body containing event data. Requests are signed using HMAC-SHA256 in the <code>X-Signature</code> header.
                   </span>
                 </div>
@@ -2472,145 +2499,177 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             </div>
 
             {/* Notification Rules & Events Card */}
-            <div className="card" style={{ padding: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                <Settings size={24} style={{ color: 'var(--primary)' }} />
-                <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Notification Rules</h3>
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                <Settings size={20} />
+                <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Notification Rules</h3>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 
                 {/* Event toggles */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                    <input 
-                      id="rule-recipe-added"
-                      type="checkbox" 
-                      checked={notifyRecipeAdded} 
-                      onChange={(e) => setNotifyRecipeAdded(e.target.checked)} 
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="rule-recipe-added" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Recipe Added</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-recipe-added"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyRecipeAdded} 
+                          onChange={(e) => setNotifyRecipeAdded(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Recipe Added</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-recipe-deleted"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyRecipeDeleted} 
+                          onChange={(e) => setNotifyRecipeDeleted(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Recipe Deleted</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-meal-plan-updated"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyMealPlanUpdated} 
+                          onChange={(e) => setNotifyMealPlanUpdated(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Meal Plan Updated</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-leftovers-added"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyLeftoversAdded} 
+                          onChange={(e) => setNotifyLeftoversAdded(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Meal Added to Leftovers</span>
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                    <input 
-                      id="rule-recipe-deleted"
-                      type="checkbox" 
-                      checked={notifyRecipeDeleted} 
-                      onChange={(e) => setNotifyRecipeDeleted(e.target.checked)} 
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="rule-recipe-deleted" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Recipe Deleted</label>
-                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderTop: '1px dashed var(--border)', paddingTop: '1.25rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <label className="switch-container">
+                          <input 
+                            id="rule-leftovers-expiring"
+                            type="checkbox" 
+                            className="switch-input"
+                            checked={notifyLeftoversExpiring} 
+                            onChange={(e) => setNotifyLeftoversExpiring(e.target.checked)} 
+                          />
+                          <div className="switch-control" />
+                          <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Leftovers Expiring Alerts</span>
+                        </label>
+                        {notifyLeftoversExpiring && (
+                          <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                            <label htmlFor="leftover-lead-days" style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Info size={12} style={{ color: 'var(--primary)' }} /> Expiry Lead Days
+                            </label>
+                            <input 
+                              id="leftover-lead-days"
+                              type="number" 
+                              className="input-control" 
+                              value={notifyLeftoversExpiryDays} 
+                              onChange={(e) => setNotifyLeftoversExpiryDays(Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                              min="1" 
+                              required={notifyLeftoversExpiring}
+                              style={{ width: '100px' }}
+                            />
+                            <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>Days prior to leftovers expiring to alert.</span>
+                          </div>
+                        )}
+                      </div>
 
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                    <input 
-                      id="rule-meal-plan"
-                      type="checkbox" 
-                      checked={notifyMealPlanUpdated} 
-                      onChange={(e) => setNotifyMealPlanUpdated(e.target.checked)} 
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="rule-meal-plan" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Meal Plan Updated</label>
-                  </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <label className="switch-container">
+                          <input 
+                            id="rule-inventory-expiring"
+                            type="checkbox" 
+                            className="switch-input"
+                            checked={notifyInventoryExpiring} 
+                            onChange={(e) => setNotifyInventoryExpiring(e.target.checked)} 
+                          />
+                          <div className="switch-control" />
+                          <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Inventory Item Expiring Alerts</span>
+                        </label>
+                        {notifyInventoryExpiring && (
+                          <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                            <label htmlFor="inventory-lead-days" style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                              <Info size={12} style={{ color: 'var(--primary)' }} /> Expiry Lead Days
+                            </label>
+                            <input 
+                              id="inventory-lead-days"
+                              type="number" 
+                              className="input-control" 
+                              value={notifyInventoryExpiryDays} 
+                              onChange={(e) => setNotifyInventoryExpiryDays(Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                              min="1" 
+                              required={notifyInventoryExpiring}
+                              style={{ width: '100px' }}
+                            />
+                            <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>Days prior to inventory items expiring to alert.</span>
+                          </div>
+                        )}
+                      </div>
 
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                    <input 
-                      id="rule-leftover-added"
-                      type="checkbox" 
-                      checked={notifyLeftoversAdded} 
-                      onChange={(e) => setNotifyLeftoversAdded(e.target.checked)} 
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="rule-leftover-added" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Meal Added to Leftovers</label>
-                  </div>
-
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                    <input 
-                      id="rule-leftover-expiring"
-                      type="checkbox" 
-                      checked={notifyLeftoversExpiring} 
-                      onChange={(e) => setNotifyLeftoversExpiring(e.target.checked)} 
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="rule-leftover-expiring" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Leftovers Expiring</label>
-                  </div>
-
-                  <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem' }}>
-                    <input 
-                      id="rule-inventory-expiring"
-                      type="checkbox" 
-                      checked={notifyInventoryExpiring} 
-                      onChange={(e) => setNotifyInventoryExpiring(e.target.checked)} 
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="rule-inventory-expiring" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Inventory Item Expiring</label>
+                    </div>
                   </div>
 
                 </div>
 
-                <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '0.5rem 0' }} />
-
-                {/* Lead Days Setup */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                  
-                  <div className="form-group">
-                    <label htmlFor="leftover-lead-days" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Info size={14} style={{ color: 'var(--primary)' }} /> Leftovers Expiry Lead Days
-                    </label>
-                    <input 
-                      id="leftover-lead-days"
-                      type="number" 
-                      className="input-control" 
-                      value={notifyLeftoversExpiryDays} 
-                      onChange={(e) => setNotifyLeftoversExpiryDays(Math.max(1, parseInt(e.target.value, 10) || 1))} 
-                      min="1" 
-                      disabled={!notifyLeftoversExpiring} 
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Send an alert this many days before leftovers expire.
-                    </span>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="inventory-lead-days" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Info size={14} style={{ color: 'var(--primary)' }} /> Inventory Expiry Lead Days
-                    </label>
-                    <input 
-                      id="inventory-lead-days"
-                      type="number" 
-                      className="input-control" 
-                      value={notifyInventoryExpiryDays} 
-                      onChange={(e) => setNotifyInventoryExpiryDays(Math.max(1, parseInt(e.target.value, 10) || 1))} 
-                      min="1" 
-                      disabled={!notifyInventoryExpiring} 
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Send an alert this many days before inventory items expire.
-                    </span>
-                  </div>
-
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    style={{ gap: '0.5rem' }} 
+                    disabled={savingNotifications}
+                  >
+                    <Save size={16} /> {savingNotifications ? 'Saving...' : 'Save Configuration'}
+                  </button>
                 </div>
 
               </div>
             </div>
 
-            {/* Feature Requests & Bug Reports Alerts Card */}
-            <div className="card" style={{ padding: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-                <Bell size={24} style={{ color: 'var(--primary)' }} />
-                <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Feature Requests & Bug Reports Alerts</h3>
+            {/* Feature Requests & Bug Reports Admin Notifications */}
+            <div className="card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                <Bell size={20} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Feature Requests & Bug Reports Alerts</h3>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                 
-                {/* Feature Requests Alerts */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '1.05rem', fontWeight: '600' }}>Feature Request Notifications</h4>
+                {/* Feature Requests Admin Alerts */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--muted)' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', marginBottom: '1rem' }}>Feature Request Notifications</h4>
                   
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    
+                    {/* SMTP */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <label className="switch-container">
                         <input 
@@ -2639,6 +2698,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       )}
                     </div>
 
+                    {/* Discord */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <label className="switch-container">
                         <input 
@@ -2667,6 +2727,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       )}
                     </div>
 
+                    {/* Webhook */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <label className="switch-container">
                         <input 
@@ -2694,14 +2755,17 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         </div>
                       )}
                     </div>
+
                   </div>
                 </div>
 
-                {/* Bug Reports Alerts */}
-                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))' }}>
-                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '1.05rem', fontWeight: '600' }}>Bug Report Notifications</h4>
+                {/* Bug Reports Admin Alerts */}
+                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--muted)' }}>
+                  <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', marginBottom: '1rem' }}>Bug Report Notifications</h4>
                   
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    
+                    {/* SMTP */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <label className="switch-container">
                         <input 
@@ -2730,6 +2794,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       )}
                     </div>
 
+                    {/* Discord */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <label className="switch-container">
                         <input 
@@ -2758,6 +2823,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       )}
                     </div>
 
+                    {/* Webhook */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       <label className="switch-container">
                         <input 
@@ -2785,18 +2851,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                  <button 
-                    type="submit" 
-                    className="btn btn-primary" 
-                    style={{ gap: '0.5rem' }} 
-                    disabled={savingNotifications}
-                  >
-                    <Save size={18} /> {savingNotifications ? 'Saving...' : 'Save Configuration'}
-                  </button>
+                  </div>
                 </div>
 
               </div>
@@ -2805,18 +2861,18 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
           </form>
 
           {/* Active Notifications Log History Card */}
-          <div className="card" style={{ padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <Bell size={24} style={{ color: 'var(--primary)' }} />
-                <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Active Notification History</h3>
+          <div className="card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Bell size={20} />
+                <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Active Notification History</h3>
               </div>
               {notificationLogs.length > 0 && (
                 <button 
                   type="button" 
                   className="btn btn-secondary" 
                   onClick={handleClearNotificationLogs} 
-                  style={{ color: 'var(--danger)', fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                  style={{ color: 'var(--destructive)', fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem' }}
                 >
                   Clear History
                 </button>
@@ -2824,34 +2880,34 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             </div>
 
             {loadingNotifications ? (
-              <div style={{ textAlign: 'center', padding: '2rem' }}>
-                <RotateCcw size={24} className="spinner" style={{ margin: '0 auto' }} />
-                <p style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>Loading notification logs...</p>
+              <div style={{ textAlign: 'center', padding: '1.5rem' }}>
+                <RotateCcw size={20} className="spinner" style={{ margin: '0 auto' }} />
+                <p style={{ marginTop: '0.375rem', fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>Loading logs...</p>
               </div>
             ) : notificationLogs.length > 0 ? (
-              <div style={{ overflowX: 'auto' }}>
-                <table className="table" style={{ width: '100%', fontSize: '0.9rem' }}>
+              <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                <table className="table" style={{ width: '100%', fontSize: '0.875rem' }}>
                   <thead>
                     <tr>
                       <th style={{ width: '150px' }}>Date</th>
-                      <th style={{ width: '150px' }}>Event Title</th>
+                      <th style={{ width: '120px' }}>Event</th>
                       <th>Notification Details</th>
                     </tr>
                   </thead>
                   <tbody>
                     {notificationLogs.map(log => (
                       <tr key={log.id}>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
+                        <td style={{ color: 'var(--muted-foreground)', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                           {new Date(log.created_at).toLocaleString()}
                         </td>
                         <td>
                           <span 
                             className={`badge ${
-                              log.event_type.includes('Recipe') ? 'badge-primary' : 
-                              log.event_type.includes('Meal') ? 'badge-info' : 
+                              log.event_type === 'System Alert' ? 'badge-danger' : 
+                              log.event_type === 'User Managed' ? 'badge-info' : 
                               'badge-secondary'
                             }`}
-                            style={{ fontSize: '0.7rem' }}
+                            style={{ fontSize: '0.625rem', padding: '0.05rem 0.35rem' }}
                           >
                             {log.title}
                           </span>
@@ -2863,7 +2919,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 </table>
               </div>
             ) : (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', margin: 0, textAlign: 'center', padding: '2rem' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0, textAlign: 'center', padding: '1.5rem' }}>
                 No active notifications have been recorded yet.
               </p>
             )}
