@@ -173,8 +173,8 @@ h1, h2, h3, h4, h5, h6 {
 /* Sidebar Styling */
 .sidebar {
   width: 280px;
-  background: var(--bg-card);
-  border-right: 1px solid var(--border-color);
+  background-color: var(--primary);
+  border-right: 1px solid color-mix(in srgb, var(--primary-foreground) 15%, transparent);
   padding: 2.5rem 1.5rem;
   display: flex;
   flex-direction: column;
@@ -1191,5 +1191,72 @@ textarea.input-control {
     justify-content: flex-start;
   }
 }
+
+/* Sidebar Scoped Overrides to Ensure Content is Legible on Primary Background */
+.sidebar .sidebar-brand h1 {
+  color: var(--primary-foreground) !important;
+}
+
+.sidebar .nav-link {
+  color: color-mix(in srgb, var(--primary-foreground) 80%, transparent) !important;
+}
+
+.sidebar .nav-link:hover {
+  background-color: color-mix(in srgb, var(--primary-foreground) 10%, transparent) !important;
+  color: var(--primary-foreground) !important;
+}
+
+.sidebar .nav-link.active {
+  background-color: var(--primary-foreground) !important;
+  color: var(--primary) !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+.sidebar .nav-link svg {
+  color: currentColor !important;
+}
+
+.sidebar .sidebar-footer {
+  border-top-color: color-mix(in srgb, var(--primary-foreground) 15%, transparent) !important;
+}
+
+.sidebar .sidebar-toggle-btn {
+  color: var(--primary-foreground) !important;
+}
+
+.sidebar .sidebar-toggle-btn:hover {
+  background-color: color-mix(in srgb, var(--primary-foreground) 10%, transparent) !important;
+}
+
+.sidebar .theme-toggle-btn {
+  color: var(--primary-foreground) !important;
+  border: 1px solid color-mix(in srgb, var(--primary-foreground) 20%, transparent) !important;
+}
+
+.sidebar .theme-toggle-btn:hover {
+  background-color: color-mix(in srgb, var(--primary-foreground) 10%, transparent) !important;
+}
+
+.theme-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: var(--transition-fast);
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+}
+
+.theme-toggle-btn:hover {
+  color: var(--text-main);
+  background-color: var(--border-color);
+}
+
 
 

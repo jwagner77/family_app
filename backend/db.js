@@ -114,6 +114,28 @@ export async function getDb() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS feature_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS bug_reports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      steps_to_reproduce TEXT,
+      severity TEXT DEFAULT 'medium',
+      status TEXT DEFAULT 'open',
+      user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Home Hub');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('primary_color', '#3f51b5');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'system');
@@ -123,6 +145,20 @@ export async function getDb() {
     INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_icon', '🏠');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_favicon', '');
+
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('fr_notify_smtp_enabled', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('fr_notify_smtp_to', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('fr_notify_discord_enabled', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('fr_notify_discord_webhook_url', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('fr_notify_webhook_enabled', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('fr_notify_webhook_url', '');
+
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_smtp_enabled', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_smtp_to', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_discord_enabled', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_discord_webhook_url', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_webhook_enabled', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_webhook_url', '');
   `);
 
   // Safe Migration to add primary_color column to users table if missing

@@ -19,7 +19,11 @@ import {
   CheckCircle,
   AlertCircle,
   CreditCard,
-  Receipt
+  Receipt,
+  Sun,
+  Moon,
+  Lightbulb,
+  Bug
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -58,6 +62,34 @@ import TasksView from './components/TasksView';
 import CalendarView from './components/CalendarView';
 import SubscriptionsView from './components/SubscriptionsView';
 import BillsView from './components/BillsView';
+import FeatureRequestsView from './components/FeatureRequestsView';
+import BugReportsView from './components/BugReportsView';
+
+// Contrast checking function using relative luminance
+function getContrastColor(hexColor) {
+  if (!hexColor) return '#ffffff';
+  let hex = hexColor.replace('#', '');
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+  if (hex.length !== 6) return '#ffffff';
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return '#ffffff';
+
+  const normalize = (val) => {
+    const s = val / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+
+  const R = normalize(r);
+  const G = normalize(g);
+  const B = normalize(b);
+
+  const luminance = 0.2126 * R + 0.7152 * G + 0.0722 * B;
+  return luminance > 0.179 ? '#09090b' : '#ffffff';
+}
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
@@ -227,6 +259,42 @@ export default function App() {
   const applyPrimaryColor = (color) => {
     if (color) {
       document.documentElement.style.setProperty('--primary', color);
+      try {
+        const contrastColor = getContrastColor(color);
+        document.documentElement.style.setProperty('--primary-foreground', contrastColor);
+      } catch (err) {
+        console.error('Error setting primary foreground contrast:', err);
+      }
+    }
+  };
+
+  const toggleTheme = async () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    applyTheme(nextTheme);
+    localStorage.setItem('last_theme', nextTheme);
+
+    if (token && user) {
+      try {
+        const res = await fetch('/api/users/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            primary_color: user.primary_color || primaryColor, 
+            theme: nextTheme, 
+            display_name: user.display_name || user.username, 
+            timezone: user.timezone || 'US/New_York' 
+          })
+        });
+        if (res.ok) {
+          setUser(prev => {
+            if (!prev) return null;
+            return { ...prev, theme: nextTheme };
+          });
+        }
+      } catch (err) {
+        console.error('Error saving theme settings:', err);
+      }
     }
   };
 
@@ -365,17 +433,17 @@ export default function App() {
       {/* Sidebar Navigation */}
       <aside className={`sidebar ${isSidebarCollapsed ? 'collapsed' : ''} ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
         <div className="sidebar-brand">
-          <h1 className="sidebar-logo-text">
+          <h1 className="sidebar-logo-text" style={{ color: 'var(--primary-foreground)' }}>
             {brandingLogo ? (
               <img src={brandingLogo} alt={appName} style={{ maxHeight: '40px', maxWidth: '180px', objectFit: 'contain', display: 'block' }} />
             ) : (
-              <>{brandingIcon !== 'none' && brandingIcon} {appName}</>
+              <span style={{ color: 'var(--primary-foreground)' }}>{brandingIcon !== 'none' && brandingIcon} {appName}</span>
             )}
           </h1>
-          <h1 className="sidebar-logo-collapsed">
+          <h1 className="sidebar-logo-collapsed" style={{ color: 'var(--primary-foreground)' }}>
             {brandingIcon !== 'none' ? brandingIcon : (brandingLogo ? <img src={brandingLogo} alt="" style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }} /> : '⚙️')}
           </h1>
-          <button className="sidebar-toggle-btn" onClick={toggleSidebar} title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}>
+          <button className="sidebar-toggle-btn" onClick={toggleSidebar} title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"} style={{ color: 'var(--primary-foreground)' }}>
             {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
@@ -431,7 +499,7 @@ export default function App() {
                   setActiveTab(lastTab);
                   setIsMobileMenuOpen(false);
                 }} 
-                style={{ marginBottom: '0.5rem', color: 'var(--primary)', fontWeight: 'bold' }}
+                style={{ marginBottom: '0.75rem', fontWeight: '600' }}
               >
                 <ChevronLeft />
                 <span>Back to Menu</span>
@@ -520,26 +588,59 @@ export default function App() {
           )}
         </nav>
 
-        <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', width: '100%', flexShrink: 0 }}>
+        <div className="sidebar-footer" style={{ marginTop: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)', width: '100%', flexShrink: 0 }}>
           {activeTab !== 'settings' && (
-            <a 
-              className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('settings'); setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
-              title="Settings"
-            >
-              <Settings />
-              <span>Settings</span>
-            </a>
+            <>
+              <a 
+                className={`nav-link ${activeTab === 'features' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('features'); setIsMobileMenuOpen(false); }}
+                title="Feature Requests"
+                style={{ marginBottom: '0.25rem' }}
+              >
+                <Lightbulb />
+                <span>Feature Requests</span>
+              </a>
+              <a 
+                className={`nav-link ${activeTab === 'bugs' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('bugs'); setIsMobileMenuOpen(false); }}
+                title="Report Bug"
+                style={{ marginBottom: '0.25rem' }}
+              >
+                <Bug />
+                <span>Report Bug</span>
+              </a>
+              <a 
+                className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('settings'); setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
+                title="Settings"
+                style={{ marginBottom: '0.25rem' }}
+              >
+                <Settings />
+                <span>Settings</span>
+              </a>
+            </>
           )}
-          <a 
-            className="nav-link" 
-            onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} 
-            style={{ color: 'var(--danger)' }}
-            title="Logout"
-          >
-            <LogOut />
-            <span>Logout</span>
-          </a>
+          <div style={{ display: 'flex', flexDirection: isSidebarCollapsed ? 'column' : 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.25rem' }}>
+            <a 
+              className="nav-link" 
+              onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} 
+              style={{ flex: 1, minWidth: 0 }}
+              title="Logout"
+            >
+              <LogOut />
+              <span>Logout</span>
+            </a>
+            <button 
+              onClick={toggleTheme}
+              className="theme-toggle-btn"
+              style={{ 
+                marginLeft: isSidebarCollapsed ? '0' : '0.25rem'
+              }}
+              title={theme === 'dark' ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -600,6 +701,20 @@ export default function App() {
             currentUser={user} 
             activeSubTab={settingsSubTab}
             setActiveSubTab={setSettingsSubTab}
+          />
+        )}
+
+        {activeTab === 'features' && (
+          <FeatureRequestsView 
+            showToast={showToast} 
+            currentUser={user} 
+          />
+        )}
+
+        {activeTab === 'bugs' && (
+          <BugReportsView 
+            showToast={showToast} 
+            currentUser={user} 
           />
         )}
       </main>

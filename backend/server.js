@@ -808,6 +808,438 @@ app.post('/api/notifications/clear', authenticate, async (req, res) => {
   }
 });
 
+// --- GET NOTIFICATION SETTINGS ---
+app.get('/api/notifications/settings', authenticate, async (req, res) => {
+  if (req.user.role_name !== 'Administrator') {
+    return res.status(403).json({ error: 'Permission denied: Administrator role required.' });
+  }
+  try {
+    const settings = await getSettings();
+    const keys = [
+      'notify_smtp_host', 'notify_smtp_port', 'notify_smtp_secure', 'notify_smtp_user', 'notify_smtp_pass', 'notify_smtp_from', 'notify_smtp_to',
+      'notify_discord_webhook_url',
+      'notify_webhook_url', 'notify_webhook_secret',
+      'notify_recipe_added', 'notify_recipe_deleted', 'notify_meal_plan_updated', 'notify_leftovers_added', 'notify_leftovers_expiring', 'notify_inventory_expiring',
+      'notify_leftovers_expiry_days', 'notify_inventory_expiry_days',
+      'fr_notify_smtp_enabled', 'fr_notify_smtp_to', 'fr_notify_discord_enabled', 'fr_notify_discord_webhook_url', 'fr_notify_webhook_enabled', 'fr_notify_webhook_url',
+      'bug_notify_smtp_enabled', 'bug_notify_smtp_to', 'bug_notify_discord_enabled', 'bug_notify_discord_webhook_url', 'bug_notify_webhook_enabled', 'bug_notify_webhook_url'
+    ];
+    const notifyConfig = {};
+    keys.forEach(k => {
+      notifyConfig[k] = settings[k] !== undefined ? settings[k] : '';
+    });
+    if (notifyConfig.notify_smtp_pass) {
+      notifyConfig.notify_smtp_pass = '••••••••';
+    }
+    res.json(notifyConfig);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- NOTIFICATION UTILITIES FOR BUGS & FEATURES ---
+async function sendFeatureOrBugNotification(type, title, body, item, originUrl) {
+  try {
+    const settings = await getSettings();
+    const appName = settings.app_name || 'Home Hub';
+    const prefix = type === 'feature' ? 'fr_' : 'bug_';
+    
+    // SMTP Email
+    if (settings[`${prefix}notify_smtp_enabled`] === 'true') {
+      const toEmail = settings[`${prefix}notify_smtp_to`] || settings.notify_smtp_to;
+      if (settings.notify_smtp_host && toEmail) {
+        try {
+          const isSecure = settings.notify_smtp_secure === 'true';
+          const transporter = nodemailer.createTransport({
+            host: settings.notify_smtp_host,
+            port: parseInt(settings.notify_smtp_port, 10) || 587,
+            secure: isSecure,
+            auth: settings.notify_smtp_user ? {
+              user: settings.notify_smtp_user,
+              pass: settings.notify_smtp_pass || ''
+            } : undefined
+          });
+
+          await transporter.sendMail({
+            from: settings.notify_smtp_from || settings.notify_smtp_user || 'no-reply@homehub.local',
+            to: toEmail,
+            subject: `[${appName}] ${title}`,
+            text: `Origin App: ${appName}\nLink: ${originUrl || 'N/A'}\n\n${body}\n\nDetails:\n${JSON.stringify(item, null, 2)}`
+          });
+          console.log(`SMTP ${type} email notification sent to ${toEmail}.`);
+        } catch (err) {
+          console.error(`SMTP ${type} email error:`, err.message);
+        }
+      }
+    }
+
+    // Discord Webhook
+    if (settings[`${prefix}notify_discord_enabled`] === 'true') {
+      const webhookUrl = settings[`${prefix}notify_discord_webhook_url`];
+      if (webhookUrl) {
+        try {
+          let fields = [];
+          if (type === 'bug') {
+            fields = [
+              { name: 'Severity', value: (item.severity || 'Medium').toUpperCase(), inline: true },
+              { name: 'Status', value: (item.status || 'Open').toUpperCase(), inline: true },
+              { name: 'Steps to Reproduce', value: item.steps_to_reproduce || 'N/A' }
+            ];
+          } else {
+            fields = [
+              { name: 'Status', value: (item.status || 'Pending').toUpperCase(), inline: true }
+            ];
+          }
+
+          const fieldsCopy = [
+            { name: 'Origin', value: appName, inline: true },
+            ...fields
+          ];
+          if (originUrl) {
+            fieldsCopy.push({ name: 'View Page', value: `[Click Here to View](${originUrl})` });
+          }
+
+          const embed = {
+            title: title,
+            description: body,
+            color: type === 'bug' ? 16711680 : 65280, // red for bugs, green for features
+            fields: fieldsCopy,
+            timestamp: new Date().toISOString()
+          };
+
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              embeds: [embed]
+            })
+          });
+          console.log(`Discord ${type} webhook notification sent.`);
+        } catch (err) {
+          console.error(`Discord ${type} error:`, err.message);
+        }
+      }
+    }
+
+    // General Webhook
+    if (settings[`${prefix}notify_webhook_enabled`] === 'true') {
+      const webhookUrl = settings[`${prefix}notify_webhook_url`];
+      if (webhookUrl) {
+        try {
+          let callbackUrl = '';
+          if (originUrl) {
+            try {
+              const urlObj = new URL(originUrl);
+              callbackUrl = `${urlObj.origin}/api/webhooks/incoming-status?api_key=${settings.api_key || ''}`;
+            } catch (e) {}
+          }
+
+          const payload = JSON.stringify({
+            event_type: type === 'feature' ? 'feature_request' : 'bug_report',
+            app_name: appName,
+            url: originUrl,
+            title,
+            body,
+            item,
+            timestamp: new Date().toISOString(),
+            callback_url: callbackUrl || null
+          });
+
+          const headers = { 'Content-Type': 'application/json' };
+          
+          if (settings.notify_webhook_secret) {
+            const signature = crypto
+              .createHmac('sha256', settings.notify_webhook_secret)
+              .update(payload)
+              .digest('hex');
+            headers['X-Signature'] = signature;
+          }
+
+          await fetch(webhookUrl, {
+            method: 'POST',
+            headers,
+            body: payload
+          });
+          console.log(`General ${type} webhook notification sent.`);
+        } catch (err) {
+          console.error(`Webhook ${type} error:`, err.message);
+        }
+      }
+    }
+
+    // Insert into notification logs as well
+    const db = await getDb();
+    await db.run(
+      'INSERT INTO notification_logs (title, body, event_type) VALUES (?, ?, ?)',
+      [title, body, type === 'feature' ? 'feature_request' : 'bug_report']
+    );
+  } catch (error) {
+    console.error('Notification dispatch failed:', error.message);
+  }
+}
+
+// --- FEATURE REQUESTS ENDPOINTS ---
+app.get('/api/features', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const features = await db.all(`
+      SELECT f.*, u.username as creator_username, u.display_name as creator_display_name
+      FROM feature_requests f
+      LEFT JOIN users u ON f.user_id = u.id
+      ORDER BY f.created_at DESC
+    `);
+    res.json(features);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/features', authenticate, async (req, res) => {
+  try {
+    const { title, description } = req.body;
+    if (!title || !title.trim() || !description || !description.trim()) {
+      return res.status(400).json({ error: 'Title and description are required' });
+    }
+
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO feature_requests (title, description, user_id) VALUES (?, ?, ?)',
+      [title.trim(), description.trim(), req.user.id]
+    );
+
+    const newFeature = await db.get('SELECT * FROM feature_requests WHERE id = ?', [result.lastID]);
+    
+    // Construct base URL from referrer or host header
+    const referer = req.headers.referer;
+    let baseOrigin = '';
+    if (referer) {
+      try {
+        const refUrl = new URL(referer);
+        baseOrigin = refUrl.origin;
+      } catch (e) {}
+    }
+    if (!baseOrigin) {
+      baseOrigin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+    }
+    const linkUrl = `${baseOrigin}/#/features`;
+
+    // Trigger notification
+    const creatorName = req.user.display_name || req.user.username;
+    await sendFeatureOrBugNotification(
+      'feature',
+      `New Feature Request: "${title.trim()}"`,
+      `Submitted by ${creatorName}:\n\n${description.trim()}`,
+      newFeature,
+      linkUrl
+    );
+
+    res.status(201).json({ id: result.lastID, message: 'Feature request submitted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/features/:id', authenticate, async (req, res) => {
+  try {
+    if (req.user.role_name !== 'Administrator') {
+      return res.status(403).json({ error: 'Permission denied. Administrator access required.' });
+    }
+    const { status } = req.body;
+    const validStatuses = ['pending', 'under_review', 'planned', 'completed', 'rejected'];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({ error: 'Valid status is required' });
+    }
+
+    const db = await getDb();
+    await db.run('UPDATE feature_requests SET status = ? WHERE id = ?', [status, req.params.id]);
+    res.json({ message: 'Feature request updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/features/:id', authenticate, async (req, res) => {
+  try {
+    if (req.user.role_name !== 'Administrator') {
+      return res.status(403).json({ error: 'Permission denied. Administrator access required.' });
+    }
+    const db = await getDb();
+    await db.run('DELETE FROM feature_requests WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Feature request deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- BUG REPORTS ENDPOINTS ---
+app.get('/api/bugs', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const bugs = await db.all(`
+      SELECT b.*, u.username as creator_username, u.display_name as creator_display_name
+      FROM bug_reports b
+      LEFT JOIN users u ON b.user_id = u.id
+      ORDER BY b.created_at DESC
+    `);
+    res.json(bugs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/bugs', authenticate, async (req, res) => {
+  try {
+    const { title, description, steps_to_reproduce, severity } = req.body;
+    if (!title || !title.trim() || !description || !description.trim()) {
+      return res.status(400).json({ error: 'Title and description are required' });
+    }
+
+    const validSeverities = ['low', 'medium', 'high', 'critical'];
+    const finalSeverity = severity && validSeverities.includes(severity.toLowerCase()) ? severity.toLowerCase() : 'medium';
+
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO bug_reports (title, description, steps_to_reproduce, severity, user_id) VALUES (?, ?, ?, ?, ?)',
+      [title.trim(), description.trim(), steps_to_reproduce ? steps_to_reproduce.trim() : '', finalSeverity, req.user.id]
+    );
+
+    const newBug = await db.get('SELECT * FROM bug_reports WHERE id = ?', [result.lastID]);
+
+    // Construct base URL from referrer or host header
+    const referer = req.headers.referer;
+    let baseOrigin = '';
+    if (referer) {
+      try {
+        const refUrl = new URL(referer);
+        baseOrigin = refUrl.origin;
+      } catch (e) {}
+    }
+    if (!baseOrigin) {
+      baseOrigin = req.headers.origin || `${req.protocol}://${req.get('host')}`;
+    }
+    const linkUrl = `${baseOrigin}/#/bugs`;
+
+    // Trigger notification
+    const creatorName = req.user.display_name || req.user.username;
+    let notificationBody = `Submitted by ${creatorName}\nSeverity: ${finalSeverity.toUpperCase()}\n\nDescription:\n${description.trim()}`;
+    if (steps_to_reproduce && steps_to_reproduce.trim()) {
+      notificationBody += `\n\nSteps to Reproduce:\n${steps_to_reproduce.trim()}`;
+    }
+
+    await sendFeatureOrBugNotification(
+      'bug',
+      `New Bug Report: "${title.trim()}"`,
+      notificationBody,
+      newBug,
+      linkUrl
+    );
+
+    res.status(201).json({ id: result.lastID, message: 'Bug report submitted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/bugs/:id', authenticate, async (req, res) => {
+  try {
+    if (req.user.role_name !== 'Administrator') {
+      return res.status(403).json({ error: 'Permission denied. Administrator access required.' });
+    }
+    const { status, severity } = req.body;
+    
+    const db = await getDb();
+    const updates = [];
+    const values = [];
+
+    if (status) {
+      const validStatuses = ['open', 'in_progress', 'resolved', 'closed'];
+      if (validStatuses.includes(status)) {
+        updates.push('status = ?');
+        values.push(status);
+      }
+    }
+
+    if (severity) {
+      const validSeverities = ['low', 'medium', 'high', 'critical'];
+      if (validSeverities.includes(severity.toLowerCase())) {
+        updates.push('severity = ?');
+        values.push(severity.toLowerCase());
+      }
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    values.push(req.params.id);
+    await db.run(`UPDATE bug_reports SET ${updates.join(', ')} WHERE id = ?`, values);
+    res.json({ message: 'Bug report updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/bugs/:id', authenticate, async (req, res) => {
+  try {
+    if (req.user.role_name !== 'Administrator') {
+      return res.status(403).json({ error: 'Permission denied. Administrator access required.' });
+    }
+    const db = await getDb();
+    await db.run('DELETE FROM bug_reports WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Bug report deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- WEBHOOK CALLBACK FOR STATUS UPDATES FROM HOMELAB KANBAN ---
+app.post('/api/webhooks/incoming-status', async (req, res) => {
+  try {
+    const apiKeyHeader = req.headers['x-api-key'];
+    const apiKeyQuery = req.query.api_key;
+    const apiKey = apiKeyHeader || apiKeyQuery;
+
+    const db = await getDb();
+    const settings = await getSettings();
+    
+    if (settings.api_key && settings.api_key !== apiKey) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid or missing API key' });
+    }
+
+    const { external_id, link_type, status } = req.body;
+    const targetId = external_id || req.body.id;
+    if (!targetId || !link_type || !status) {
+      return res.status(400).json({ error: 'external_id/id, link_type, and status are required' });
+    }
+
+    if (link_type === 'bug') {
+      let bugStatus = 'open';
+      if (status === 'in_progress') bugStatus = 'in_progress';
+      else if (status === 'testing') bugStatus = 'in_progress';
+      else if (status === 'completed' || status === 'done') bugStatus = 'resolved';
+      else if (status === 'failed') bugStatus = 'open';
+      
+      await db.run('UPDATE bug_reports SET status = ? WHERE id = ?', [bugStatus, targetId]);
+      console.log(`[Callback] Updated local bug ${targetId} status to ${bugStatus}`);
+    } else if (link_type === 'feature') {
+      let featureStatus = 'pending';
+      if (status === 'approved') featureStatus = 'approved';
+      else if (status === 'in_progress') featureStatus = 'under_review';
+      else if (status === 'testing') featureStatus = 'planned';
+      else if (status === 'completed' || status === 'done') featureStatus = 'completed';
+      else if (status === 'failed') featureStatus = 'pending';
+      
+      await db.run('UPDATE feature_requests SET status = ? WHERE id = ?', [featureStatus, targetId]);
+      console.log(`[Callback] Updated local feature ${targetId} status to ${featureStatus}`);
+    }
+
+    res.json({ success: true, message: 'Status updated successfully' });
+  } catch (error) {
+    console.error('Webhook callback error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- OIDC SSO ENDPOINTS ---
 
 app.get('/api/auth/oidc/config', async (req, res) => {

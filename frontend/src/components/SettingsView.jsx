@@ -205,6 +205,22 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   // Days settings
   const [notifyLeftoversExpiryDays, setNotifyLeftoversExpiryDays] = useState(2);
   const [notifyInventoryExpiryDays, setNotifyInventoryExpiryDays] = useState(3);
+
+  // Features notification dispatch rules
+  const [frNotifySmtpEnabled, setFrNotifySmtpEnabled] = useState(false);
+  const [frNotifySmtpTo, setFrNotifySmtpTo] = useState('');
+  const [frNotifyDiscordEnabled, setFrNotifyDiscordEnabled] = useState(false);
+  const [frNotifyDiscordWebhookUrl, setFrNotifyDiscordWebhookUrl] = useState('');
+  const [frNotifyWebhookEnabled, setFrNotifyWebhookEnabled] = useState(false);
+  const [frNotifyWebhookUrl, setFrNotifyWebhookUrl] = useState('');
+
+  // Bugs notification dispatch rules
+  const [bugNotifySmtpEnabled, setBugNotifySmtpEnabled] = useState(false);
+  const [bugNotifySmtpTo, setBugNotifySmtpTo] = useState('');
+  const [bugNotifyDiscordEnabled, setBugNotifyDiscordEnabled] = useState(false);
+  const [bugNotifyDiscordWebhookUrl, setBugNotifyDiscordWebhookUrl] = useState('');
+  const [bugNotifyWebhookEnabled, setBugNotifyWebhookEnabled] = useState(false);
+  const [bugNotifyWebhookUrl, setBugNotifyWebhookUrl] = useState('');
   
   // Log list
   const [notificationLogs, setNotificationLogs] = useState([]);
@@ -234,6 +250,20 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setNotifyInventoryExpiring(data.notify_inventory_expiring === 'true');
         setNotifyLeftoversExpiryDays(parseInt(data.notify_leftovers_expiry_days, 10) || 2);
         setNotifyInventoryExpiryDays(parseInt(data.notify_inventory_expiry_days, 10) || 3);
+
+        setFrNotifySmtpEnabled(data.fr_notify_smtp_enabled === 'true' || data.fr_notify_smtp_enabled === true);
+        setFrNotifySmtpTo(data.fr_notify_smtp_to || '');
+        setFrNotifyDiscordEnabled(data.fr_notify_discord_enabled === 'true' || data.fr_notify_discord_enabled === true);
+        setFrNotifyDiscordWebhookUrl(data.fr_notify_discord_webhook_url || '');
+        setFrNotifyWebhookEnabled(data.fr_notify_webhook_enabled === 'true' || data.fr_notify_webhook_enabled === true);
+        setFrNotifyWebhookUrl(data.fr_notify_webhook_url || '');
+
+        setBugNotifySmtpEnabled(data.bug_notify_smtp_enabled === 'true' || data.bug_notify_smtp_enabled === true);
+        setBugNotifySmtpTo(data.bug_notify_smtp_to || '');
+        setBugNotifyDiscordEnabled(data.bug_notify_discord_enabled === 'true' || data.bug_notify_discord_enabled === true);
+        setBugNotifyDiscordWebhookUrl(data.bug_notify_discord_webhook_url || '');
+        setBugNotifyWebhookEnabled(data.bug_notify_webhook_enabled === 'true' || data.bug_notify_webhook_enabled === true);
+        setBugNotifyWebhookUrl(data.bug_notify_webhook_url || '');
       }
     } catch (err) {
       console.error('Failed to fetch notification settings:', err);
@@ -277,7 +307,19 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         notify_leftovers_expiring: String(notifyLeftoversExpiring),
         notify_inventory_expiring: String(notifyInventoryExpiring),
         notify_leftovers_expiry_days: String(notifyLeftoversExpiryDays),
-        notify_inventory_expiry_days: String(notifyInventoryExpiryDays)
+        notify_inventory_expiry_days: String(notifyInventoryExpiryDays),
+        fr_notify_smtp_enabled: String(frNotifySmtpEnabled),
+        fr_notify_smtp_to: frNotifySmtpTo.trim(),
+        fr_notify_discord_enabled: String(frNotifyDiscordEnabled),
+        fr_notify_discord_webhook_url: frNotifyDiscordWebhookUrl.trim(),
+        fr_notify_webhook_enabled: String(frNotifyWebhookEnabled),
+        fr_notify_webhook_url: frNotifyWebhookUrl.trim(),
+        bug_notify_smtp_enabled: String(bugNotifySmtpEnabled),
+        bug_notify_smtp_to: bugNotifySmtpTo.trim(),
+        bug_notify_discord_enabled: String(bugNotifyDiscordEnabled),
+        bug_notify_discord_webhook_url: bugNotifyDiscordWebhookUrl.trim(),
+        bug_notify_webhook_enabled: String(bugNotifyWebhookEnabled),
+        bug_notify_webhook_url: bugNotifyWebhookUrl.trim()
       };
 
       const res = await fetch('/api/notifications/settings', {
@@ -2550,6 +2592,200 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     </span>
                   </div>
 
+                </div>
+
+              </div>
+            </div>
+
+            {/* Feature Requests & Bug Reports Alerts Card */}
+            <div className="card" style={{ padding: '2rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+                <Bell size={24} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '1.25rem', margin: 0 }}>Feature Requests & Bug Reports Alerts</h3>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                
+                {/* Feature Requests Alerts */}
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))' }}>
+                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '1.05rem', fontWeight: '600' }}>Feature Request Notifications</h4>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label className="switch-container">
+                        <input 
+                          id="fr-notify-smtp"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={frNotifySmtpEnabled} 
+                          onChange={(e) => setFrNotifySmtpEnabled(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Email Notifications (SMTP)</span>
+                      </label>
+                      {frNotifySmtpEnabled && (
+                        <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                          <label htmlFor="fr-smtp-to">Recipient Email Address</label>
+                          <input 
+                            id="fr-smtp-to"
+                            type="email" 
+                            className="input-control" 
+                            value={frNotifySmtpTo} 
+                            onChange={(e) => setFrNotifySmtpTo(e.target.value)} 
+                            placeholder="e.g. features@mycompany.com" 
+                            required={frNotifySmtpEnabled}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label className="switch-container">
+                        <input 
+                          id="fr-notify-discord"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={frNotifyDiscordEnabled} 
+                          onChange={(e) => setFrNotifyDiscordEnabled(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Discord Webhook Notifications</span>
+                      </label>
+                      {frNotifyDiscordEnabled && (
+                        <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                          <label htmlFor="fr-discord-url">Discord Webhook URL</label>
+                          <input 
+                            id="fr-discord-url"
+                            type="text" 
+                            className="input-control" 
+                            value={frNotifyDiscordWebhookUrl} 
+                            onChange={(e) => setFrNotifyDiscordWebhookUrl(e.target.value)} 
+                            placeholder="e.g. https://discord.com/api/webhooks/..." 
+                            required={frNotifyDiscordEnabled}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label className="switch-container">
+                        <input 
+                          id="fr-notify-webhook"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={frNotifyWebhookEnabled} 
+                          onChange={(e) => setFrNotifyWebhookEnabled(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>HTTP Webhook Notifications</span>
+                      </label>
+                      {frNotifyWebhookEnabled && (
+                        <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                          <label htmlFor="fr-webhook-url">Webhook URL</label>
+                          <input 
+                            id="fr-webhook-url"
+                            type="text" 
+                            className="input-control" 
+                            value={frNotifyWebhookUrl} 
+                            onChange={(e) => setFrNotifyWebhookUrl(e.target.value)} 
+                            placeholder="e.g. https://api.myhouse.com/features-hook" 
+                            required={frNotifyWebhookEnabled}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Bug Reports Alerts */}
+                <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1.5rem', background: 'var(--bg-app-dark, rgba(0,0,0,0.02))' }}>
+                  <h4 style={{ margin: '0 0 1rem 0', fontSize: '1.05rem', fontWeight: '600' }}>Bug Report Notifications</h4>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label className="switch-container">
+                        <input 
+                          id="bug-notify-smtp"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={bugNotifySmtpEnabled} 
+                          onChange={(e) => setBugNotifySmtpEnabled(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Email Notifications (SMTP)</span>
+                      </label>
+                      {bugNotifySmtpEnabled && (
+                        <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                          <label htmlFor="bug-smtp-to">Recipient Email Address</label>
+                          <input 
+                            id="bug-smtp-to"
+                            type="email" 
+                            className="input-control" 
+                            value={bugNotifySmtpTo} 
+                            onChange={(e) => setBugNotifySmtpTo(e.target.value)} 
+                            placeholder="e.g. bugs@mycompany.com" 
+                            required={bugNotifySmtpEnabled}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label className="switch-container">
+                        <input 
+                          id="bug-notify-discord"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={bugNotifyDiscordEnabled} 
+                          onChange={(e) => setBugNotifyDiscordEnabled(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Discord Webhook Notifications</span>
+                      </label>
+                      {bugNotifyDiscordEnabled && (
+                        <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                          <label htmlFor="bug-discord-url">Discord Webhook URL</label>
+                          <input 
+                            id="bug-discord-url"
+                            type="text" 
+                            className="input-control" 
+                            value={bugNotifyDiscordWebhookUrl} 
+                            onChange={(e) => setBugNotifyDiscordWebhookUrl(e.target.value)} 
+                            placeholder="e.g. https://discord.com/api/webhooks/..." 
+                            required={bugNotifyDiscordEnabled}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <label className="switch-container">
+                        <input 
+                          id="bug-notify-webhook"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={bugNotifyWebhookEnabled} 
+                          onChange={(e) => setBugNotifyWebhookEnabled(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>HTTP Webhook Notifications</span>
+                      </label>
+                      {bugNotifyWebhookEnabled && (
+                        <div className="form-group" style={{ marginLeft: '2.5rem' }}>
+                          <label htmlFor="bug-webhook-url">Webhook URL</label>
+                          <input 
+                            id="bug-webhook-url"
+                            type="text" 
+                            className="input-control" 
+                            value={bugNotifyWebhookUrl} 
+                            onChange={(e) => setBugNotifyWebhookUrl(e.target.value)} 
+                            placeholder="e.g. https://api.myhouse.com/bugs-hook" 
+                            required={bugNotifyWebhookEnabled}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
