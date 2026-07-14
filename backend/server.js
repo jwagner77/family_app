@@ -418,6 +418,54 @@ bootstrap();
 
 // --- AUTHENTICATION ENDPOINTS ---
 
+
+// POST /api/auth/passthrough - SSO passthrough login from One_App
+app.post('/api/auth/passthrough', async (req, res) => {
+  try {
+    const apiKeyHeader = req.headers['x-api-key'] || req.headers['authorization']?.split(' ')[1];
+    const apiKeyQuery = req.query.api_key;
+    const apiKey = apiKeyHeader || apiKeyQuery;
+
+    const settings = await getSettings();
+    if (!settings.api_key || settings.api_key !== apiKey) {
+      return res.status(401).json({ error: 'Unauthorized: Invalid or missing API key' });
+    }
+
+    const { username, display_name, role_name } = req.body;
+    if (!username) {
+      return res.status(400).json({ error: 'Missing username in request body' });
+    }
+
+    let user = await getUserByUsername(username);
+    if (!user) {
+      // Find role
+      const roles = await getAllRoles();
+      const targetRoleName = role_name || 'Viewer';
+      let role = roles.find(r => r.name.toLowerCase() === targetRoleName.toLowerCase()) || roles[0];
+      if (!role) {
+        return res.status(500).json({ error: 'No roles found in system to associate user.' });
+      }
+      
+      const randomPassword = crypto.randomBytes(16).toString('hex');
+      const newUserId = await createUser(username, randomPassword, role.id, display_name || username, 'sso');
+      user = await getUserById(newUserId);
+    } else {
+      // Update display name if changed
+      if (display_name && user.display_name !== display_name) {
+        const db = await getDb();
+        await db.run('UPDATE users SET display_name = ? WHERE id = ?', [display_name, user.id]);
+        user = await getUserById(user.id);
+      }
+    }
+
+    const token = generateToken({ id: user.id, username: user.username });
+    res.json({ token });
+  } catch (error) {
+    console.error('Passthrough login failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/auth/login', async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {

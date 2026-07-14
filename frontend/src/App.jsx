@@ -99,6 +99,78 @@ export default function App() {
   );
 
   const [activeTab, setActiveTab] = useState('home');
+  const isIframe = window.self !== window.top;
+  const APP_NAV_LINKS = [
+  {
+    "id": "home",
+    "label": "Dashboard",
+    "icon": "LayoutDashboard"
+  },
+  {
+    "id": "todo",
+    "label": "To-Do List",
+    "icon": "CheckSquare"
+  },
+  {
+    "id": "calendar",
+    "label": "Calendar",
+    "icon": "Calendar"
+  },
+  {
+    "id": "subscriptions",
+    "label": "Subscriptions",
+    "icon": "RefreshCw"
+  },
+  {
+    "id": "bills",
+    "label": "Bills",
+    "icon": "DollarSign"
+  }
+];
+
+  useEffect(() => {
+    if (isIframe) {
+      window.parent.postMessage({
+        type: 'REGISTER_NAV_LINKS',
+        links: APP_NAV_LINKS,
+        activeTab: activeTab
+      }, '*');
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    const handleSetTab = (e) => {
+      if (e.data && e.data.type === 'SET_TAB') {
+        setActiveTab(e.data.tab);
+      }
+    };
+    window.addEventListener('message', handleSetTab);
+    return () => window.removeEventListener('message', handleSetTab);
+  }, []);
+
+  useEffect(() => {
+    if (isIframe) {
+      const styleId = 'one-app-iframe-styles';
+      let style = document.getElementById(styleId);
+      if (!style) {
+        style = document.createElement('style');
+        style.id = styleId;
+        style.innerHTML = `
+          .sidebar, .sidebar-container, aside, .sidebar-collapsed, [class*="sidebar"] { display: none !important; }
+          .main-content, .main-container, .content-area, .app-content, .layout-main, [class*="main-content"], [class*="layout-main"] { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: 100% !important; }
+          .header, .top-bar, .navbar, .header-container { display: none !important; }
+        `;
+        document.head.appendChild(style);
+      }
+      return () => {
+        const el = document.getElementById(styleId);
+        if (el) el.remove();
+      };
+    }
+  }, []);
+
+
+
   const [settingsSubTab, setSettingsSubTab] = useState('general');
   const [lastTab, setLastTab] = useState('home');
 
@@ -146,7 +218,10 @@ export default function App() {
         setIsModalRendered(false);
         setIsModalClosing(false);
       }, 250); // Match CSS animation duration
-      return () => clearTimeout(timer);
+
+  
+
+  return () => clearTimeout(timer);
     }
   }, [isDemoModalOpen]);
 
@@ -652,6 +727,24 @@ export default function App() {
         <div className="sidebar-footer">
           {activeTab !== 'settings' && (
             <>
+              {(localStorage.getItem('one_app_url') || window.self !== window.top) && (
+                <a 
+                  className="nav-link return-oneapp-btn"
+                  onClick={() => {
+                    const url = localStorage.getItem('one_app_url');
+                    if (window.self !== window.top) {
+                      window.parent.postMessage({ type: 'RETURN_TO_ONE_APP' }, '*');
+                    } else if (url) {
+                      window.location.href = url;
+                    }
+                  }}
+                  title="Return to One App"
+                  style={{ marginBottom: '0.25rem', backgroundColor: 'var(--primary)', color: 'var(--primary-foreground)' }}
+                >
+                  <ChevronLeft />
+                  <span>Return to One App</span>
+                </a>
+              )}
               <a 
                 className={`nav-link ${activeTab === 'features' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('features'); setIsMobileMenuOpen(false); }}
