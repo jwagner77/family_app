@@ -952,8 +952,7 @@ app.get('/api/notifications/settings', authenticate, async (req, res) => {
       'notify_smtp_host', 'notify_smtp_port', 'notify_smtp_secure', 'notify_smtp_user', 'notify_smtp_pass', 'notify_smtp_from', 'notify_smtp_to',
       'notify_discord_webhook_url',
       'notify_webhook_url', 'notify_webhook_secret',
-      'notify_subscription_due_today', 'notify_bill_due_today', 'notify_meal_plan_updated', 'notify_leftovers_added', 'notify_leftovers_expiring', 'notify_inventory_expiring',
-      'notify_leftovers_expiry_days', 'notify_inventory_expiry_days',
+      'notify_subscription_due_today', 'notify_bill_due_today',
       'fr_notify_smtp_enabled', 'fr_notify_smtp_to', 'fr_notify_discord_enabled', 'fr_notify_discord_webhook_url', 'fr_notify_webhook_enabled', 'fr_notify_webhook_url',
       'bug_notify_smtp_enabled', 'bug_notify_smtp_to', 'bug_notify_discord_enabled', 'bug_notify_discord_webhook_url', 'bug_notify_webhook_enabled', 'bug_notify_webhook_url'
     ];

@@ -225,14 +225,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   // Toggles
   const [notifySubscriptionDueToday, setNotifySubscriptionDueToday] = useState(false);
   const [notifyBillDueToday, setNotifyBillDueToday] = useState(false);
-  const [notifyMealPlanUpdated, setNotifyMealPlanUpdated] = useState(false);
-  const [notifyLeftoversAdded, setNotifyLeftoversAdded] = useState(false);
-  const [notifyLeftoversExpiring, setNotifyLeftoversExpiring] = useState(false);
-  const [notifyInventoryExpiring, setNotifyInventoryExpiring] = useState(false);
-  
-  // Lead days
-  const [notifyLeftoversExpiryDays, setNotifyLeftoversExpiryDays] = useState(2);
-  const [notifyInventoryExpiryDays, setNotifyInventoryExpiryDays] = useState(3);
   
   // Log list
   const [notificationLogs, setNotificationLogs] = useState([]);
@@ -256,12 +248,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setNotifyWebhookSecret(data.notify_webhook_secret || '');
         setNotifySubscriptionDueToday(data.notify_subscription_due_today === 'true');
         setNotifyBillDueToday(data.notify_bill_due_today === 'true');
-        setNotifyMealPlanUpdated(data.notify_meal_plan_updated === 'true');
-        setNotifyLeftoversAdded(data.notify_leftovers_added === 'true');
-        setNotifyLeftoversExpiring(data.notify_leftovers_expiring === 'true');
-        setNotifyInventoryExpiring(data.notify_inventory_expiring === 'true');
-        setNotifyLeftoversExpiryDays(parseInt(data.notify_leftovers_expiry_days, 10) || 2);
-        setNotifyInventoryExpiryDays(parseInt(data.notify_inventory_expiry_days, 10) || 3);
 
         setFrNotifySmtpEnabled(data.fr_notify_smtp_enabled === 'true');
         setFrNotifySmtpTo(data.fr_notify_smtp_to || '');
@@ -314,12 +300,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         notify_webhook_secret: notifyWebhookSecret.trim(),
         notify_subscription_due_today: String(notifySubscriptionDueToday),
         notify_bill_due_today: String(notifyBillDueToday),
-        notify_meal_plan_updated: String(notifyMealPlanUpdated),
-        notify_leftovers_added: String(notifyLeftoversAdded),
-        notify_leftovers_expiring: String(notifyLeftoversExpiring),
-        notify_inventory_expiring: String(notifyInventoryExpiring),
-        notify_leftovers_expiry_days: String(notifyLeftoversExpiryDays),
-        notify_inventory_expiry_days: String(notifyInventoryExpiryDays),
 
         fr_notify_smtp_enabled: String(frNotifySmtpEnabled),
         fr_notify_smtp_to: frNotifySmtpTo.trim(),
@@ -2205,36 +2185,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   </div>
                 </div>
 
-                {/* Endpoint 4: List Leftovers */}
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/leftovers</code>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List leftovers in fridge</span>
-                  </div>
-                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Retrieves active leftovers in the fridge along with their expiration calculations.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/leftovers`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/leftovers`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={10} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 5: Toggle Notification Rule */}
+                {/* Endpoint 4: Toggle Notification Rule */}
                 <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
                     <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>POST</span>
@@ -2243,7 +2194,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   </div>
                   <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Enables or disables a specific notification event rule (e.g. Subscription Due Today, Expiring Leftovers).
+                      Enables or disables a specific notification event rule (e.g. Subscription Due Today, Bill Due Today).
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
@@ -2479,104 +2430,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         <div className="switch-control" />
                         <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Bill Due Today</span>
                       </label>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="switch-container">
-                        <input 
-                          id="rule-meal-plan-updated"
-                          type="checkbox" 
-                          className="switch-input"
-                          checked={notifyMealPlanUpdated} 
-                          onChange={(e) => setNotifyMealPlanUpdated(e.target.checked)} 
-                        />
-                        <div className="switch-control" />
-                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Meal Plan Updated</span>
-                      </label>
-                    </div>
-
-                    <div className="form-group">
-                      <label className="switch-container">
-                        <input 
-                          id="rule-leftovers-added"
-                          type="checkbox" 
-                          className="switch-input"
-                          checked={notifyLeftoversAdded} 
-                          onChange={(e) => setNotifyLeftoversAdded(e.target.checked)} 
-                        />
-                        <div className="switch-control" />
-                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Meal Added to Leftovers</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', borderTop: '1px dashed var(--border)', paddingTop: '1.25rem' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
-                      
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <label className="switch-container">
-                          <input 
-                            id="rule-leftovers-expiring"
-                            type="checkbox" 
-                            className="switch-input"
-                            checked={notifyLeftoversExpiring} 
-                            onChange={(e) => setNotifyLeftoversExpiring(e.target.checked)} 
-                          />
-                          <div className="switch-control" />
-                          <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Leftovers Expiring Alerts</span>
-                        </label>
-                        {notifyLeftoversExpiring && (
-                          <div className="form-group" style={{ marginLeft: '2.5rem' }}>
-                            <label htmlFor="leftover-lead-days" style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <Info size={12} style={{ color: 'var(--primary)' }} /> Expiry Lead Days
-                            </label>
-                            <input 
-                              id="leftover-lead-days"
-                              type="number" 
-                              className="input-control" 
-                              value={notifyLeftoversExpiryDays} 
-                              onChange={(e) => setNotifyLeftoversExpiryDays(Math.max(1, parseInt(e.target.value, 10) || 1))} 
-                              min="1" 
-                              required={notifyLeftoversExpiring}
-                              style={{ width: '100px' }}
-                            />
-                            <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>Days prior to leftovers expiring to alert.</span>
-                          </div>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        <label className="switch-container">
-                          <input 
-                            id="rule-inventory-expiring"
-                            type="checkbox" 
-                            className="switch-input"
-                            checked={notifyInventoryExpiring} 
-                            onChange={(e) => setNotifyInventoryExpiring(e.target.checked)} 
-                          />
-                          <div className="switch-control" />
-                          <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Inventory Item Expiring Alerts</span>
-                        </label>
-                        {notifyInventoryExpiring && (
-                          <div className="form-group" style={{ marginLeft: '2.5rem' }}>
-                            <label htmlFor="inventory-lead-days" style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                              <Info size={12} style={{ color: 'var(--primary)' }} /> Expiry Lead Days
-                            </label>
-                            <input 
-                              id="inventory-lead-days"
-                              type="number" 
-                              className="input-control" 
-                              value={notifyInventoryExpiryDays} 
-                              onChange={(e) => setNotifyInventoryExpiryDays(Math.max(1, parseInt(e.target.value, 10) || 1))} 
-                              min="1" 
-                              required={notifyInventoryExpiring}
-                              style={{ width: '100px' }}
-                            />
-                            <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>Days prior to inventory items expiring to alert.</span>
-                          </div>
-                        )}
-                      </div>
-
                     </div>
                   </div>
 
