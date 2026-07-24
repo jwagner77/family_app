@@ -136,6 +136,26 @@ export async function getDb() {
       FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS games (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      game_type TEXT CHECK( game_type IN ('Board', 'Card') ) DEFAULT 'Board',
+      min_players INTEGER NOT NULL DEFAULT 1,
+      max_players INTEGER NOT NULL DEFAULT 4,
+      recommended_ages TEXT,
+      rating INTEGER CHECK( rating >= 1 AND rating <= 5 ) DEFAULT 5,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS game_play_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      game_id INTEGER NOT NULL,
+      players_count INTEGER,
+      winner TEXT,
+      played_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (game_id) REFERENCES games(id) ON DELETE CASCADE
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Home Hub');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('primary_color', '#3f51b5');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'system');

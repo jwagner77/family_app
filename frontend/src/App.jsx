@@ -23,7 +23,8 @@ import {
   Lightbulb,
   Bug,
   CreditCard,
-  Receipt
+  Receipt,
+  Gamepad2
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -64,6 +65,7 @@ import TasksView from './components/TasksView';
 import CalendarView from './components/CalendarView';
 import SubscriptionsView from './components/SubscriptionsView';
 import BillsView from './components/BillsView';
+import GamesView from './components/GamesView';
 
 // Contrast checking function using relative luminance
 function getContrastColor(hexColor) {
@@ -323,7 +325,7 @@ export default function App() {
       const tab = parts[0] || 'home';
       const subTab = parts[1] || 'general';
       
-      const validTabs = ['home', 'settings', 'features', 'bugs', 'todo', 'calendar', 'subscriptions', 'bills'];
+      const validTabs = ['home', 'settings', 'features', 'bugs', 'todo', 'calendar', 'subscriptions', 'bills', 'games'];
       if (validTabs.includes(tab)) {
         setActiveTab(tab);
         if (tab === 'settings') {
@@ -626,6 +628,13 @@ export default function App() {
                 <Receipt />
                 <span>Bills</span>
               </a>
+              <a 
+                className={`nav-link ${activeTab === 'games' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('games'); setIsMobileMenuOpen(false); }}
+              >
+                <Gamepad2 />
+                <span>Games</span>
+              </a>
             </>
           ) : (
             <>
@@ -860,6 +869,12 @@ export default function App() {
           <BugReportsView 
             showToast={showToast}
             currentUser={user}
+          />
+        )}
+
+        {activeTab === 'games' && (
+          <GamesView 
+            showToast={showToast}
           />
         )}
 

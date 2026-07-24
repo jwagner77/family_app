@@ -2069,6 +2069,134 @@ app.get('/api/bills/tags', authenticate, async (req, res) => {
 });
 
 
+// --- GAMES API ---
+
+// 1. List games
+app.get('/api/games', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const games = await db.all("SELECT * FROM games ORDER BY title ASC");
+    res.json(games);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Add a game
+app.post('/api/games', authenticate, async (req, res) => {
+  const { title, game_type, min_players, max_players, recommended_ages, rating } = req.body;
+  if (!title) {
+    return res.status(400).json({ error: 'Game title is required' });
+  }
+  try {
+    const db = await getDb();
+    const result = await db.run(
+      `INSERT INTO games (title, game_type, min_players, max_players, recommended_ages, rating) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        title, 
+        game_type || 'Board', 
+        parseInt(min_players, 10) || 1, 
+        parseInt(max_players, 10) || 4, 
+        recommended_ages || '', 
+        parseInt(rating, 10) || 5
+      ]
+    );
+    res.json({ id: result.lastID, title, game_type, min_players, max_players, recommended_ages, rating });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Delete a game
+app.delete('/api/games/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run("DELETE FROM games WHERE id = ?", [req.params.id]);
+    res.json({ message: 'Game deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. List play history
+app.get('/api/games/history', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const history = await db.all(
+      `SELECT h.*, g.title as game_title, g.game_type 
+       FROM game_play_history h
+       JOIN games g ON h.game_id = g.id
+       ORDER BY h.played_at DESC`
+    );
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. Add a play history entry
+app.post('/api/games/history', authenticate, async (req, res) => {
+  const { game_id, players_count, winner, played_at } = req.body;
+  if (!game_id) {
+    return res.status(400).json({ error: 'game_id is required' });
+  }
+  try {
+    const db = await getDb();
+    const logDate = played_at || new Date().toISOString();
+    const result = await db.run(
+      `INSERT INTO game_play_history (game_id, players_count, winner, played_at)
+       VALUES (?, ?, ?, ?)`,
+      [
+        parseInt(game_id, 10),
+        players_count ? parseInt(players_count, 10) : null,
+        winner || 'Pending',
+        logDate
+      ]
+    );
+    res.json({ id: result.lastID, game_id, players_count, winner: winner || 'Pending', played_at: logDate });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. Update a play history entry
+app.put('/api/games/history/:id', authenticate, async (req, res) => {
+  const { winner, players_count, played_at } = req.body;
+  try {
+    const db = await getDb();
+    const existing = await db.get("SELECT * FROM game_play_history WHERE id = ?", [req.params.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Play history log not found' });
+    }
+    const updatedWinner = winner !== undefined ? winner : existing.winner;
+    const updatedPlayers = players_count !== undefined ? (players_count ? parseInt(players_count, 10) : null) : existing.players_count;
+    const updatedDate = played_at !== undefined ? played_at : existing.played_at;
+
+    await db.run(
+      `UPDATE game_play_history 
+       SET winner = ?, players_count = ?, played_at = ? 
+       WHERE id = ?`,
+      [updatedWinner, updatedPlayers, updatedDate, req.params.id]
+    );
+    res.json({ id: req.params.id, winner: updatedWinner, players_count: updatedPlayers, played_at: updatedDate });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. Delete a play history entry
+app.delete('/api/games/history/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run("DELETE FROM game_play_history WHERE id = ?", [req.params.id]);
+    res.json({ message: 'Play log deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // --- M365 BACKGROUND SYNC IMPLEMENTATION ---
 
 async function syncTasksForUser(userId) {
