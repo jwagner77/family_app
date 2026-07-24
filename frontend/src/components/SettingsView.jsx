@@ -917,7 +917,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   }
 
   return (
-    <div className="animate-fade-in" style={{ maxWidth: '850px', margin: '0 auto' }}>
+    <div className="animate-fade-in" style={{ width: '100%' }}>
       <div className="content-header">
         <div>
           <h2>Settings Dashboard</h2>
