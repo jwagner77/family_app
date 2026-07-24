@@ -161,6 +161,8 @@ export async function getDb() {
     INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_discord_webhook_url', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_webhook_enabled', 'false');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('bug_notify_webhook_url', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_subscription_due_today', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('notify_bill_due_today', 'false');
   `);
 
   // Safe Migration to add primary_color column to users table if missing

@@ -202,6 +202,70 @@ function getDaysRemaining(nextBillingDateStr, userTimezone = 'America/New_York')
   }
 }
 
+// Timezone-aware helper to get today's date in YYYY-MM-DD format
+function getTzTodayStr(userTimezone = 'America/New_York') {
+  try {
+    const now = new Date();
+    const tzTodayStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: normalizeTimezone(userTimezone),
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now);
+    const [tMonth, tDay, tYear] = tzTodayStr.split('/').map(Number);
+    const m = String(tMonth).padStart(2, '0');
+    const d = String(tDay).padStart(2, '0');
+    return `${tYear}-${m}-${d}`;
+  } catch (error) {
+    console.error('Error getting timezone today string:', error);
+    const fallback = new Date();
+    const y = fallback.getFullYear();
+    const m = String(fallback.getMonth() + 1).padStart(2, '0');
+    const d = String(fallback.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+}
+
+// Recurrence-aware helper to calculate the next billing date (preserving the target day or capping to month-end)
+function getNextBillingDate(dateStr, billingCycle) {
+  try {
+    const [year, month, day] = dateStr.split('-').map(Number);
+    if (billingCycle === 'annual') {
+      let nextYear = year + 1;
+      let nextMonth = month;
+      let nextDay = day;
+      if (month === 2 && day === 29) {
+        const isLeap = (nextYear % 4 === 0 && nextYear % 100 !== 0) || (nextYear % 400 === 0);
+        if (!isLeap) {
+          nextDay = 28;
+        }
+      }
+      const m = String(nextMonth).padStart(2, '0');
+      const d = String(nextDay).padStart(2, '0');
+      return `${nextYear}-${m}-${d}`;
+    } else {
+      // monthly
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear += 1;
+      }
+      const maxDays = new Date(nextYear, nextMonth, 0).getDate();
+      let nextDay = day;
+      if (nextDay > maxDays) {
+        nextDay = maxDays;
+      }
+      const m = String(nextMonth).padStart(2, '0');
+      const d = String(nextDay).padStart(2, '0');
+      return `${nextYear}-${m}-${d}`;
+    }
+  } catch (error) {
+    console.error('Error calculating next billing date:', error);
+    return dateStr;
+  }
+}
+
 // Normalizes any datetime string to YYYY-MM-DDTHH:mm format (minute precision)
 function formatToMinutes(dtStr) {
   if (!dtStr) return '';
@@ -297,7 +361,9 @@ async function sendNotification(title, body, eventType) {
     // Map setting toggles
     const toggleMapping = {
       'System Alert': 'notify_system_alert',
-      'User Managed': 'notify_user_managed'
+      'User Managed': 'notify_user_managed',
+      'Subscription Due Today': 'notify_subscription_due_today',
+      'Bill Due Today': 'notify_bill_due_today'
     };
 
     const settingKey = toggleMapping[eventType] || 'notify_system_alert';
@@ -886,7 +952,7 @@ app.get('/api/notifications/settings', authenticate, async (req, res) => {
       'notify_smtp_host', 'notify_smtp_port', 'notify_smtp_secure', 'notify_smtp_user', 'notify_smtp_pass', 'notify_smtp_from', 'notify_smtp_to',
       'notify_discord_webhook_url',
       'notify_webhook_url', 'notify_webhook_secret',
-      'notify_recipe_added', 'notify_recipe_deleted', 'notify_meal_plan_updated', 'notify_leftovers_added', 'notify_leftovers_expiring', 'notify_inventory_expiring',
+      'notify_subscription_due_today', 'notify_bill_due_today', 'notify_meal_plan_updated', 'notify_leftovers_added', 'notify_leftovers_expiring', 'notify_inventory_expiring',
       'notify_leftovers_expiry_days', 'notify_inventory_expiry_days',
       'fr_notify_smtp_enabled', 'fr_notify_smtp_to', 'fr_notify_discord_enabled', 'fr_notify_discord_webhook_url', 'fr_notify_webhook_enabled', 'fr_notify_webhook_url',
       'bug_notify_smtp_enabled', 'bug_notify_smtp_to', 'bug_notify_discord_enabled', 'bug_notify_discord_webhook_url', 'bug_notify_webhook_enabled', 'bug_notify_webhook_url'
@@ -1820,6 +1886,20 @@ app.get('/api/subscriptions', authenticate, async (req, res) => {
     const db = await getDb();
     const subs = await db.all("SELECT * FROM subscriptions ORDER BY next_billing_date ASC");
     const userTz = req.user?.timezone || 'America/New_York';
+    const todayStr = getTzTodayStr(userTz);
+
+    // Auto-update past active subscriptions
+    for (let sub of subs) {
+      if (sub.next_billing_date < todayStr && sub.active === 1) {
+        let newDate = sub.next_billing_date;
+        while (newDate < todayStr) {
+          newDate = getNextBillingDate(newDate, sub.billing_cycle);
+        }
+        await db.run("UPDATE subscriptions SET next_billing_date = ? WHERE id = ?", [newDate, sub.id]);
+        sub.next_billing_date = newDate;
+      }
+    }
+
     const mappedSubs = subs.map(sub => ({
       ...sub,
       due_in_days: getDaysRemaining(sub.next_billing_date, userTz)
@@ -1891,6 +1971,20 @@ app.get('/api/bills', authenticate, async (req, res) => {
     const db = await getDb();
     const bills = await db.all("SELECT * FROM recurring_bills ORDER BY next_billing_date ASC");
     const userTz = req.user?.timezone || 'America/New_York';
+    const todayStr = getTzTodayStr(userTz);
+
+    // Auto-update past active recurring bills
+    for (let bill of bills) {
+      if (bill.next_billing_date < todayStr && bill.active === 1) {
+        let newDate = bill.next_billing_date;
+        while (newDate < todayStr) {
+          newDate = getNextBillingDate(newDate, bill.billing_cycle);
+        }
+        await db.run("UPDATE recurring_bills SET next_billing_date = ? WHERE id = ?", [newDate, bill.id]);
+        bill.next_billing_date = newDate;
+      }
+    }
+
     const mappedBills = bills.map(bill => ({
       ...bill,
       due_in_days: getDaysRemaining(bill.next_billing_date, userTz)
@@ -2251,9 +2345,57 @@ async function syncCalendarForUser(userId) {
   }
 }
 
+async function checkDueTodayNotifications() {
+  try {
+    const db = await getDb();
+    const userTz = 'America/New_York';
+    const todayStr = getTzTodayStr(userTz);
+    
+    // 1. Check Subscriptions
+    const activeSubs = await db.all("SELECT * FROM subscriptions WHERE active = 1 AND next_billing_date = ?", [todayStr]);
+    for (const sub of activeSubs) {
+      const title = `Subscription Due: ${sub.name}`;
+      const alreadySent = await db.get(
+        "SELECT id FROM notification_logs WHERE event_type = 'Subscription Due Today' AND title = ? AND created_at > datetime('now', '-24 hours')",
+        [title]
+      );
+      if (!alreadySent) {
+        await sendNotification(
+          title,
+          `Your subscription "${sub.name}" for $${sub.amount} is due today (${todayStr}).`,
+          'Subscription Due Today'
+        );
+      }
+    }
+
+    // 2. Check Recurring Bills
+    const activeBills = await db.all("SELECT * FROM recurring_bills WHERE active = 1 AND next_billing_date = ?", [todayStr]);
+    for (const bill of activeBills) {
+      const title = `Bill Due: ${bill.name}`;
+      const alreadySent = await db.get(
+        "SELECT id FROM notification_logs WHERE event_type = 'Bill Due Today' AND title = ? AND created_at > datetime('now', '-24 hours')",
+        [title]
+      );
+      if (!alreadySent) {
+        await sendNotification(
+          title,
+          `Your bill "${bill.name}" for $${bill.amount} is due today (${todayStr}).`,
+          'Bill Due Today'
+        );
+      }
+    }
+  } catch (err) {
+    console.error("Error checking due today notifications:", err);
+  }
+}
+
 async function syncAllUsersM365() {
   try {
     const db = await getDb();
+    
+    // Run due today notifications check
+    await checkDueTodayNotifications();
+    
     const users = await db.all("SELECT id, username, calendar_guid FROM users WHERE m365_access_token IS NOT NULL");
     for (const u of users) {
       console.log(`Running background M365 sync for user: ${u.username}`);
@@ -2297,4 +2439,5 @@ app.get('*', (req, res, next) => {
 // Start Express Server
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server started on http://localhost:${PORT}`);
+  checkDueTodayNotifications().catch(console.error);
 });

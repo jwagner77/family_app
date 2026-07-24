@@ -223,8 +223,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [bugNotifyWebhookUrl, setBugNotifyWebhookUrl] = useState('');
 
   // Toggles
-  const [notifyRecipeAdded, setNotifyRecipeAdded] = useState(false);
-  const [notifyRecipeDeleted, setNotifyRecipeDeleted] = useState(false);
+  const [notifySubscriptionDueToday, setNotifySubscriptionDueToday] = useState(false);
+  const [notifyBillDueToday, setNotifyBillDueToday] = useState(false);
   const [notifyMealPlanUpdated, setNotifyMealPlanUpdated] = useState(false);
   const [notifyLeftoversAdded, setNotifyLeftoversAdded] = useState(false);
   const [notifyLeftoversExpiring, setNotifyLeftoversExpiring] = useState(false);
@@ -254,8 +254,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setNotifyDiscordWebhookUrl(data.notify_discord_webhook_url || '');
         setNotifyWebhookUrl(data.notify_webhook_url || '');
         setNotifyWebhookSecret(data.notify_webhook_secret || '');
-        setNotifyRecipeAdded(data.notify_recipe_added === 'true');
-        setNotifyRecipeDeleted(data.notify_recipe_deleted === 'true');
+        setNotifySubscriptionDueToday(data.notify_subscription_due_today === 'true');
+        setNotifyBillDueToday(data.notify_bill_due_today === 'true');
         setNotifyMealPlanUpdated(data.notify_meal_plan_updated === 'true');
         setNotifyLeftoversAdded(data.notify_leftovers_added === 'true');
         setNotifyLeftoversExpiring(data.notify_leftovers_expiring === 'true');
@@ -312,8 +312,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         notify_discord_webhook_url: notifyDiscordWebhookUrl.trim(),
         notify_webhook_url: notifyWebhookUrl.trim(),
         notify_webhook_secret: notifyWebhookSecret.trim(),
-        notify_recipe_added: String(notifyRecipeAdded),
-        notify_recipe_deleted: String(notifyRecipeDeleted),
+        notify_subscription_due_today: String(notifySubscriptionDueToday),
+        notify_bill_due_today: String(notifyBillDueToday),
         notify_meal_plan_updated: String(notifyMealPlanUpdated),
         notify_leftovers_added: String(notifyLeftoversAdded),
         notify_leftovers_expiring: String(notifyLeftoversExpiring),
@@ -2205,65 +2205,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   </div>
                 </div>
 
-                {/* Endpoint 4: List Recipes */}
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/recipes</code>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List recipes</span>
-                  </div>
-                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Retrieves a list of all culinary recipes in the database, optionally filtering by query.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/recipes`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/recipes`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={10} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 5: Get Recipe Details */}
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/recipes/:id</code>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>Get recipe details</span>
-                  </div>
-                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Retrieves full ingredients and step-by-step instructions for a single recipe.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl "${window.location.origin}/api/recipes/1?api_key=${apiKey || 'YOUR_API_KEY'}"`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl "${window.location.origin}/api/recipes/1?api_key=${apiKey || 'YOUR_API_KEY'}"`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={10} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 6: List Leftovers */}
+                {/* Endpoint 4: List Leftovers */}
                 <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
                     <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
@@ -2292,7 +2234,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   </div>
                 </div>
 
-                {/* Endpoint 7: Toggle Notification Rule */}
+                {/* Endpoint 5: Toggle Notification Rule */}
                 <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
                     <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>POST</span>
@@ -2301,17 +2243,17 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   </div>
                   <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Enables or disables a specific notification event rule (e.g. Recipe Added, Expiring Leftovers).
+                      Enables or disables a specific notification event rule (e.g. Subscription Due Today, Expiring Leftovers).
                     </p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
                       <div style={{ display: 'flex', position: 'relative' }}>
                         <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Recipe Added", "enabled": true}' ${window.location.origin}/api/notifications/toggle`}
+                          {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Subscription Due Today", "enabled": true}' ${window.location.origin}/api/notifications/toggle`}
                         </pre>
                         <button
                           type="button"
-                          onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Recipe Added", "enabled": true}' ${window.location.origin}/api/notifications/toggle`, 'curl command')}
+                          onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Subscription Due Today", "enabled": true}' ${window.location.origin}/api/notifications/toggle`, 'curl command')}
                           style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                         >
                           <Copy size={10} /> Copy
@@ -2514,28 +2456,28 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     <div className="form-group">
                       <label className="switch-container">
                         <input 
-                          id="rule-recipe-added"
+                          id="rule-subscription-due-today"
                           type="checkbox" 
                           className="switch-input"
-                          checked={notifyRecipeAdded} 
-                          onChange={(e) => setNotifyRecipeAdded(e.target.checked)} 
+                          checked={notifySubscriptionDueToday} 
+                          onChange={(e) => setNotifySubscriptionDueToday(e.target.checked)} 
                         />
                         <div className="switch-control" />
-                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Recipe Added</span>
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Subscription Due Today</span>
                       </label>
                     </div>
 
                     <div className="form-group">
                       <label className="switch-container">
                         <input 
-                          id="rule-recipe-deleted"
+                          id="rule-bill-due-today"
                           type="checkbox" 
                           className="switch-input"
-                          checked={notifyRecipeDeleted} 
-                          onChange={(e) => setNotifyRecipeDeleted(e.target.checked)} 
+                          checked={notifyBillDueToday} 
+                          onChange={(e) => setNotifyBillDueToday(e.target.checked)} 
                         />
                         <div className="switch-control" />
-                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Recipe Deleted</span>
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Bill Due Today</span>
                       </label>
                     </div>
 
