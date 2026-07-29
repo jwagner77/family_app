@@ -16,6 +16,7 @@ export default function HomeView({ onNavigateTab, user }) {
   const [events, setEvents] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [bills, setBills] = useState([]);
+  const [hoveredWidget, setHoveredWidget] = useState(null);
   
   useEffect(() => {
     fetchTasks();
@@ -137,32 +138,131 @@ export default function HomeView({ onNavigateTab, user }) {
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '3rem' }}>
       
       {/* Welcome Banner */}
-      <div className="card" style={{ padding: '2.5rem', background: 'linear-gradient(135deg, var(--card), var(--primary-light))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem' }}>
+      <div 
+        className="card" 
+        style={{ 
+          padding: '2rem', 
+          background: 'linear-gradient(to right, var(--card), rgba(220, 38, 38, 0.01) 70%, rgba(220, 38, 38, 0.04))', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          flexWrap: 'wrap', 
+          gap: '1.5rem',
+          border: '1px solid var(--border)'
+        }}
+      >
         <div>
-          <h2 style={{ fontSize: '2.25rem', fontWeight: '800', margin: 0, letterSpacing: '-0.5px' }}>
-            {getGreeting()}, {user?.display_name || user?.username}! 🏠
+          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, letterSpacing: '-0.5px', color: 'var(--foreground)' }}>
+            {getGreeting()}, {user?.display_name || user?.username}!
           </h2>
-          <p style={{ color: 'var(--muted-foreground)', marginTop: '0.5rem', fontSize: '1.05rem', marginBottom: 0 }}>
+          <p style={{ color: 'var(--muted-foreground)', marginTop: '0.35rem', fontSize: '0.875rem', marginBottom: 0 }}>
             Here is a summary of what's happening in your household.
           </p>
         </div>
         
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>TASKS TO DO</span>
-            <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800' }}>{pendingTasks.length}</h4>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* TASKS TO DO */}
+          <div 
+            onClick={() => onNavigateTab('todo')}
+            onMouseEnter={() => setHoveredWidget('tasks')}
+            onMouseLeave={() => setHoveredWidget(null)}
+            style={{
+              textAlign: 'center',
+              background: '#09090b',
+              padding: '0.75rem 1rem',
+              borderRadius: 'var(--radius)',
+              border: hoveredWidget === 'tasks' ? '1px solid var(--primary)' : '1px solid var(--border)',
+              minWidth: '110px',
+              cursor: 'pointer',
+              transform: hoveredWidget === 'tasks' ? 'translateY(-2px)' : 'none',
+              transition: 'all 0.2s ease-in-out',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            title="Go to Todo List"
+          >
+            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>TASKS TO DO</span>
+            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>{pendingTasks.length}</h4>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>SUBSCRIPTION SPEND</span>
-            <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${monthlySubscriptionSpend.toFixed(0)}</h4>
+
+          {/* SUBSCRIPTION SPEND */}
+          <div 
+            onClick={() => onNavigateTab('subscriptions')}
+            onMouseEnter={() => setHoveredWidget('subs')}
+            onMouseLeave={() => setHoveredWidget(null)}
+            style={{
+              textAlign: 'center',
+              background: '#09090b',
+              padding: '0.75rem 1rem',
+              borderRadius: 'var(--radius)',
+              border: hoveredWidget === 'subs' ? '1px solid var(--primary)' : '1px solid var(--border)',
+              minWidth: '110px',
+              cursor: 'pointer',
+              transform: hoveredWidget === 'subs' ? 'translateY(-2px)' : 'none',
+              transition: 'all 0.2s ease-in-out',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            title="Go to Subscriptions"
+          >
+            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>SUBSCRIPTION SPEND</span>
+            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>${monthlySubscriptionSpend.toFixed(0)}</h4>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>BILL SPEND</span>
-            <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${monthlyBillSpend.toFixed(0)}</h4>
+
+          {/* BILL SPEND */}
+          <div 
+            onClick={() => onNavigateTab('bills')}
+            onMouseEnter={() => setHoveredWidget('bills')}
+            onMouseLeave={() => setHoveredWidget(null)}
+            style={{
+              textAlign: 'center',
+              background: '#09090b',
+              padding: '0.75rem 1rem',
+              borderRadius: 'var(--radius)',
+              border: hoveredWidget === 'bills' ? '1px solid var(--primary)' : '1px solid var(--border)',
+              minWidth: '110px',
+              cursor: 'pointer',
+              transform: hoveredWidget === 'bills' ? 'translateY(-2px)' : 'none',
+              transition: 'all 0.2s ease-in-out',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            title="Go to Bills"
+          >
+            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>BILL SPEND</span>
+            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>${monthlyBillSpend.toFixed(0)}</h4>
           </div>
-          <div style={{ textAlign: 'center', background: 'var(--card)', padding: '0.75rem 1.25rem', borderRadius: '16px', border: '1px solid var(--border)', minWidth: '100px' }}>
-            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', fontWeight: '700' }}>TOTAL SPEND</span>
-            <h4 style={{ margin: '0.2rem 0 0 0', fontSize: '1.5rem', fontWeight: '800', color: 'var(--primary)' }}>${totalMonthlySpend.toFixed(0)}</h4>
+
+          {/* TOTAL SPEND */}
+          <div 
+            onClick={() => onNavigateTab('subscriptions')}
+            onMouseEnter={() => setHoveredWidget('total')}
+            onMouseLeave={() => setHoveredWidget(null)}
+            style={{
+              textAlign: 'center',
+              background: '#09090b',
+              padding: '0.75rem 1rem',
+              borderRadius: 'var(--radius)',
+              border: hoveredWidget === 'total' ? '1px solid var(--primary)' : '1px solid var(--border)',
+              minWidth: '110px',
+              cursor: 'pointer',
+              transform: hoveredWidget === 'total' ? 'translateY(-2px)' : 'none',
+              transition: 'all 0.2s ease-in-out',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+            title="View Spending Details"
+          >
+            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>TOTAL SPEND</span>
+            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>${totalMonthlySpend.toFixed(0)}</h4>
           </div>
         </div>
       </div>
