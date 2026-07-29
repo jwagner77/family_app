@@ -224,21 +224,18 @@ export default function BillsView({ showToast }) {
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '3rem' }}>
       
       {/* Page Title & Add Button */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>Recurring Bills Management</h2>
-            <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)' }}>Track recurring household bills, custom tags, and billing dates.</p>
-          </div>
-          <button 
-            className="btn btn-primary" 
-            onClick={openCreateModal}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          >
-            <Plus size={18} /> Add Bill
-          </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+        <div>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>Recurring Bills Management</h2>
+          <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)' }}>Track recurring household bills, custom tags, and billing dates.</p>
         </div>
-        <div style={{ height: '1px', background: 'var(--border)', width: '100%' }} />
+        <button 
+          className="btn btn-primary" 
+          onClick={openCreateModal}
+          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+        >
+          <Plus size={18} /> Add Bill
+        </button>
       </div>
 
       {/* Analytics Cards Dashboard */}

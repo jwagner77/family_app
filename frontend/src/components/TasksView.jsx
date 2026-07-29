@@ -236,11 +236,10 @@ export default function TasksView({ showToast, currentUser }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       {/* Page Title Header */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', marginBottom: '1.25rem' }}>
+      <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1.25rem', width: '100%' }}>
         <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>
           Task List
         </h2>
-        <div style={{ height: '1px', background: 'var(--border)', width: '100%' }} />
       </div>
 
       <div className="animate-fade-in" style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 190px)', minHeight: '500px', width: '100%' }}>
