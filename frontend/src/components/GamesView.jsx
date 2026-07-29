@@ -312,34 +312,37 @@ export default function GamesView({ showToast }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
       
       {/* HEADER SECTION */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-            <Gamepad2 style={{ color: 'var(--primary)' }} /> Family Game Time
-          </h1>
-          <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: '0.25rem 0 0 0' }}>
-            Catalog your games, roll a random pick, and track game night winners.
-          </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>
+              Family Game Time
+            </h1>
+            <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: '0.25rem 0 0 0' }}>
+              Catalog your games, roll a random pick, and track game night winners.
+            </p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button 
+              type="button" 
+              className="btn btn-outline" 
+              onClick={() => { setPickedGame(null); setIsPickModalOpen(true); }}
+              style={{ gap: '0.5rem' }}
+            >
+              <Dice5 size={16} /> Pick a Game
+            </button>
+            <button 
+              type="button" 
+              className="btn btn-primary" 
+              onClick={() => setIsAddModalOpen(true)}
+              style={{ gap: '0.5rem' }}
+            >
+              <Plus size={16} /> Add New Game
+            </button>
+          </div>
         </div>
-        
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          <button 
-            type="button" 
-            className="btn btn-outline" 
-            onClick={() => { setPickedGame(null); setIsPickModalOpen(true); }}
-            style={{ gap: '0.5rem' }}
-          >
-            <Dice5 size={16} /> Pick a Game
-          </button>
-          <button 
-            type="button" 
-            className="btn btn-primary" 
-            onClick={() => setIsAddModalOpen(true)}
-            style={{ gap: '0.5rem' }}
-          >
-            <Plus size={16} /> Add New Game
-          </button>
-        </div>
+        <div style={{ height: '1px', background: 'var(--border)', width: '100%' }} />
       </div>
 
       {/* MAIN TWO-COLUMN DASHBOARD */}
