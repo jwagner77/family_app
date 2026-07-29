@@ -272,6 +272,13 @@ export default function CalendarView({ showToast, currentUser }) {
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%', paddingBottom: '2rem' }}>
       
+      {/* Page Title Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, color: 'var(--foreground)' }}>
+          Calendar
+        </h1>
+        <div style={{ height: '1px', background: 'var(--border)', width: '100%' }} />
+      </div>
       {/* Calendar Header Panel */}
       <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>

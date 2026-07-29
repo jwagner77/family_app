@@ -234,7 +234,16 @@ export default function TasksView({ showToast, currentUser }) {
   const activeList = lists.find(l => l.id === activeListId);
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 120px)', minHeight: '500px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
+      {/* Page Title Header */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', marginBottom: '1.25rem' }}>
+        <h1 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, color: 'var(--foreground)' }}>
+          Task List
+        </h1>
+        <div style={{ height: '1px', background: 'var(--border)', width: '100%' }} />
+      </div>
+
+      <div className="animate-fade-in" style={{ display: 'flex', gap: '2rem', height: 'calc(100vh - 190px)', minHeight: '500px', width: '100%' }}>
       
       {/* Sidebar - Lists Panel */}
       <div className="card" style={{ width: '280px', display: 'flex', flexDirection: 'column', padding: '1.25rem', gap: '1rem', shrink: 0 }}>
@@ -543,6 +552,7 @@ export default function TasksView({ showToast, currentUser }) {
 
       </div>
 
+    </div>
     </div>
   );
 }
