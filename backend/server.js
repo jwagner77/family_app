@@ -357,6 +357,7 @@ async function sendNotification(title, body, eventType) {
     );
 
     const settings = await getSettings();
+    const appName = settings.app_name || 'Home Hub';
 
     // Map setting toggles
     const toggleMapping = {
@@ -390,7 +391,7 @@ async function sendNotification(title, body, eventType) {
         await transporter.sendMail({
           from: settings.notify_smtp_from || settings.notify_smtp_user || 'no-reply@baseapp.local',
           to: settings.notify_smtp_to,
-          subject: `[Base App] ${title}`,
+          subject: `[${appName}] ${title}`,
           text: body
         });
         console.log('SMTP email notification sent.');
@@ -406,7 +407,7 @@ async function sendNotification(title, body, eventType) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: `**[Base App] ${title}**\n${body}`
+            content: `**[${appName}] ${title}**\n${body}`
           })
         });
       } catch (err) {
