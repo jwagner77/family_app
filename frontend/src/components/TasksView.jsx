@@ -237,9 +237,9 @@ export default function TasksView({ showToast, currentUser }) {
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}>
       {/* Page Title Header */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%', marginBottom: '1.25rem' }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, color: 'var(--foreground)' }}>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>
           Task List
-        </h1>
+        </h2>
         <div style={{ height: '1px', background: 'var(--border)', width: '100%' }} />
       </div>
 

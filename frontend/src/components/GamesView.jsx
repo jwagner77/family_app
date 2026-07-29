@@ -315,10 +315,10 @@ export default function GamesView({ showToast }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>
               Family Game Time
-            </h1>
-            <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: '0.25rem 0 0 0' }}>
+            </h2>
+            <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>
               Catalog your games, roll a random pick, and track game night winners.
             </p>
           </div>
