@@ -241,25 +241,18 @@ export default function HomeView({ onNavigateTab, user }) {
 
           {/* TOTAL SPEND */}
           <div 
-            onClick={() => onNavigateTab('subscriptions')}
-            onMouseEnter={() => setHoveredWidget('total')}
-            onMouseLeave={() => setHoveredWidget(null)}
             style={{
               textAlign: 'center',
               background: '#09090b',
               padding: '0.75rem 1rem',
               borderRadius: 'var(--radius)',
-              border: hoveredWidget === 'total' ? '1px solid var(--primary)' : '1px solid var(--border)',
+              border: '1px solid var(--border)',
               minWidth: '110px',
-              cursor: 'pointer',
-              transform: hoveredWidget === 'total' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s ease-in-out',
               display: 'flex',
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center'
             }}
-            title="View Spending Details"
           >
             <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>TOTAL SPEND</span>
             <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>${totalMonthlySpend.toFixed(0)}</h4>
