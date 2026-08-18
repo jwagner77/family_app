@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lightbulb, Plus, Trash2, Clock, RefreshCw } from 'lucide-react';
+import { Lightbulb, Plus, Trash2, Clock, RefreshCw, GitPullRequest } from 'lucide-react';
 
 export default function FeatureRequestsView({ showToast, currentUser }) {
   const [features, setFeatures] = useState([]);
@@ -205,6 +205,20 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <Clock size={12} /> {new Date(feature.created_at).toLocaleDateString()}
                     </span>
+                    {feature.github_issue_url && (
+                      <>
+                        <span>•</span>
+                        <a 
+                          href={feature.github_issue_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}
+                          title={`GitHub Issue #${feature.github_issue_number}`}
+                        >
+                          <GitPullRequest size={12} /> Issue #{feature.github_issue_number}
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Plus, Trash2, Clock, RefreshCw } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2, Clock, RefreshCw, GitPullRequest } from 'lucide-react';
 
 export default function BugReportsView({ showToast, currentUser }) {
   const [bugs, setBugs] = useState([]);
@@ -250,6 +250,20 @@ export default function BugReportsView({ showToast, currentUser }) {
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                       <Clock size={12} /> {new Date(bug.created_at).toLocaleDateString()}
                     </span>
+                    {bug.github_issue_url && (
+                      <>
+                        <span>•</span>
+                        <a 
+                          href={bug.github_issue_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}
+                          title={`GitHub Issue #${bug.github_issue_number}`}
+                        >
+                          <GitPullRequest size={12} /> Issue #{bug.github_issue_number}
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
 

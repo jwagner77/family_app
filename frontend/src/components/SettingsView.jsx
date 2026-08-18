@@ -142,6 +142,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [unsplashSecret, setUnsplashSecret] = useState('');
   const [weatherLocation, setWeatherLocation] = useState('10001');
   const [weatherUnit, setWeatherUnit] = useState('fahrenheit');
+  const [githubIntegrationEnabled, setGithubIntegrationEnabled] = useState(false);
+  const [githubOwner, setGithubOwner] = useState('');
+  const [githubRepo, setGithubRepo] = useState('');
+  const [githubToken, setGithubToken] = useState('');
   const [savingIntegrations, setSavingIntegrations] = useState(false);
 
   const [dashboardRefreshInterval, setDashboardRefreshInterval] = useState('disabled');
@@ -546,6 +550,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setUnsplashSecret(data.unsplash_secret || '');
         setWeatherLocation(data.weather_location || '10001');
         setWeatherUnit(data.weather_unit || 'fahrenheit');
+        setGithubIntegrationEnabled(data.github_integration_enabled === 'true');
+        setGithubOwner(data.github_owner || '');
+        setGithubRepo(data.github_repo || '');
+        setGithubToken(data.github_token || '');
 
         setDashboardRefreshInterval(data.dashboard_refresh_interval || 'disabled');
         setDashboardBgType(data.dashboard_bg_type || 'theme');
@@ -638,7 +646,11 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         unsplash_app_id: unsplashAppId.trim(),
         unsplash_secret: unsplashSecret,
         weather_location: weatherLocation.trim(),
-        weather_unit: weatherUnit
+        weather_unit: weatherUnit,
+        github_integration_enabled: githubIntegrationEnabled ? 'true' : 'false',
+        github_owner: githubOwner.trim(),
+        github_repo: githubRepo.trim(),
+        github_token: githubToken
       };
 
       const res = await fetch('/api/settings', {
@@ -2505,6 +2517,61 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       <option value="fahrenheit">Fahrenheit (°F)</option>
                       <option value="celsius">Celsius (°C)</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* GitHub Issues Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>🐙</span> GitHub Issues Sync
+                  </h4>
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <label className="switch-container">
+                      <input 
+                        type="checkbox"
+                        className="switch-input"
+                        checked={githubIntegrationEnabled}
+                        onChange={(e) => setGithubIntegrationEnabled(e.target.checked)}
+                      />
+                      <div className="switch-control" />
+                      <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Enable Issues Integration</span>
+                    </label>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="github-owner" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Repo Owner *</label>
+                    <input
+                      id="github-owner"
+                      type="text"
+                      className="input-control"
+                      value={githubOwner}
+                      onChange={(e) => setGithubOwner(e.target.value)}
+                      placeholder="e.g. jwagner77"
+                      required={githubIntegrationEnabled}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="github-repo" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Repo Name *</label>
+                    <input
+                      id="github-repo"
+                      type="text"
+                      className="input-control"
+                      value={githubRepo}
+                      onChange={(e) => setGithubRepo(e.target.value)}
+                      placeholder="e.g. family_app"
+                      required={githubIntegrationEnabled}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="github-token" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Personal Access Token *</label>
+                    <input
+                      id="github-token"
+                      type="password"
+                      className="input-control"
+                      value={githubToken}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                      placeholder={githubToken ? "••••••••" : "Enter access token"}
+                      required={githubIntegrationEnabled}
+                    />
                   </div>
                 </div>
 

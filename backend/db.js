@@ -544,6 +544,28 @@ export async function getDb() {
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('google_default_role', 'Viewer')");
   } catch (err) {}
 
+  // Safe Migration to pre-populate GitHub integration settings
+  try {
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_integration_enabled', 'false')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_owner', '')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_repo', '')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_token', '')");
+  } catch (err) {}
+
+  // Safe Migration to add github issue columns to feature_requests & bug_reports
+  try {
+    await dbInstance.run("ALTER TABLE feature_requests ADD COLUMN github_issue_url TEXT");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE feature_requests ADD COLUMN github_issue_number INTEGER");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN github_issue_url TEXT");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN github_issue_number INTEGER");
+  } catch (err) {}
+
   // Create notification logs table
   await dbInstance.exec(`
     CREATE TABLE IF NOT EXISTS notification_logs (

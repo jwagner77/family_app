@@ -1207,6 +1207,9 @@ app.post('/api/settings', authenticate, requirePermission('settings_general', 'f
     if (settings.unsplash_secret === '••••••••' || settings.unsplash_secret === '') {
       delete settings.unsplash_secret;
     }
+    if (settings.github_token === '••••••••' || settings.github_token === '') {
+      delete settings.github_token;
+    }
 
     await saveSettings(settings);
     res.json({ message: 'Settings saved successfully' });
@@ -1573,6 +1576,59 @@ async function sendFeatureOrBugNotification(type, title, body, item, originUrl) 
           console.log(`General ${type} webhook notification sent.`);
         } catch (err) {
           console.error(`Webhook ${type} error:`, err.message);
+        }
+      }
+    }
+
+    // GitHub Integration
+    if (settings.github_integration_enabled === 'true') {
+      const githubOwner = settings.github_owner;
+      const githubRepo = settings.github_repo;
+      const githubToken = settings.github_token;
+
+      if (githubOwner && githubRepo && githubToken) {
+        try {
+          const label = type === 'feature' ? 'enhancement' : 'bug';
+          const bodyMarkdown = `
+### Description
+${body}
+
+---
+*Reported via Family App portal.*
+*Local Reference: [View details locally](${originUrl || '#'})*
+          `;
+
+          const response = await fetch(`https://api.github.com/repos/${githubOwner}/${githubRepo}/issues`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `token ${githubToken}`,
+              'Accept': 'application/vnd.github.v3+json',
+              'Content-Type': 'application/json',
+              'User-Agent': 'Family-App-Server'
+            },
+            body: JSON.stringify({
+              title: title,
+              body: bodyMarkdown.trim(),
+              labels: [label, 'portal']
+            })
+          });
+
+          if (response.ok) {
+            const githubData = await response.json();
+            console.log(`GitHub issue created: ${githubData.html_url}`);
+            
+            // Save the Github Issue URL on our local record for easy reference
+            const dbInstance = await getDb();
+            const tableName = type === 'feature' ? 'feature_requests' : 'bug_reports';
+            await dbInstance.run(
+              `UPDATE ${tableName} SET github_issue_url = ?, github_issue_number = ? WHERE id = ?`,
+              [githubData.html_url, githubData.number, item.id]
+            );
+          } else {
+            console.error('GitHub API error:', await response.text());
+          }
+        } catch (err) {
+          console.error('GitHub Sync error:', err.message);
         }
       }
     }
