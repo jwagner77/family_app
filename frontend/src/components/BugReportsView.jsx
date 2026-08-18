@@ -34,6 +34,16 @@ export default function BugReportsView({ showToast, currentUser }) {
 
   useEffect(() => {
     fetchBugs();
+
+    const handleAddTrigger = (e) => {
+      if (e.detail.tab === 'bugs') {
+        setFormOpen(true);
+      }
+    };
+    window.addEventListener('trigger-add-action', handleAddTrigger);
+    return () => {
+      window.removeEventListener('trigger-add-action', handleAddTrigger);
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -140,86 +150,85 @@ export default function BugReportsView({ showToast, currentUser }) {
           <h2>Bug Reports & Issues</h2>
           <p>Report issues and track their progress toward resolution.</p>
         </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={() => setFormOpen(!formOpen)}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-        >
-          <Plus size={16} /> Report Bug
-        </button>
       </div>
 
       {formOpen && (
-        <div className="card animate-slide-up">
-          <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <AlertTriangle size={18} style={{ color: 'var(--destructive)' }} /> Submit a Bug Report
-          </h3>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
-              <div className="form-group">
-                <label htmlFor="bug-title">Title *</label>
-                <input 
-                  id="bug-title"
-                  type="text" 
-                  className="input-control" 
-                  placeholder="e.g., Login fails on mobile browsers" 
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="bug-severity">Severity</label>
-                <select 
-                  id="bug-severity"
-                  className="input-control" 
-                  value={severity}
-                  onChange={(e) => setSeverity(e.target.value)}
-                >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
-                  <option value="critical">Critical</option>
-                </select>
-              </div>
-            </div>
-            
-            <div className="form-group">
-              <label htmlFor="bug-desc">Description *</label>
-              <textarea 
-                id="bug-desc"
-                className="input-control" 
-                rows="3"
-                placeholder="What is the bug? What did you expect to happen instead?"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-                style={{ resize: 'vertical' }}
-              />
+        <div className="modal-overlay" onClick={() => setFormOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Submit a Bug Report</h2>
+              <button className="close-btn" onClick={() => setFormOpen(false)}>×</button>
             </div>
 
-            <div className="form-group">
-              <label htmlFor="bug-steps">Steps to Reproduce</label>
-              <textarea 
-                id="bug-steps"
-                className="input-control" 
-                rows="3"
-                placeholder="1. Go to...\n2. Click...\n3. Observe error..."
-                value={steps}
-                onChange={(e) => setSteps(e.target.value)}
-                style={{ resize: 'vertical' }}
-              />
-            </div>
+            <div className="modal-body">
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label htmlFor="bug-title">Title *</label>
+                    <input 
+                      id="bug-title"
+                      type="text" 
+                      className="input-control" 
+                      placeholder="e.g., Login fails on mobile browsers" 
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="bug-severity">Severity</label>
+                    <select 
+                      id="bug-severity"
+                      className="input-control" 
+                      value={severity}
+                      onChange={(e) => setSeverity(e.target.value)}
+                    >
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="bug-desc">Description *</label>
+                  <textarea 
+                    id="bug-desc"
+                    className="input-control" 
+                    rows="3"
+                    placeholder="What is the bug? What did you expect to happen instead?"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-outline" onClick={() => setFormOpen(false)}>
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
-                {submitting ? 'Submit Report' : 'Submit Report'}
-              </button>
+                <div className="form-group">
+                  <label htmlFor="bug-steps">Steps to Reproduce</label>
+                  <textarea 
+                    id="bug-steps"
+                    className="input-control" 
+                    rows="3"
+                    placeholder="1. Go to...\n2. Click...\n3. Observe error..."
+                    value={steps}
+                    onChange={(e) => setSteps(e.target.value)}
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setFormOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    Submit Report
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
+          </div>
         </div>
       )}
 

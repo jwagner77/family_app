@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sliders, 
   Settings,
+  ChevronUp,
+  User,
   LayoutDashboard,
   ChevronLeft,
   ChevronRight,
@@ -24,7 +26,25 @@ import {
   Bug,
   CreditCard,
   Receipt,
-  Gamepad2
+  Gamepad2,
+  BookOpen,
+  ShoppingCart,
+  ChefHat,
+  Apple,
+  Package,
+  FileText,
+  Bookmark,
+  BookMarked,
+  LayoutGrid,
+  Flame,
+  RefreshCw,
+  Clock,
+  Cake,
+  Activity,
+  Sparkles,
+  PawPrint,
+  Home,
+  Folder
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -59,13 +79,37 @@ window.fetch = async (url, options = {}) => {
 // Components
 import SettingsView from './components/SettingsView';
 import HomeView from './components/HomeView';
+import ContactsView from './components/ContactsView';
+import BirthdaysView from './components/BirthdaysView';
+import HealthView from './components/HealthView';
+import PetsView from './components/PetsView';
 import FeatureRequestsView from './components/FeatureRequestsView';
 import BugReportsView from './components/BugReportsView';
-import TasksView from './components/TasksView';
+import FocusFlowTasksView from './components/FocusFlowTasksView';
+import RoutinesView from './components/RoutinesView';
+import HabitsView from './components/HabitsView';
+import FocusView from './components/FocusView';
 import CalendarView from './components/CalendarView';
 import SubscriptionsView from './components/SubscriptionsView';
 import BillsView from './components/BillsView';
 import GamesView from './components/GamesView';
+import RecipesView from './components/RecipesView';
+import WeeklyMenu from './components/WeeklyMenu';
+import LeftoversView from './components/LeftoversView';
+import ShoppingList from './components/ShoppingList';
+import InventoryView from './components/InventoryView';
+import CSVUpload from './components/CSVUpload';
+import OCRUpload from './components/OCRUpload';
+import LibraryView from './components/LibraryView';
+import ReadingListView from './components/ReadingListView';
+import ReadingLogView from './components/ReadingLogView';
+import SharedReadingListView from './components/SharedReadingListView';
+import CustomDashboardView from './components/CustomDashboardView';
+import SharedDashboardView from './components/SharedDashboardView';
+import HousekeepingView from './components/HousekeepingView';
+import FocusAreasView from './components/FocusAreasView';
+import FloatingActionButton from './components/FloatingActionButton';
+import UserProfileView from './components/UserProfileView';
 
 // Contrast checking function using relative luminance
 function getContrastColor(hexColor) {
@@ -96,39 +140,114 @@ function getContrastColor(hexColor) {
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [user, setUser] = useState(null);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(
     localStorage.getItem('sidebar_collapsed') === 'true'
   );
+  const [shareToken, setShareToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('share');
+  });
+  const [sharedDashboardToken, setSharedDashboardToken] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tokenParam = params.get('share_dashboard');
+    if (tokenParam) return tokenParam;
+    const path = window.location.pathname;
+    if (path.startsWith('/shared/')) {
+      return path.replace('/shared/', '');
+    }
+    return null;
+  });
+
+  const [expandedCategories, setExpandedCategories] = useState(() => {
+    const saved = localStorage.getItem('sidebar_expanded_categories');
+    return saved ? JSON.parse(saved) : {
+      people: true,
+      plans: true,
+      kitchen: true,
+      finance: true,
+      library: true,
+      entertainment: true
+    };
+  });
+
+  const toggleCategory = (category) => {
+    setExpandedCategories(prev => {
+      const updated = { ...prev, [category]: !prev[category] };
+      localStorage.setItem('sidebar_expanded_categories', JSON.stringify(updated));
+      return updated;
+    });
+  };
 
   const [activeTab, setActiveTab] = useState('home');
   const isIframe = window.self !== window.top;
   const APP_NAV_LINKS = [
-  {
-    "id": "home",
-    "label": "Dashboard",
-    "icon": "LayoutDashboard"
-  },
-  {
-    "id": "todo",
-    "label": "To-Do List",
-    "icon": "CheckSquare"
-  },
-  {
-    "id": "calendar",
-    "label": "Calendar",
-    "icon": "Calendar"
-  },
-  {
-    "id": "subscriptions",
-    "label": "Subscriptions",
-    "icon": "RefreshCw"
-  },
-  {
-    "id": "bills",
-    "label": "Bills",
-    "icon": "DollarSign"
-  }
-];
+    {
+      "id": "home",
+      "label": "Dashboard",
+      "icon": "LayoutDashboard"
+    },
+    {
+      "id": "todo",
+      "label": "To-Do List",
+      "icon": "CheckSquare"
+    },
+    {
+      "id": "calendar",
+      "label": "Calendar",
+      "icon": "Calendar"
+    },
+    {
+      "id": "subscriptions",
+      "label": "Subscriptions",
+      "icon": "RefreshCw"
+    },
+    {
+      "id": "bills",
+      "label": "Bills",
+      "icon": "DollarSign"
+    },
+    {
+      "id": "recipes",
+      "label": "Recipes",
+      "icon": "BookOpen"
+    },
+    {
+      "id": "planner",
+      "label": "Meal Planner",
+      "icon": "ChefHat"
+    },
+    {
+      "id": "leftovers",
+      "label": "Fridge Leftovers",
+      "icon": "Apple"
+    },
+    {
+      "id": "inventory",
+      "label": "Pantry Inventory",
+      "icon": "Package"
+    },
+    {
+      "id": "shopping",
+      "label": "Shopping List",
+      "icon": "ShoppingCart"
+    },
+    {
+      "id": "library",
+      "label": "Library Catalog",
+      "icon": "BookOpen"
+    },
+    {
+      "id": "reading_list",
+      "label": "Reading List",
+      "icon": "Bookmark"
+    },
+    {
+      "id": "reading_log",
+      "label": "Reading Log",
+      "icon": "BookMarked"
+    }
+  ];
 
   useEffect(() => {
     if (isIframe) {
@@ -171,9 +290,19 @@ export default function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (isUserMenuOpen && !e.target.closest('.user-profile-menu-container')) {
+        setIsUserMenuOpen(false);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [isUserMenuOpen]);
 
 
-  const [settingsSubTab, setSettingsSubTab] = useState('general');
+
+  const [settingsSubTab, setSettingsSubTab] = useState('branding');
   const [lastTab, setLastTab] = useState('home');
 
   useEffect(() => {
@@ -455,6 +584,29 @@ export default function App() {
     setToast({ text, type });
   };
 
+  const handleExportWord = async (recipeId, templateId) => {
+    try {
+      const res = await fetch('/api/templates');
+      let tId = templateId;
+      if (!tId && res.ok) {
+        const templatesList = await res.json();
+        const def = templatesList.find(t => t.is_default === 1);
+        if (def) tId = def.id;
+      }
+      
+      let url = `/api/recipes/${recipeId}/export`;
+      const params = [];
+      if (tId) params.push(`templateId=${tId}`);
+      if (token) params.push(`token=${encodeURIComponent(token)}`);
+      if (params.length > 0) url += `?${params.join('&')}`;
+      
+      window.open(url, '_blank');
+    } catch (e) {
+      console.error('Failed to export Word doc:', e);
+      showToast('Failed to export recipe to Word doc.', 'error');
+    }
+  };
+
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 4000);
@@ -516,6 +668,37 @@ export default function App() {
     }
   }, [token, user]);
 
+  if (shareToken) {
+    return (
+      <SharedReadingListView 
+        shareToken={shareToken} 
+        onClose={() => {
+          setShareToken(null);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('share');
+          window.history.replaceState({}, document.title, url.pathname + url.search);
+        }} 
+      />
+    );
+  }
+
+  if (sharedDashboardToken) {
+    return (
+      <SharedDashboardView 
+        token={sharedDashboardToken} 
+        onClose={() => {
+          setSharedDashboardToken(null);
+          const url = new URL(window.location.href);
+          url.searchParams.delete('share_dashboard');
+          if (url.pathname.startsWith('/shared/')) {
+            url.pathname = '/';
+          }
+          window.history.replaceState({}, document.title, url.pathname + url.search);
+        }} 
+      />
+    );
+  }
+
   if (!token || !user) {
     return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
@@ -526,6 +709,12 @@ export default function App() {
   const canReadSSO = (user?.permissions?.settings_sso !== 'none') || (user?.permissions?.roles === 'full');
   const canReadBranding = (user?.permissions?.settings_branding !== 'none') || (user?.permissions?.roles === 'full');
   const canReadCalendar = (user?.permissions?.settings_calendar !== 'none');
+  const canReadRecipes = user?.permissions?.recipes !== 'none';
+  const canReadPlanner = user?.permissions?.planner !== 'none';
+  const canReadShopping = user?.permissions?.shopping_list !== 'none';
+  const canReadLibrary = true;
+  const canReadReadingList = true;
+  const canReadReadingLog = true;
 
   return (
     <div className="app-container">
@@ -593,48 +782,291 @@ export default function App() {
         <nav className="sidebar-nav" style={{ flex: 1, overflowY: 'auto', minHeight: 0, marginTop: '1rem' }}>
           {activeTab !== 'settings' ? (
             <>
+              {/* Top-Level Page: Overview */}
               <a 
                 className={`nav-link ${activeTab === 'home' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('home'); setIsMobileMenuOpen(false); }}
+                title="Overview"
+                style={{ marginBottom: '0.5rem' }}
               >
                 <LayoutDashboard />
-                <span>Home</span>
+                <span>Overview</span>
               </a>
-              <a 
-                className={`nav-link ${activeTab === 'todo' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('todo'); setIsMobileMenuOpen(false); }}
-              >
-                <FileCheck />
-                <span>Todo List</span>
-              </a>
-              <a 
-                className={`nav-link ${activeTab === 'calendar' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('calendar'); setIsMobileMenuOpen(false); }}
-              >
-                <Calendar />
-                <span>Calendar</span>
-              </a>
-              <a 
-                className={`nav-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('subscriptions'); setIsMobileMenuOpen(false); }}
-              >
-                <CreditCard />
-                <span>Subscriptions</span>
-              </a>
-              <a 
-                className={`nav-link ${activeTab === 'bills' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('bills'); setIsMobileMenuOpen(false); }}
-              >
-                <Receipt />
-                <span>Bills</span>
-              </a>
-              <a 
-                className={`nav-link ${activeTab === 'games' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('games'); setIsMobileMenuOpen(false); }}
-              >
-                <Gamepad2 />
-                <span>Games</span>
-              </a>
+
+              {/* Category: People & Pets */}
+              {!isSidebarCollapsed && (
+                <div className="sidebar-category-header" onClick={() => toggleCategory('people')}>
+                  <span>People & Pets</span>
+                  <ChevronDown size={14} style={{ transform: expandedCategories.people ? 'none' : 'rotate(-90deg)' }} />
+                </div>
+              )}
+              {isSidebarCollapsed && (
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+              )}
+              {(expandedCategories.people || isSidebarCollapsed) && (
+                <>
+                  <a 
+                    className={`nav-link ${activeTab === 'contacts' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('contacts'); setIsMobileMenuOpen(false); }}
+                    title="Contacts"
+                  >
+                    <Users />
+                    <span>Contacts</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'birthdays' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('birthdays'); setIsMobileMenuOpen(false); }}
+                    title="Birthdays"
+                  >
+                    <Cake />
+                    <span>Birthdays</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'health' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('health'); setIsMobileMenuOpen(false); }}
+                    title="Health"
+                  >
+                    <Activity />
+                    <span>Health</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'pets' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('pets'); setIsMobileMenuOpen(false); }}
+                    title="Pets"
+                  >
+                    <PawPrint />
+                    <span>Pets</span>
+                  </a>
+                </>
+              )}
+
+              {/* Category: Plans */}
+              {!isSidebarCollapsed && (
+                <div className="sidebar-category-header" onClick={() => toggleCategory('plans')}>
+                  <span>Plans</span>
+                  <ChevronDown size={14} style={{ transform: expandedCategories.plans ? 'none' : 'rotate(-90deg)' }} />
+                </div>
+              )}
+              {isSidebarCollapsed && (
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+              )}
+              {(expandedCategories.plans || isSidebarCollapsed) && (
+                <>
+                  <a 
+                    className={`nav-link ${activeTab === 'todo' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('todo'); setIsMobileMenuOpen(false); }}
+                  >
+                    <FileCheck />
+                    <span>Tasks</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'focus_areas' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('focus_areas'); setIsMobileMenuOpen(false); }}
+                  >
+                    <Folder />
+                    <span>Focus Areas</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'routines' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('routines'); setIsMobileMenuOpen(false); }}
+                  >
+                    <RefreshCw />
+                    <span>Routines</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'habits' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('habits'); setIsMobileMenuOpen(false); }}
+                  >
+                    <Flame />
+                    <span>Habits</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'focus' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('focus'); setIsMobileMenuOpen(false); }}
+                  >
+                    <Clock />
+                    <span>Focus Mode</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'calendar' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('calendar'); setIsMobileMenuOpen(false); }}
+                  >
+                    <Calendar />
+                    <span>Calendar</span>
+                  </a>
+                </>
+              )}
+
+              {/* Category: Household */}
+              {(canReadRecipes || canReadPlanner || canReadShopping) && (
+                <>
+                  {!isSidebarCollapsed && (
+                    <div className="sidebar-category-header" onClick={() => toggleCategory('kitchen')}>
+                      <span>Household</span>
+                      <ChevronDown size={14} style={{ transform: expandedCategories.kitchen ? 'none' : 'rotate(-90deg)' }} />
+                    </div>
+                  )}
+                  {isSidebarCollapsed && (
+                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+                  )}
+                  {(expandedCategories.kitchen || isSidebarCollapsed) && (
+                    <>
+                      <a 
+                        className={`nav-link ${activeTab === 'housekeeping' ? 'active' : ''}`}
+                        onClick={() => { setActiveTab('housekeeping'); setIsMobileMenuOpen(false); }}
+                      >
+                        <Home />
+                        <span>Housekeeping</span>
+                      </a>
+                      {canReadRecipes && (
+                        <a 
+                          className={`nav-link ${activeTab === 'recipes' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('recipes'); setIsMobileMenuOpen(false); }}
+                        >
+                          <BookOpen />
+                          <span>Recipes</span>
+                        </a>
+                      )}
+                      {canReadPlanner && (
+                        <a 
+                          className={`nav-link ${activeTab === 'planner' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('planner'); setIsMobileMenuOpen(false); }}
+                        >
+                          <ChefHat />
+                          <span>Meal Planner</span>
+                        </a>
+                      )}
+                      {canReadPlanner && (
+                        <a 
+                          className={`nav-link ${activeTab === 'leftovers' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('leftovers'); setIsMobileMenuOpen(false); }}
+                        >
+                          <Apple />
+                          <span>Fridge Leftovers</span>
+                        </a>
+                      )}
+                      {canReadRecipes && (
+                        <a 
+                          className={`nav-link ${activeTab === 'inventory' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('inventory'); setIsMobileMenuOpen(false); }}
+                        >
+                          <Package />
+                          <span>Pantry Inventory</span>
+                        </a>
+                      )}
+                      {canReadShopping && (
+                        <a 
+                          className={`nav-link ${activeTab === 'shopping' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('shopping'); setIsMobileMenuOpen(false); }}
+                        >
+                          <ShoppingCart />
+                          <span>Shopping List</span>
+                        </a>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Category: Finance */}
+              <>
+                {!isSidebarCollapsed && (
+                  <div className="sidebar-category-header" onClick={() => toggleCategory('finance')}>
+                    <span>Finance</span>
+                    <ChevronDown size={14} style={{ transform: expandedCategories.finance ? 'none' : 'rotate(-90deg)' }} />
+                  </div>
+                )}
+                {isSidebarCollapsed && (
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+                )}
+                {(expandedCategories.finance || isSidebarCollapsed) && (
+                  <>
+                    <a 
+                      className={`nav-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
+                      onClick={() => { setActiveTab('subscriptions'); setIsMobileMenuOpen(false); }}
+                    >
+                      <CreditCard />
+                      <span>Subscriptions</span>
+                    </a>
+                    <a 
+                      className={`nav-link ${activeTab === 'bills' ? 'active' : ''}`}
+                      onClick={() => { setActiveTab('bills'); setIsMobileMenuOpen(false); }}
+                    >
+                      <Receipt />
+                      <span>Bills</span>
+                    </a>
+                  </>
+                )}
+              </>
+
+              {/* Category: Library */}
+              {(canReadLibrary || canReadReadingList || canReadReadingLog) && (
+                <>
+                  {!isSidebarCollapsed && (
+                    <div className="sidebar-category-header" onClick={() => toggleCategory('library')}>
+                      <span>Library</span>
+                      <ChevronDown size={14} style={{ transform: expandedCategories.library ? 'none' : 'rotate(-90deg)' }} />
+                    </div>
+                  )}
+                  {isSidebarCollapsed && (
+                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+                  )}
+                  {(expandedCategories.library || isSidebarCollapsed) && (
+                    <>
+                      {canReadLibrary && (
+                        <a 
+                          className={`nav-link ${activeTab === 'library' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('library'); setIsMobileMenuOpen(false); }}
+                        >
+                          <BookOpen />
+                          <span>Library Catalog</span>
+                        </a>
+                      )}
+                      {canReadReadingList && (
+                        <a 
+                          className={`nav-link ${activeTab === 'reading_list' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('reading_list'); setIsMobileMenuOpen(false); }}
+                        >
+                          <Bookmark />
+                          <span>Reading List</span>
+                        </a>
+                      )}
+                      {canReadReadingLog && (
+                        <a 
+                          className={`nav-link ${activeTab === 'reading_log' ? 'active' : ''}`}
+                          onClick={() => { setActiveTab('reading_log'); setIsMobileMenuOpen(false); }}
+                        >
+                          <BookMarked />
+                          <span>Reading Log</span>
+                        </a>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Category: Entertainment */}
+              {!isSidebarCollapsed && (
+                <div className="sidebar-category-header" onClick={() => toggleCategory('entertainment')}>
+                  <span>Entertainment</span>
+                  <ChevronDown size={14} style={{ transform: expandedCategories.entertainment ? 'none' : 'rotate(-90deg)' }} />
+                </div>
+              )}
+              {isSidebarCollapsed && (
+                <div style={{ height: '1px', background: 'rgba(255,255,255,0.08)', margin: '0.5rem 0' }} />
+              )}
+              {(expandedCategories.entertainment || isSidebarCollapsed) && (
+                <>
+                  <a 
+                    className={`nav-link ${activeTab === 'games' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('games'); setIsMobileMenuOpen(false); }}
+                    title="Games"
+                  >
+                    <Gamepad2 />
+                    <span>Games</span>
+                  </a>
+                </>
+              )}
             </>
           ) : (
             <>
@@ -649,15 +1081,6 @@ export default function App() {
                 <ChevronLeft />
                 <span>Back to Menu</span>
               </a>
-              
-              <a 
-                className={`nav-link ${settingsSubTab === 'general' ? 'active' : ''}`}
-                onClick={() => { setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
-                title="General Settings"
-              >
-                <Sliders />
-                <span>General Settings</span>
-              </a>
               {canReadUsers && (
                 <a 
                   className={`nav-link ${settingsSubTab === 'users' ? 'active' : ''}`}
@@ -668,7 +1091,7 @@ export default function App() {
                   <span>User Management</span>
                 </a>
               )}
-              {user.auth_provider === 'sso' && canReadCalendar && (
+              {canReadCalendar && (
                 <a 
                   className={`nav-link ${settingsSubTab === 'calendar' ? 'active' : ''}`}
                   onClick={() => { setSettingsSubTab('calendar'); setIsMobileMenuOpen(false); }}
@@ -708,6 +1131,16 @@ export default function App() {
                   <span>Branding Settings</span>
                 </a>
               )}
+              {canReadGeneral && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'dashboard' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('dashboard'); setIsMobileMenuOpen(false); }}
+                  title="Dashboard Settings"
+                >
+                  <LayoutDashboard />
+                  <span>Dashboard Settings</span>
+                </a>
+              )}
 
               {user.role_name === 'Administrator' && (
                 <a 
@@ -727,6 +1160,16 @@ export default function App() {
                 >
                   <Key />
                   <span>Integrations</span>
+                </a>
+              )}
+              {canReadRecipes && (
+                <a 
+                  className={`nav-link ${settingsSubTab === 'templates' ? 'active' : ''}`}
+                  onClick={() => { setSettingsSubTab('templates'); setIsMobileMenuOpen(false); }}
+                  title="Word Templates"
+                >
+                  <FileText />
+                  <span>Word Templates</span>
                 </a>
               )}
             </>
@@ -755,44 +1198,222 @@ export default function App() {
                 </a>
               )}
               <a 
-                className={`nav-link ${activeTab === 'features' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('features'); setIsMobileMenuOpen(false); }}
-                title="Feature Requests"
+                className={`nav-link ${activeTab === 'dashboard' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
+                title="Dashboard Builder"
                 style={{ marginBottom: '0.25rem' }}
               >
-                <Lightbulb />
-                <span>Feature Requests</span>
-              </a>
-              <a 
-                className={`nav-link ${activeTab === 'bugs' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('bugs'); setIsMobileMenuOpen(false); }}
-                title="Report Bug"
-                style={{ marginBottom: '0.25rem' }}
-              >
-                <Bug />
-                <span>Report Bug</span>
-              </a>
-              <a 
-                className={`nav-link ${activeTab === 'settings' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('settings'); setSettingsSubTab('general'); setIsMobileMenuOpen(false); }}
-                title="Settings"
-                style={{ marginBottom: '0.25rem' }}
-              >
-                <Settings />
-                <span>Settings</span>
+                <LayoutGrid />
+                <span>Dashboard</span>
               </a>
             </>
           )}
           <div style={{ display: 'flex', flexDirection: isSidebarCollapsed ? 'column' : 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '0.25rem' }}>
-            <a 
-              className="nav-link" 
-              onClick={() => { handleLogout(); setIsMobileMenuOpen(false); }} 
-              style={{ flex: 1, minWidth: 0 }}
-              title="Logout"
-            >
-              <LogOut />
-              <span>Logout</span>
-            </a>
+            {user && (
+              <div className="user-profile-menu-container" style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                <div 
+                  className="user-profile-trigger"
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem',
+                    borderRadius: 'var(--radius)',
+                    cursor: 'pointer',
+                    background: isUserMenuOpen ? 'var(--accent)' : 'transparent',
+                    transition: 'var(--transition-fast)',
+                    border: '1px solid transparent'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isUserMenuOpen) e.currentTarget.style.background = 'var(--accent)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isUserMenuOpen) e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  {user.picture_url ? (
+                    <img 
+                      src={user.picture_url} 
+                      alt={user.display_name} 
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        objectFit: 'cover',
+                        border: '2px solid var(--primary)'
+                      }}
+                    />
+                  ) : (
+                    <div 
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        background: 'var(--primary)',
+                        color: 'var(--primary-foreground)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 'bold',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      {(user.display_name || user.username).substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  {!isSidebarCollapsed && (
+                    <div style={{ flex: 1, minWidth: 0, textAlign: 'left', lineHeight: 1.2 }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.8125rem', color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {user.display_name || user.username}
+                      </div>
+                    </div>
+                  )}
+                  {!isSidebarCollapsed && (
+                    <ChevronUp size={12} style={{ color: 'var(--muted-foreground)', transform: isUserMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
+                  )}
+                </div>
+
+                {isUserMenuOpen && (
+                  <div 
+                    className="user-popout-menu"
+                    style={{
+                      position: 'absolute',
+                      bottom: 'calc(100% + 8px)',
+                      left: isSidebarCollapsed ? '4px' : '0',
+                      width: isSidebarCollapsed ? '200px' : '100%',
+                      minWidth: '200px',
+                      background: 'var(--card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius)',
+                      boxShadow: 'var(--shadow-lg)',
+                      zIndex: 1000,
+                      padding: '0.375rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.125rem'
+                    }}
+                  >
+                    <div style={{ padding: '0.375rem 0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '0.25rem' }}>
+                      <div style={{ fontSize: '0.6875rem', color: 'var(--muted-foreground)' }}>Logged in as</div>
+                      <div style={{ fontWeight: '600', fontSize: '0.75rem', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.username}</div>
+                    </div>
+
+                    <a 
+                      className="popout-item" 
+                      onClick={() => { setActiveTab('profile'); setIsUserMenuOpen(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        padding: '0.375rem 0.5rem',
+                        borderRadius: 'var(--radius)',
+                        cursor: 'pointer',
+                        color: activeTab === 'profile' ? 'var(--primary)' : 'var(--foreground)',
+                        textDecoration: 'none',
+                        fontSize: '0.75rem',
+                        transition: 'var(--transition-fast)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <User size={14} />
+                      <span>User Profile</span>
+                    </a>
+
+                    <a 
+                      className="popout-item" 
+                      onClick={() => { setActiveTab('settings'); setSettingsSubTab('branding'); setIsUserMenuOpen(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        padding: '0.375rem 0.5rem',
+                        borderRadius: 'var(--radius)',
+                        cursor: 'pointer',
+                        color: activeTab === 'settings' ? 'var(--primary)' : 'var(--foreground)',
+                        textDecoration: 'none',
+                        fontSize: '0.75rem',
+                        transition: 'var(--transition-fast)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <Settings size={14} />
+                      <span>Settings</span>
+                    </a>
+
+                    <a 
+                      className="popout-item" 
+                      onClick={() => { setActiveTab('features'); setIsUserMenuOpen(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        padding: '0.375rem 0.5rem',
+                        borderRadius: 'var(--radius)',
+                        cursor: 'pointer',
+                        color: activeTab === 'features' ? 'var(--primary)' : 'var(--foreground)',
+                        textDecoration: 'none',
+                        fontSize: '0.75rem',
+                        transition: 'var(--transition-fast)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <Lightbulb size={14} />
+                      <span>Feature Requests</span>
+                    </a>
+
+                    <a 
+                      className="popout-item" 
+                      onClick={() => { setActiveTab('bugs'); setIsUserMenuOpen(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        padding: '0.375rem 0.5rem',
+                        borderRadius: 'var(--radius)',
+                        cursor: 'pointer',
+                        color: activeTab === 'bugs' ? 'var(--primary)' : 'var(--foreground)',
+                        textDecoration: 'none',
+                        fontSize: '0.75rem',
+                        transition: 'var(--transition-fast)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <Bug size={14} />
+                      <span>Bug Reports</span>
+                    </a>
+
+                    <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '0.1875rem 0' }} />
+
+                    <a 
+                      className="popout-item" 
+                      onClick={() => { handleLogout(); setIsUserMenuOpen(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.375rem',
+                        padding: '0.375rem 0.5rem',
+                        borderRadius: 'var(--radius)',
+                        cursor: 'pointer',
+                        color: 'var(--destructive)',
+                        textDecoration: 'none',
+                        fontSize: '0.75rem',
+                        transition: 'var(--transition-fast)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--accent)'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <LogOut size={14} style={{ color: 'var(--destructive)' }} />
+                      <span>Logout</span>
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
             <button 
               onClick={toggleTheme}
               className="theme-toggle-btn"
@@ -832,10 +1453,65 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'contacts' && (
+          <ContactsView showToast={showToast} />
+        )}
+
+        {activeTab === 'birthdays' && (
+          <BirthdaysView showToast={showToast} />
+        )}
+
+        {activeTab === 'health' && (
+          <HealthView showToast={showToast} />
+        )}
+
+        {activeTab === 'pets' && (
+          <PetsView showToast={showToast} />
+        )}
+
+        {activeTab === 'dashboard' && (
+          <CustomDashboardView 
+            onOpenModal={() => setIsDemoModalOpen(true)}
+            onNavigateTab={(tab) => {
+              setActiveTab(tab);
+            }}
+            user={user}
+            resolvedTheme={resolvedTheme}
+          />
+        )}
+
         {activeTab === 'todo' && (
-          <TasksView 
+          <FocusFlowTasksView 
             showToast={showToast} 
-            currentUser={user} 
+            permissions={user.role_permissions ? JSON.parse(user.role_permissions).tasks || 'full' : 'full'} 
+          />
+        )}
+
+        {activeTab === 'focus_areas' && (
+          <FocusAreasView 
+            showToast={showToast} 
+            permissions={user.role_permissions ? JSON.parse(user.role_permissions).projects || 'full' : 'full'} 
+          />
+        )}
+
+        {activeTab === 'routines' && (
+          <RoutinesView 
+            showToast={showToast} 
+            permissions={user.role_permissions ? JSON.parse(user.role_permissions).tasks || 'full' : 'full'} 
+          />
+        )}
+
+        {activeTab === 'habits' && (
+          <HabitsView 
+            showToast={showToast} 
+            permissions={user.role_permissions ? JSON.parse(user.role_permissions).tasks || 'full' : 'full'} 
+          />
+        )}
+
+        {activeTab === 'focus' && (
+          <FocusView 
+            showToast={showToast} 
+            permissions={user.role_permissions ? JSON.parse(user.role_permissions).time_logs || 'full' : 'full'} 
           />
         )}
 
@@ -878,6 +1554,50 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'recipes' && (
+          <RecipesView showToast={showToast} user={user} />
+        )}
+
+        {activeTab === 'planner' && (
+          <WeeklyMenu showToast={showToast} handleExportWord={handleExportWord} user={user} />
+        )}
+
+        {activeTab === 'leftovers' && (
+          <LeftoversView showToast={showToast} user={user} />
+        )}
+
+        {activeTab === 'inventory' && (
+          <InventoryView showToast={showToast} user={user} />
+        )}
+
+        {activeTab === 'shopping' && (
+          <ShoppingList showToast={showToast} user={user} />
+        )}
+
+        {activeTab === 'housekeeping' && (
+          <HousekeepingView showToast={showToast} currentUser={user} />
+        )}
+
+        {activeTab === 'library' && canReadLibrary && (
+          <LibraryView showToast={showToast} currentUser={user} permissions="full" />
+        )}
+
+        {activeTab === 'reading_list' && canReadReadingList && (
+          <ReadingListView showToast={showToast} currentUser={user} permissions="full" />
+        )}
+
+        {activeTab === 'reading_log' && canReadReadingLog && (
+          <ReadingLogView showToast={showToast} currentUser={user} permissions="full" />
+        )}
+
+        {activeTab === 'ocr' && (
+          <OCRUpload showToast={showToast} onImportSuccess={() => setActiveTab('recipes')} />
+        )}
+
+        {activeTab === 'csv' && (
+          <CSVUpload showToast={showToast} onImportSuccess={() => setActiveTab('recipes')} />
+        )}
+
         {activeTab === 'settings' && (
           <SettingsView 
             showToast={showToast} 
@@ -887,7 +1607,28 @@ export default function App() {
             setActiveSubTab={setSettingsSubTab}
           />
         )}
+
+        {activeTab === 'profile' && (
+          <UserProfileView 
+            showToast={showToast} 
+            currentUser={user} 
+            onProfileUpdate={(updatedUser) => {
+              setUser(updatedUser);
+              if (updatedUser.primary_color) {
+                applyPrimaryColor(updatedUser.primary_color);
+                localStorage.setItem('last_primary_color', updatedUser.primary_color);
+              }
+              if (updatedUser.theme) {
+                setTheme(updatedUser.theme);
+                applyTheme(updatedUser.theme);
+                localStorage.setItem('last_theme', updatedUser.theme);
+              }
+            }}
+          />
+        )}
       </main>
+
+      <FloatingActionButton activeTab={activeTab} />
 
       {/* Showcase Modal Dialog Reference */}
       {isModalRendered && (
@@ -930,6 +1671,7 @@ function LoginView({ onLoginSuccess }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [oidcEnabled, setOidcEnabled] = useState(false);
+  const [googleSsoEnabled, setGoogleSsoEnabled] = useState(false);
   
   const [appName, setAppName] = useState('Base App');
   const [brandingIcon, setBrandingIcon] = useState('⚙️');
@@ -1000,6 +1742,16 @@ function LoginView({ onLoginSuccess }) {
         }
       })
       .catch(err => console.error('Failed to load OIDC config:', err));
+
+    // Check Google SSO Status
+    fetch('/api/auth/google/config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.google_sso_enabled) {
+          setGoogleSsoEnabled(true);
+        }
+      })
+      .catch(err => console.error('Failed to load Google SSO config:', err));
   }, []);
 
   useEffect(() => {
@@ -1008,6 +1760,10 @@ function LoginView({ onLoginSuccess }) {
 
   const handleOidcLogin = () => {
     window.location.href = '/api/auth/oidc/login';
+  };
+
+  const handleGoogleLogin = () => {
+    window.location.href = '/api/auth/google/login';
   };
 
   const handleSubmit = async (e) => {
@@ -1115,34 +1871,62 @@ function LoginView({ onLoginSuccess }) {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-        {oidcEnabled && (
+        {(oidcEnabled || googleSsoEnabled) && (
           <>
             <div style={{ display: 'flex', alignItems: 'center', margin: '1.25rem 0', gap: '0.5rem' }}>
               <div style={{ flex: 1, height: '1px', background: borderLineColor }} />
               <span style={{ fontSize: '0.6875rem', ...separatorStyle, textTransform: 'uppercase', letterSpacing: '0.05em' }}>or</span>
               <div style={{ flex: 1, height: '1px', background: borderLineColor }} />
             </div>
-            <button 
-              type="button" 
-              className="btn" 
-              onClick={handleOidcLogin}
-              style={{ 
-                width: '100%', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: '0.5rem',
-                ...microsoftButtonStyle
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 23 23">
-                <path fill="#f35325" d="M0 0h11v11H0z"/>
-                <path fill="#81bc06" d="M12 0h11v11H12z"/>
-                <path fill="#05a6f0" d="M0 12h11v11H0z"/>
-                <path fill="#ffba08" d="M12 12h11v11H12z"/>
-              </svg>
-              Sign in with Microsoft
-            </button>
+            
+            {googleSsoEnabled && (
+              <button 
+                type="button" 
+                className="btn" 
+                onClick={handleGoogleLogin}
+                style={{ 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem',
+                  marginBottom: oidcEnabled ? '0.5rem' : '0',
+                  ...microsoftButtonStyle
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 48 48">
+                  <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                  <path fill="#4285F4" d="M46.5 24c0-1.63-.15-3.2-.43-4.75H24v9h12.75c-.55 2.87-2.17 5.31-4.61 6.94l7.2 5.58C43.54 36.62 46.5 30.91 46.5 24z"/>
+                  <path fill="#FBBC05" d="M10.54 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.98-6.19z"/>
+                  <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.2-5.58c-2 1.34-4.55 2.13-8.69 2.13-6.26 0-11.57-4.22-13.46-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                Sign in with Google
+              </button>
+            )}
+
+            {oidcEnabled && (
+              <button 
+                type="button" 
+                className="btn" 
+                onClick={handleOidcLogin}
+                style={{ 
+                  width: '100%', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: '0.5rem',
+                  ...microsoftButtonStyle
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 23 23">
+                  <path fill="#f35325" d="M0 0h11v11H0z"/>
+                  <path fill="#81bc06" d="M12 0h11v11H12z"/>
+                  <path fill="#05a6f0" d="M0 12h11v11H0z"/>
+                  <path fill="#ffba08" d="M12 12h11v11H12z"/>
+                </svg>
+                Sign in with Microsoft
+              </button>
+            )}
           </>
         )}
       </div>

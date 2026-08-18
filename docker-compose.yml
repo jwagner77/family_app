@@ -1,13 +1,13 @@
 version: '3.8'
 
 services:
-  home-app:
-    container_name: home_app
+  family-app:
+    container_name: family_app
     build:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8282:8282"
+      - "8383:8282"
     volumes:
       - "${HOST_DATA_DIR:-./data}:/data"
     env_file:

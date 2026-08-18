@@ -17,7 +17,15 @@ export default function CalendarView({ showToast, currentUser }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [bills, setBills] = useState([]);
+  const [subscriptions, setSubscriptions] = useState([]);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Label Colors
+  const [eventColor, setEventColor] = useState('#3b82f6');
+  const [taskColor, setTaskColor] = useState('#10b981');
+  const [billColor, setBillColor] = useState('#ef4444');
+  const [subColor, setSubColor] = useState('#8b5cf6');
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -35,7 +43,22 @@ export default function CalendarView({ showToast, currentUser }) {
   useEffect(() => {
     fetchEvents();
     fetchTasks();
+    fetchBills();
+    fetchSubscriptions();
+    fetchCalendarSettings();
   }, [currentDate]);
+
+  useEffect(() => {
+    const handleAddTrigger = (e) => {
+      if (e.detail.tab === 'calendar') {
+        openCreateModal(new Date().toLocaleDateString('sv'));
+      }
+    };
+    window.addEventListener('trigger-add-action', handleAddTrigger);
+    return () => {
+      window.removeEventListener('trigger-add-action', handleAddTrigger);
+    };
+  }, []);
 
   const fetchEvents = async () => {
     try {
@@ -51,14 +74,52 @@ export default function CalendarView({ showToast, currentUser }) {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch('/api/todo/all-tasks');
+      const res = await fetch('/api/focusflow/tasks');
       if (res.ok) {
         const data = await res.json();
-        // Filter tasks that have a due date
         setTasks(data.filter(t => t.due_date));
       }
     } catch (err) {
       console.error('Error fetching tasks:', err);
+    }
+  };
+
+  const fetchBills = async () => {
+    try {
+      const res = await fetch('/api/bills');
+      if (res.ok) {
+        const data = await res.json();
+        setBills(data);
+      }
+    } catch (err) {
+      console.error('Error fetching bills:', err);
+    }
+  };
+
+  const fetchSubscriptions = async () => {
+    try {
+      const res = await fetch('/api/subscriptions');
+      if (res.ok) {
+        const data = await res.json();
+        setSubscriptions(data);
+      }
+    } catch (err) {
+      console.error('Error fetching subscriptions:', err);
+    }
+  };
+
+  const fetchCalendarSettings = async () => {
+    try {
+      const res = await fetch('/api/settings/public');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.calendar_event_color) setEventColor(data.calendar_event_color);
+        if (data.calendar_task_color) setTaskColor(data.calendar_task_color);
+        if (data.calendar_bill_color) setBillColor(data.calendar_bill_color);
+        if (data.calendar_sub_color) setSubColor(data.calendar_sub_color);
+      }
+    } catch (err) {
+      console.error('Error fetching calendar color settings:', err);
     }
   };
 
@@ -253,7 +314,7 @@ export default function CalendarView({ showToast, currentUser }) {
     return dates;
   };
 
-  // Group events and tasks by date
+  // Group events, tasks, bills, and subscriptions by date
   const eventsByDate = {};
   events.forEach(e => {
     const dates = getDatesSpanned(e.start_time, e.end_time);
@@ -265,8 +326,26 @@ export default function CalendarView({ showToast, currentUser }) {
 
   tasks.forEach(t => {
     const datePart = t.due_date;
-    if (!eventsByDate[datePart]) eventsByDate[datePart] = [];
-    eventsByDate[datePart].push({ ...t, calendar_type: 'task' });
+    if (datePart) {
+      if (!eventsByDate[datePart]) eventsByDate[datePart] = [];
+      eventsByDate[datePart].push({ ...t, calendar_type: 'task' });
+    }
+  });
+
+  bills.forEach(b => {
+    const datePart = b.due_date;
+    if (datePart) {
+      if (!eventsByDate[datePart]) eventsByDate[datePart] = [];
+      eventsByDate[datePart].push({ ...b, calendar_type: 'bill' });
+    }
+  });
+
+  subscriptions.forEach(s => {
+    const datePart = s.next_billing_date;
+    if (datePart) {
+      if (!eventsByDate[datePart]) eventsByDate[datePart] = [];
+      eventsByDate[datePart].push({ ...s, calendar_type: 'subscription' });
+    }
   });
 
   return (
@@ -298,12 +377,18 @@ export default function CalendarView({ showToast, currentUser }) {
         </div>
 
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--primary)' }} /> Events
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: eventColor }} /> Events
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#4caf50' }} /> Tasks
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: taskColor }} /> Tasks
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: billColor }} /> Bills
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: subColor }} /> Subscriptions
             </span>
           </div>
 
@@ -378,6 +463,24 @@ export default function CalendarView({ showToast, currentUser }) {
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.25rem' }}>
                   {dateEvents.slice(0, 4).map((item, i) => {
                     const isEvent = item.calendar_type === 'event';
+                    const isTask = item.calendar_type === 'task';
+                    const isBill = item.calendar_type === 'bill';
+                    const isSub = item.calendar_type === 'subscription';
+
+                    let colorVal = eventColor;
+                    let titleText = item.title;
+                    if (isTask) {
+                      colorVal = taskColor;
+                    } else if (isBill) {
+                      colorVal = billColor;
+                      titleText = `💵 Bill: ${item.name} ($${item.amount})`;
+                    } else if (isSub) {
+                      colorVal = subColor;
+                      titleText = `💳 Sub: ${item.name} ($${item.cost})`;
+                    }
+
+                    const bgVal = colorVal + '1f'; // approx 12% opacity hex suffix
+
                     return (
                       <div 
                         key={i}
@@ -386,17 +489,17 @@ export default function CalendarView({ showToast, currentUser }) {
                           fontSize: '0.75rem', 
                           padding: '0.2rem 0.4rem', 
                           borderRadius: '6px',
-                          background: isEvent ? 'var(--primary-light)' : 'rgba(76, 175, 80, 0.12)',
-                          color: isEvent ? 'var(--primary)' : '#2e7d32',
-                          borderLeft: isEvent ? '3px solid var(--primary)' : '3px solid #4caf50',
+                          background: bgVal,
+                          color: colorVal,
+                          borderLeft: `3px solid ${colorVal}`,
                           fontWeight: '600',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
                           whiteSpace: 'nowrap'
                         }}
-                        title={item.title}
+                        title={titleText}
                       >
-                        {item.title}
+                        {titleText}
                       </div>
                     );
                   })}

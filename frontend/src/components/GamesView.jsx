@@ -51,6 +51,16 @@ export default function GamesView({ showToast }) {
   useEffect(() => {
     fetchGames();
     fetchHistory();
+
+    const handleAddTrigger = (e) => {
+      if (e.detail.tab === 'games') {
+        setIsAddModalOpen(true);
+      }
+    };
+    window.addEventListener('trigger-add-action', handleAddTrigger);
+    return () => {
+      window.removeEventListener('trigger-add-action', handleAddTrigger);
+    };
   }, []);
 
   const fetchGames = async () => {
@@ -331,14 +341,6 @@ export default function GamesView({ showToast }) {
           >
             <Dice5 size={16} /> Pick a Game
           </button>
-          <button 
-            type="button" 
-            className="btn btn-primary" 
-            onClick={() => setIsAddModalOpen(true)}
-            style={{ gap: '0.5rem' }}
-          >
-            <Plus size={16} /> Add New Game
-          </button>
         </div>
       </div>
 
@@ -543,86 +545,86 @@ export default function GamesView({ showToast }) {
       {/* MODAL 1: ADD NEW GAME */}
       {isAddModalOpen && (
         <div className="modal-overlay" onClick={() => setIsAddModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Plus size={20} /> Add New Game
-              </h2>
+              <h2>Add New Game</h2>
               <button className="close-btn" onClick={() => setIsAddModalOpen(false)}>×</button>
             </div>
             
-            <form onSubmit={handleAddGame} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingTop: '0.5rem' }}>
-              <div className="form-group">
-                <label>Game Title</label>
-                <input 
-                  type="text" 
-                  className="input-control" 
-                  placeholder="e.g. Catan, Exploding Kittens" 
-                  value={newGameTitle}
-                  onChange={e => setNewGameTitle(e.target.value)}
-                  required 
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Game Type</label>
-                  <select 
-                    className="input-control"
-                    value={newGameType}
-                    onChange={e => setNewGameType(e.target.value)}
-                  >
-                    <option value="Board">Board Game</option>
-                    <option value="Card">Card Game</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Recommended Ages</label>
+            <div className="modal-body">
+              <form onSubmit={handleAddGame} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="form-group">
+                  <label>Game Title</label>
                   <input 
                     type="text" 
                     className="input-control" 
-                    placeholder="e.g. 8+, 12+" 
-                    value={newRecommendedAges}
-                    onChange={e => setNewRecommendedAges(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Min Players</label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    className="input-control" 
-                    value={newMinPlayers}
-                    onChange={e => setNewMinPlayers(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                    placeholder="e.g. Catan, Exploding Kittens" 
+                    value={newGameTitle}
+                    onChange={e => setNewGameTitle(e.target.value)}
                     required 
                   />
                 </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Max Players</label>
-                  <input 
-                    type="number" 
-                    min="1" 
-                    className="input-control" 
-                    value={newMaxPlayers}
-                    onChange={e => setNewMaxPlayers(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                    required 
-                  />
+
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Game Type</label>
+                    <select 
+                      className="input-control"
+                      value={newGameType}
+                      onChange={e => setNewGameType(e.target.value)}
+                    >
+                      <option value="Board">Board Game</option>
+                      <option value="Card">Card Game</option>
+                    </select>
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Recommended Ages</label>
+                    <input 
+                      type="text" 
+                      className="input-control" 
+                      placeholder="e.g. 8+, 12+" 
+                      value={newRecommendedAges}
+                      onChange={e => setNewRecommendedAges(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label style={{ marginBottom: '0.375rem' }}>Rating</label>
-                <StarRatingInput value={newRating} onChange={setNewRating} />
-              </div>
+                <div style={{ display: 'flex', gap: '1rem' }}>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Min Players</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      className="input-control" 
+                      value={newMinPlayers}
+                      onChange={e => setNewMinPlayers(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      required 
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1 }}>
+                    <label>Max Players</label>
+                    <input 
+                      type="number" 
+                      min="1" 
+                      className="input-control" 
+                      value={newMaxPlayers}
+                      onChange={e => setNewMaxPlayers(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                      required 
+                    />
+                  </div>
+                </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Add Game</button>
-              </div>
-            </form>
+                <div className="form-group">
+                  <label style={{ marginBottom: '0.375rem' }}>Rating</label>
+                  <StarRatingInput value={newRating} onChange={setNewRating} />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setIsAddModalOpen(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">Add Game</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

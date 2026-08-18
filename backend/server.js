@@ -3,7 +3,9 @@ import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import csv from 'csv-parser';
 import { fileURLToPath } from 'url';
+import PizZip from 'pizzip';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
@@ -22,8 +24,106 @@ import {
   createRole,
   updateRole,
   deleteRole,
-  verifyPassword
+  verifyPassword,
+  getShoppingListsForUser,
+  createShoppingList,
+  renameShoppingList,
+  deleteShoppingList,
+  getShoppingListDetails,
+  addRecipeToShoppingList,
+  removeRecipeFromShoppingList,
+  addCustomShoppingListItem,
+  updateShoppingListItem,
+  deleteShoppingListItem,
+  shareShoppingList,
+  removeShoppingListShare,
+  clearShoppingListItems,
+  getAllRecipes,
+  getRecipeById,
+  createRecipe,
+  updateRecipe,
+  deleteRecipe,
+  toggleRecipeFavorite,
+  getWeeklyMenu,
+  saveCustomMeal,
+  saveReusableTags,
+  getCustomMeals,
+  getAllProjects,
+  getProjectById,
+  createProject,
+  updateProject,
+  deleteProject,
+  getAllTasks,
+  getTaskById,
+  createTask,
+  updateTask,
+  deleteTask,
+  completeTask,
+  startTimeLog,
+  stopTimeLog,
+  getActiveTimeLog,
+  getTimeLogsForTask,
+  createFocusSession,
+  getFocusSessionsForUser,
+  checkAndResetStreak,
+  updateUserStreak,
+  getReusableTags,
+  clearWeeklyMenu,
+  addWeeklyMenuEntry,
+  updateWeeklyMenuEntry,
+  deleteWeeklyMenuEntry,
+  updateWeeklyMenu,
+  getAllTemplates,
+  getTemplateById,
+  getDefaultTemplate,
+  addTemplate,
+  setDefaultTemplate,
+  deleteTemplate,
+  getAllLeftovers,
+  createLeftover,
+  deleteLeftover,
+  getRecentRecipes,
+  getAllInventory,
+  getInventoryItemById,
+  createInventoryItem,
+  updateInventoryItem,
+  deleteInventoryItem,
+  deleteInventoryItemsBulk,
+  updateInventoryItemsBulk,
+  getAllBooks,
+  getBookById,
+  createBook,
+  updateBook,
+  deleteBook,
+  bulkDeleteBooks,
+  bulkArchiveBooks,
+  bulkTagBooks,
+  getRecentBooks,
+  getReadingListForUser,
+  addBookToReadingList,
+  removeBookFromReadingList,
+  getRandomRecommendation,
+  getReadingLogsForUser,
+  getBooksLogSummaryForUser,
+  createReadingLogEntry,
+  deleteReadingLogEntry,
+  getReadingListsForUser,
+  getReadingListById,
+  createReadingList,
+  updateReadingList,
+  deleteReadingList,
+  getReadingListItems,
+  getSharedReadingList,
+  addBookComment,
+  getBookComments,
+  deleteBookComment,
+  addBookRecommendation,
+  getRecommendationsForUser,
+  deleteRecommendation
 } from './db.js';
+
+import { parseRecipeImage, parseIngredientLine } from './ocr.js';
+import { initDefaultTemplate, renderRecipeDocx } from './templates.js';
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -102,6 +202,10 @@ async function authenticate(req, res, next) {
           auth_provider: user.auth_provider || 'local',
           calendar_guid: user.calendar_guid || '',
           timezone: user.timezone || 'US/New_York',
+          birthday: user.birthday || '',
+          phone: user.phone || '',
+          email: user.email || '',
+          picture_url: user.picture_url || '',
           permissions
         };
         return next();
@@ -150,6 +254,10 @@ async function authenticate(req, res, next) {
       auth_provider: user.auth_provider || 'local',
       calendar_guid: user.calendar_guid || '',
       timezone: user.timezone || 'US/New_York',
+      birthday: user.birthday || '',
+      phone: user.phone || '',
+      email: user.email || '',
+      picture_url: user.picture_url || '',
       permissions
     };
     next();
@@ -364,7 +472,18 @@ async function sendNotification(title, body, eventType) {
       'System Alert': 'notify_system_alert',
       'User Managed': 'notify_user_managed',
       'Subscription Due Today': 'notify_subscription_due_today',
-      'Bill Due Today': 'notify_bill_due_today'
+      'Bill Due Today': 'notify_bill_due_today',
+      'Recipe Added': 'notify_recipe_added',
+      'Recipe Deleted': 'notify_recipe_deleted',
+      'Meal Plan Updated': 'notify_meal_plan_updated',
+      'Meal Added to Leftovers': 'notify_leftovers_added',
+      'Leftovers Expiring': 'notify_leftovers_expiring',
+      'Inventory Item Expiring': 'notify_inventory_expiring',
+      'Book Added': 'notify_book_added',
+      'Book Deleted': 'notify_book_deleted',
+      'Log Entry Added': 'notify_log_added',
+      'Book Started': 'notify_book_started',
+      'Book Completed': 'notify_book_completed'
     };
 
     const settingKey = toggleMapping[eventType] || 'notify_system_alert';
@@ -450,6 +569,85 @@ async function sendNotification(title, body, eventType) {
   }
 }
 
+async function checkExpiringItems() {
+  try {
+    const db = await getDb();
+    const settings = await getSettings();
+
+    // 1. Process Expiring Leftovers
+    if (settings.notify_leftovers_expiring === 'true') {
+      const daysThreshold = parseInt(settings.notify_leftovers_expiry_days, 10) || 2;
+      
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + daysThreshold);
+      const targetDateStr = targetDate.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const expiringLeftovers = await db.all(
+        'SELECT * FROM leftovers WHERE expiration_date <= ? AND expiration_date >= ?',
+        [targetDateStr, todayStr]
+      );
+
+      for (const leftover of expiringLeftovers) {
+        const logCheck = await db.get(
+          "SELECT COUNT(*) as cnt FROM notification_logs WHERE event_type = 'Leftovers Expiring' AND body LIKE ? AND datetime(created_at) > datetime('now', '-1 day')",
+          [`%"${leftover.name}"%`]
+        );
+
+        if (logCheck.cnt === 0) {
+          const diffTime = new Date(leftover.expiration_date) - new Date(todayStr);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const daysText = diffDays === 0 ? 'today' : `in ${diffDays} day(s)`;
+          
+          await sendNotification(
+            'Leftovers Expiring',
+            `The leftover "${leftover.name}" is expiring ${daysText} (expiration date: ${leftover.expiration_date}).`,
+            'Leftovers Expiring'
+          );
+        }
+      }
+    }
+
+    // 2. Process Expiring Inventory Items
+    if (settings.notify_inventory_expiring === 'true') {
+      const daysThreshold = parseInt(settings.notify_inventory_expiry_days, 10) || 3;
+      
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + daysThreshold);
+      const targetDateStr = targetDate.toISOString().split('T')[0];
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      const expiringInventory = await db.all(
+        'SELECT * FROM inventory WHERE expiration_date <= ? AND expiration_date >= ?',
+        [targetDateStr, todayStr]
+      );
+
+      for (const item of expiringInventory) {
+        const logCheck = await db.get(
+          "SELECT COUNT(*) as cnt FROM notification_logs WHERE event_type = 'Inventory Item Expiring' AND body LIKE ? AND datetime(created_at) > datetime('now', '-1 day')",
+          [`%"${item.title}"%`]
+        );
+
+        if (logCheck.cnt === 0) {
+          const diffTime = new Date(item.expiration_date) - new Date(todayStr);
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          const daysText = diffDays === 0 ? 'today' : `in ${diffDays} day(s)`;
+
+          await sendNotification(
+            'Inventory Item Expiring',
+            `The inventory item "${item.title}" is expiring ${daysText} (expiration date: ${item.expiration_date}).`,
+            'Inventory Item Expiring'
+          );
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error('Error checking expiring items:', error.message);
+  }
+}
+
+
 // Enable CORS and JSON body parser
 app.use(cors());
 app.use(express.json());
@@ -457,15 +655,21 @@ app.use(express.json());
 // Set up storage folders
 const DATA_DIR = process.env.DATA_DIR || './data';
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
+const TEMPLATES_DIR = path.join(DATA_DIR, 'templates');
 
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+if (!fs.existsSync(TEMPLATES_DIR)) fs.mkdirSync(TEMPLATES_DIR, { recursive: true });
 
 // Expose uploaded files static directories
 app.use('/uploads', express.static(UPLOADS_DIR));
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, UPLOADS_DIR);
+    if (file.fieldname === 'template') {
+      cb(null, TEMPLATES_DIR);
+    } else {
+      cb(null, UPLOADS_DIR);
+    }
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
@@ -586,9 +790,25 @@ app.get('/api/auth/me', authenticate, (req, res) => {
 
 // --- USER MANAGEMENT ENDPOINTS ---
 
+async function syncUserAsContact(user) {
+  const db = await getDb();
+  const contact = await db.get('SELECT id FROM contacts WHERE user_id = ?', [user.id]);
+  if (!contact) {
+    await db.run(
+      'INSERT INTO contacts (name, email, phone, birthday, user_id, relationship) VALUES (?, ?, ?, ?, ?, ?)',
+      [user.display_name || user.username, user.email || user.username, user.phone || null, user.birthday || null, user.id, 'Family']
+    );
+  } else {
+    await db.run(
+      'UPDATE contacts SET name = ?, email = ?, phone = ?, birthday = ? WHERE user_id = ?',
+      [user.display_name || user.username, user.email || user.username, user.phone || null, user.birthday || null, user.id]
+    );
+  }
+}
+
 app.post('/api/users/profile', authenticate, async (req, res) => {
   try {
-    const { primary_color, theme, display_name, timezone, calendar_guid } = req.body;
+    const { primary_color, theme, display_name, timezone, calendar_guid, birthday, phone, email, picture_url } = req.body;
     const db = await getDb();
     
     const updates = [];
@@ -614,6 +834,22 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
       updates.push('calendar_guid = ?');
       values.push(calendar_guid === '' ? null : calendar_guid);
     }
+    if (birthday !== undefined) {
+      updates.push('birthday = ?');
+      values.push(birthday === '' ? null : birthday);
+    }
+    if (phone !== undefined) {
+      updates.push('phone = ?');
+      values.push(phone === '' ? null : phone);
+    }
+    if (email !== undefined) {
+      updates.push('email = ?');
+      values.push(email === '' ? null : email);
+    }
+    if (picture_url !== undefined) {
+      updates.push('picture_url = ?');
+      values.push(picture_url === '' ? null : picture_url);
+    }
     
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -625,8 +861,151 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
       `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
       values
     );
+
+    // Fetch updated user details
+    const updatedUserRaw = await getUserById(req.user.id);
     
-    res.json({ message: 'Profile updated successfully' });
+    // Parse role permissions
+    let permissions = {};
+    if (updatedUserRaw.role_permissions) {
+      try {
+        permissions = JSON.parse(updatedUserRaw.role_permissions);
+      } catch (e) {
+        console.error('Failed to parse role permissions:', e);
+      }
+    }
+    
+    const updatedUser = {
+      id: updatedUserRaw.id,
+      username: updatedUserRaw.username,
+      display_name: updatedUserRaw.display_name || updatedUserRaw.username,
+      role_name: updatedUserRaw.role_name,
+      primary_color: updatedUserRaw.primary_color || '#2c3e50',
+      theme: updatedUserRaw.theme || 'system',
+      auth_provider: updatedUserRaw.auth_provider || 'local',
+      calendar_guid: updatedUserRaw.calendar_guid || '',
+      timezone: updatedUserRaw.timezone || 'US/New_York',
+      birthday: updatedUserRaw.birthday || '',
+      phone: updatedUserRaw.phone || '',
+      email: updatedUserRaw.email || '',
+      picture_url: updatedUserRaw.picture_url || '',
+      permissions
+    };
+
+    // Auto sync user as contact
+    await syncUserAsContact(updatedUser);
+    
+    res.json({ message: 'Profile updated successfully', user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- USER IMPORTANT DATES ENDPOINTS ---
+app.get('/api/users/profile/important-dates', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const dates = await db.all('SELECT * FROM user_important_dates WHERE user_id = ?', [req.user.id]);
+    res.json(dates);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/users/important-dates', authenticate, async (req, res) => {
+  try {
+    const { name, date, shared_with_type, shared_with_user_id, shared_with_contact_id } = req.body;
+    if (!name || !date) {
+      return res.status(400).json({ error: 'Name and Date are required' });
+    }
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO user_important_dates (user_id, name, date, shared_with_type, shared_with_user_id, shared_with_contact_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.user.id, name, date, shared_with_type || 'none', shared_with_user_id || null, shared_with_contact_id || null]
+    );
+    const newDate = await db.get('SELECT * FROM user_important_dates WHERE id = ?', [result.lastID]);
+    res.status(201).json(newDate);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/users/important-dates/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, date, shared_with_type, shared_with_user_id, shared_with_contact_id } = req.body;
+    if (!name || !date) {
+      return res.status(400).json({ error: 'Name and Date are required' });
+    }
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM user_important_dates WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Date entry not found' });
+    }
+    await db.run(
+      'UPDATE user_important_dates SET name = ?, date = ?, shared_with_type = ?, shared_with_user_id = ?, shared_with_contact_id = ? WHERE id = ?',
+      [name, date, shared_with_type || 'none', shared_with_user_id || null, shared_with_contact_id || null, id]
+    );
+    const updatedDate = await db.get('SELECT * FROM user_important_dates WHERE id = ?', [id]);
+    res.json(updatedDate);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/users/important-dates/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM user_important_dates WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Date entry not found' });
+    }
+    await db.run('DELETE FROM user_important_dates WHERE id = ?', [id]);
+    res.json({ message: 'Date entry deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- RELATIONSHIPS ENDPOINTS ---
+app.get('/api/relationships', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const rels = await db.all('SELECT * FROM relationships');
+    res.json(rels);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/relationships', authenticate, async (req, res) => {
+  try {
+    const { from_person_type, from_person_id, to_person_type, to_person_id, relationship_type } = req.body;
+    if (!from_person_type || !from_person_id || !to_person_type || !to_person_id || !relationship_type) {
+      return res.status(400).json({ error: 'All relationship fields are required' });
+    }
+    const db = await getDb();
+    await db.run(
+      'INSERT OR REPLACE INTO relationships (from_person_type, from_person_id, to_person_type, to_person_id, relationship_type) VALUES (?, ?, ?, ?, ?)',
+      [from_person_type, from_person_id, to_person_type, to_person_id, relationship_type]
+    );
+    const savedRel = await db.get(
+      'SELECT * FROM relationships WHERE from_person_type = ? AND from_person_id = ? AND to_person_type = ? AND to_person_id = ?',
+      [from_person_type, from_person_id, to_person_type, to_person_id]
+    );
+    res.status(201).json(savedRel);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/relationships/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await getDb();
+    await db.run('DELETE FROM relationships WHERE id = ?', [id]);
+    res.json({ message: 'Relationship deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -757,7 +1136,15 @@ app.get('/api/settings/public', async (req, res) => {
       branding_logo: settings.branding_logo || '',
       branding_logo_light: settings.branding_logo_light || '',
       branding_logo_dark: settings.branding_logo_dark || '',
-      branding_favicon: settings.branding_favicon || ''
+      branding_favicon: settings.branding_favicon || '',
+      dashboard_refresh_interval: settings.dashboard_refresh_interval || 'disabled',
+      dashboard_bg_type: settings.dashboard_bg_type || 'theme',
+      dashboard_bg_value: settings.dashboard_bg_value || '',
+      dashboard_bg_unsplash_keywords: settings.dashboard_bg_unsplash_keywords || '',
+      calendar_event_color: settings.calendar_event_color || '#3b82f6',
+      calendar_task_color: settings.calendar_task_color || '#10b981',
+      calendar_bill_color: settings.calendar_bill_color || '#ef4444',
+      calendar_sub_color: settings.calendar_sub_color || '#8b5cf6'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -771,6 +1158,13 @@ app.get('/api/settings', authenticate, requirePermission('settings_general', 're
       delete settings.notify_smtp_pass;
       delete settings.oidc_client_secret;
       delete settings.notify_webhook_secret;
+      delete settings.cookbook_key;
+      delete settings.library_key;
+      delete settings.home_key;
+      delete settings.task_key;
+      delete settings.unsplash_key;
+      delete settings.unsplash_app_id;
+      delete settings.unsplash_secret;
     }
     res.json(settings);
   } catch (error) {
@@ -791,6 +1185,27 @@ app.post('/api/settings', authenticate, requirePermission('settings_general', 'f
     }
     if (settings.notify_webhook_secret === '••••••••' || settings.notify_webhook_secret === '') {
       delete settings.notify_webhook_secret;
+    }
+    if (settings.cookbook_key === '••••••••' || settings.cookbook_key === '') {
+      delete settings.cookbook_key;
+    }
+    if (settings.library_key === '••••••••' || settings.library_key === '') {
+      delete settings.library_key;
+    }
+    if (settings.home_key === '••••••••' || settings.home_key === '') {
+      delete settings.home_key;
+    }
+    if (settings.task_key === '••••••••' || settings.task_key === '') {
+      delete settings.task_key;
+    }
+    if (settings.unsplash_key === '••••••••' || settings.unsplash_key === '') {
+      delete settings.unsplash_key;
+    }
+    if (settings.unsplash_app_id === '••••••••' || settings.unsplash_app_id === '') {
+      delete settings.unsplash_app_id;
+    }
+    if (settings.unsplash_secret === '••••••••' || settings.unsplash_secret === '') {
+      delete settings.unsplash_secret;
     }
 
     await saveSettings(settings);
@@ -879,6 +1294,37 @@ app.delete('/api/settings/branding/favicon', authenticate, requirePermission('se
   }
 });
 
+app.post('/api/settings/dashboard/background', authenticate, requirePermission('settings_general', 'full'), upload.single('background'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No background file provided' });
+    }
+    
+    const backgroundUrl = `/uploads/${req.file.filename}`;
+    await saveSettings({ dashboard_bg_value: backgroundUrl, dashboard_bg_type: 'upload' });
+    
+    res.json({ backgroundUrl, message: 'Background uploaded successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/settings/dashboard/background', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  try {
+    const settings = await getSettings();
+    if (settings.dashboard_bg_value && settings.dashboard_bg_value.startsWith('/uploads/')) {
+      const fullPath = path.join(DATA_DIR, settings.dashboard_bg_value.replace(/^\//, ''));
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    }
+    await saveSettings({ dashboard_bg_value: '', dashboard_bg_type: 'theme' });
+    res.json({ message: 'Background deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/settings/api-key', authenticate, requirePermission('settings_general', 'read'), async (req, res) => {
   try {
     const settings = await getSettings();
@@ -893,6 +1339,34 @@ app.post('/api/settings/api-key', authenticate, requirePermission('settings_gene
     const newKey = crypto.randomBytes(32).toString('hex');
     await saveSettings({ api_key: newKey });
     res.json({ api_key: newKey, message: 'API key generated/rotated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/settings/share-token', authenticate, requirePermission('settings_general', 'read'), async (req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json({ share_token: settings.dashboard_share_token || '' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/settings/share-token', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  try {
+    const newToken = 'dash_' + crypto.randomBytes(32).toString('hex');
+    await saveSettings({ dashboard_share_token: newToken });
+    res.json({ share_token: newToken, message: 'Share token generated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/settings/share-token', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  try {
+    await saveSettings({ dashboard_share_token: '' });
+    res.json({ message: 'Share token revoked successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -954,6 +1428,9 @@ app.get('/api/notifications/settings', authenticate, async (req, res) => {
       'notify_discord_webhook_url',
       'notify_webhook_url', 'notify_webhook_secret',
       'notify_subscription_due_today', 'notify_bill_due_today',
+      'notify_recipe_added', 'notify_recipe_deleted', 'notify_meal_plan_updated', 'notify_leftovers_added', 'notify_leftovers_expiring', 'notify_inventory_expiring',
+      'notify_leftovers_expiry_days', 'notify_inventory_expiry_days',
+      'notify_book_added', 'notify_book_deleted', 'notify_log_added', 'notify_book_started', 'notify_book_completed',
       'fr_notify_smtp_enabled', 'fr_notify_smtp_to', 'fr_notify_discord_enabled', 'fr_notify_discord_webhook_url', 'fr_notify_webhook_enabled', 'fr_notify_webhook_url',
       'bug_notify_smtp_enabled', 'bug_notify_smtp_to', 'bug_notify_discord_enabled', 'bug_notify_discord_webhook_url', 'bug_notify_webhook_enabled', 'bug_notify_webhook_url'
     ];
@@ -1479,6 +1956,119 @@ app.get('/api/auth/oidc/callback', async (req, res) => {
   }
 });
 
+// --- GOOGLE SSO ENDPOINTS ---
+
+app.get('/api/auth/google/config', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json({
+      google_sso_enabled: settings.google_sso_enabled === 'true',
+      google_client_id: settings.google_client_id || ''
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/auth/google/login', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    if (settings.google_sso_enabled !== 'true') {
+      return res.status(400).send('Google authentication is disabled.');
+    }
+    
+    const rootUrl = `${req.protocol}://${req.get('host')}`;
+    const redirectUri = encodeURIComponent(`${rootUrl}/api/auth/google/callback`);
+    const state = crypto.randomBytes(16).toString('hex');
+    
+    const scope = encodeURIComponent('openid profile email');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.google_client_id}&response_type=code&redirect_uri=${redirectUri}&scope=${scope}&state=${state}`;
+    
+    res.redirect(authUrl);
+  } catch (error) {
+    res.status(500).send('Google login redirection failed: ' + error.message);
+  }
+});
+
+app.get('/api/auth/google/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) {
+    return res.status(400).send('Authorization code missing from Google SSO callback');
+  }
+
+  try {
+    const settings = await getSettings();
+    const rootUrl = `${req.protocol}://${req.get('host')}`;
+    const redirectUri = `${rootUrl}/api/auth/google/callback`;
+    
+    const tokenUrl = 'https://oauth2.googleapis.com/token';
+    const tokenBody = new URLSearchParams({
+      client_id: settings.google_client_id,
+      client_secret: settings.google_client_secret,
+      code: code,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code'
+    });
+
+    const tokenRes = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: tokenBody.toString()
+    });
+
+    if (!tokenRes.ok) {
+      throw new Error(`Token endpoint responded with status ${tokenRes.status}: ${await tokenRes.text()}`);
+    }
+
+    const tokenData = await tokenRes.json();
+    const idToken = tokenData.id_token;
+    
+    // Simple JWT parser for payload extraction
+    const base64Url = idToken.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const idPayload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
+    
+    const email = idPayload.email;
+    if (!email) {
+      return res.status(400).send('Google SSO login payload did not contain email identifier');
+    }
+
+    const db = await getDb();
+    let user = await getUserByUsername(email);
+    
+    if (!user) {
+      if (settings.google_auto_provision !== 'true') {
+        return res.status(403).send('Auto-provisioning is disabled and no local account matches this email.');
+      }
+      
+      const roleName = settings.google_default_role || 'Viewer';
+      const role = await db.get('SELECT id FROM roles WHERE name = ?', [roleName]);
+      const roleId = role ? role.id : null;
+      
+      const dummyPassword = crypto.randomBytes(32).toString('hex');
+      const displayName = idPayload.name || email.split('@')[0];
+      const pictureUrl = idPayload.picture || null;
+      
+      const newUserId = await createUser(email, dummyPassword, roleId, displayName, 'google');
+      if (pictureUrl) {
+        await db.run("UPDATE users SET picture_url = ?, email = ? WHERE id = ?", [pictureUrl, email, newUserId]);
+      } else {
+        await db.run("UPDATE users SET email = ? WHERE id = ?", [email, newUserId]);
+      }
+      user = await getUserById(newUserId);
+    }
+
+    // Auto sync user as contact
+    await syncUserAsContact(user);
+
+    const appToken = generateToken({ id: user.id, username: user.username });
+    res.redirect(`/?token=${appToken}`);
+  } catch (error) {
+    console.error('Google SSO callback failed:', error);
+    res.status(500).send('Google SSO authentication callback failed: ' + error.message);
+  }
+});
+
 // --- MICROSOFT CALENDAR INTEGRATION ---
 
 app.get('/api/auth/ms-calendar/list-login', authenticate, async (req, res) => {
@@ -1958,6 +2548,481 @@ app.delete('/api/subscriptions/:id', authenticate, async (req, res) => {
     const db = await getDb();
     await db.run("DELETE FROM subscriptions WHERE id = ?", [req.params.id]);
     res.json({ message: 'Subscription deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// --- CONTACTS API ---
+
+// GET all contacts
+app.get('/api/contacts', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    
+    // Auto sync all users as contacts
+    const users = await db.all('SELECT * FROM users');
+    for (const u of users) {
+      await syncUserAsContact(u);
+    }
+    
+    const contacts = await db.all('SELECT * FROM contacts ORDER BY name ASC');
+    res.json(contacts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST a new contact
+app.post('/api/contacts', authenticate, async (req, res) => {
+  const { name, phone, email, birthday, relationship, notes } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  try {
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO contacts (name, phone, email, birthday, relationship, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, phone, email, birthday, relationship, notes]
+    );
+    const newContact = await db.get('SELECT * FROM contacts WHERE id = ?', [result.lastID]);
+    res.status(201).json(newContact);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) a contact
+app.put('/api/contacts/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { name, phone, email, birthday, relationship, notes } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM contacts WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+    await db.run(
+      'UPDATE contacts SET name = ?, phone = ?, email = ?, birthday = ?, relationship = ?, notes = ? WHERE id = ?',
+      [name, phone, email, birthday, relationship, notes, id]
+    );
+    const updatedContact = await db.get('SELECT * FROM contacts WHERE id = ?', [id]);
+    res.json(updatedContact);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE a contact
+app.delete('/api/contacts/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM contacts WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+    await db.run('DELETE FROM contacts WHERE id = ?', [id]);
+    res.json({ message: 'Contact deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// --- HEALTH LOGS API ---
+
+// GET all health logs for current user
+app.get('/api/health-logs', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const logs = await db.all('SELECT * FROM health_logs WHERE user_id = ? ORDER BY log_date DESC', [req.user.id]);
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET health log for specific date
+app.get('/api/health-logs/:date', authenticate, async (req, res) => {
+  const { date } = req.params;
+  try {
+    const db = await getDb();
+    const log = await db.get('SELECT * FROM health_logs WHERE user_id = ? AND log_date = ?', [req.user.id, date]);
+    res.json(log || null);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST or update health log for a date
+app.post('/api/health-logs', authenticate, async (req, res) => {
+  const { log_date, steps, water_ml, sleep_hours, mood, weight, notes } = req.body;
+  if (!log_date) {
+    return res.status(400).json({ error: 'log_date is required' });
+  }
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM health_logs WHERE user_id = ? AND log_date = ?', [req.user.id, log_date]);
+    if (existing) {
+      await db.run(
+        'UPDATE health_logs SET steps = ?, water_ml = ?, sleep_hours = ?, mood = ?, weight = ?, notes = ? WHERE user_id = ? AND log_date = ?',
+        [steps, water_ml, sleep_hours, mood, weight, notes, req.user.id, log_date]
+      );
+    } else {
+      await db.run(
+        'INSERT INTO health_logs (user_id, log_date, steps, water_ml, sleep_hours, mood, weight, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [req.user.id, log_date, steps, water_ml, sleep_hours, mood, weight, notes]
+      );
+    }
+    const updated = await db.get('SELECT * FROM health_logs WHERE user_id = ? AND log_date = ?', [req.user.id, log_date]);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});// --- MEDICATIONS API ---
+
+// GET all medications for current user
+app.get('/api/medications', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const meds = await db.all('SELECT * FROM medications WHERE user_id = ? ORDER BY name ASC', [req.user.id]);
+    res.json(meds);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST a new medication
+app.post('/api/medications', authenticate, async (req, res) => {
+  const { name, dosage, frequency, time_of_day, notes } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Medication name is required' });
+  }
+  try {
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO medications (user_id, name, dosage, frequency, time_of_day, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.user.id, name, dosage, frequency, time_of_day, notes]
+    );
+    const newMed = await db.get('SELECT * FROM medications WHERE id = ?', [result.lastID]);
+    res.status(201).json(newMed);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) a medication
+app.put('/api/medications/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { name, dosage, frequency, time_of_day, notes } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Medication name is required' });
+  }
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM medications WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Medication not found' });
+    }
+    await db.run(
+      'UPDATE medications SET name = ?, dosage = ?, frequency = ?, time_of_day = ?, notes = ? WHERE id = ? AND user_id = ?',
+      [name, dosage, frequency, time_of_day, notes, id, req.user.id]
+    );
+    const updatedMed = await db.get('SELECT * FROM medications WHERE id = ?', [id]);
+    res.json(updatedMed);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE a medication
+app.delete('/api/medications/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM medications WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Medication not found' });
+    }
+    await db.run('DELETE FROM medications WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    res.json({ message: 'Medication deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// --- DOCTOR APPOINTMENTS API ---
+
+// GET all doctor appointments for current user
+app.get('/api/appointments', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const appts = await db.all('SELECT * FROM doctor_appointments WHERE user_id = ? ORDER BY appointment_date ASC', [req.user.id]);
+    res.json(appts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST a new doctor appointment
+app.post('/api/appointments', authenticate, async (req, res) => {
+  const { provider, specialty, appointment_date, appointment_time, notes } = req.body;
+  if (!provider || !appointment_date) {
+    return res.status(400).json({ error: 'Provider and appointment date are required' });
+  }
+  try {
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO doctor_appointments (user_id, provider, specialty, appointment_date, appointment_time, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [req.user.id, provider, specialty, appointment_date, appointment_time, notes]
+    );
+    const newAppt = await db.get('SELECT * FROM doctor_appointments WHERE id = ?', [result.lastID]);
+    res.status(201).json(newAppt);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) a doctor appointment
+app.put('/api/appointments/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { provider, specialty, appointment_date, appointment_time, notes } = req.body;
+  if (!provider || !appointment_date) {
+    return res.status(400).json({ error: 'Provider and appointment date are required' });
+  }
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM doctor_appointments WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    await db.run(
+      'UPDATE doctor_appointments SET provider = ?, specialty = ?, appointment_date = ?, appointment_time = ?, notes = ? WHERE id = ? AND user_id = ?',
+      [provider, specialty, appointment_date, appointment_time, notes, id, req.user.id]
+    );
+    const updatedAppt = await db.get('SELECT * FROM doctor_appointments WHERE id = ?', [id]);
+    res.json(updatedAppt);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE a doctor appointment
+app.delete('/api/appointments/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM doctor_appointments WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    await db.run('DELETE FROM doctor_appointments WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    res.json({ message: 'Appointment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});// --- PETS API ---
+
+// GET all pets
+app.get('/api/pets', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const pets = await db.all('SELECT * FROM pets ORDER BY name ASC');
+    res.json(pets);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST a new pet
+app.post('/api/pets', authenticate, upload.single('picture'), async (req, res) => {
+  try {
+    const petData = JSON.parse(req.body.pet);
+    const { name, type, breed, birthdate, weight, notes } = petData;
+    if (!name) {
+      return res.status(400).json({ error: 'Pet name is required' });
+    }
+    const picture_url = req.file ? `/uploads/${req.file.filename}` : null;
+    
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO pets (name, type, breed, birthdate, weight, picture_url, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [name, type, breed, birthdate, weight ? Number(weight) : null, picture_url, notes]
+    );
+    const newPet = await db.get('SELECT * FROM pets WHERE id = ?', [result.lastID]);
+    res.status(201).json(newPet);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) a pet
+app.put('/api/pets/:id', authenticate, upload.single('picture'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    const petData = JSON.parse(req.body.pet);
+    const { name, type, breed, birthdate, weight, notes, keepExistingPicture } = petData;
+    if (!name) {
+      return res.status(400).json({ error: 'Pet name is required' });
+    }
+    
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM pets WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Pet not found' });
+    }
+    
+    let picture_url = existing.picture_url;
+    if (req.file) {
+      picture_url = `/uploads/${req.file.filename}`;
+    } else if (keepExistingPicture === false) {
+      picture_url = null;
+    }
+    
+    await db.run(
+      'UPDATE pets SET name = ?, type = ?, breed = ?, birthdate = ?, weight = ?, picture_url = ?, notes = ? WHERE id = ?',
+      [name, type, breed, birthdate, weight ? Number(weight) : null, picture_url, notes, id]
+    );
+    const updatedPet = await db.get('SELECT * FROM pets WHERE id = ?', [id]);
+    res.json(updatedPet);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE a pet
+app.delete('/api/pets/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM pets WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Pet not found' });
+    }
+    await db.run('DELETE FROM pets WHERE id = ?', [id]);
+    res.json({ message: 'Pet deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- VET VISITS API ---
+
+// GET all vet visits for a pet
+app.get('/api/pets/:petId/vet-visits', authenticate, async (req, res) => {
+  const { petId } = req.params;
+  try {
+    const db = await getDb();
+    const visits = await db.all('SELECT * FROM pet_vet_visits WHERE pet_id = ? ORDER BY visit_date DESC', [petId]);
+    res.json(visits);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST a new vet visit
+app.post('/api/pets/:petId/vet-visits', authenticate, async (req, res) => {
+  const { petId } = req.params;
+  const { visit_date, provider, reason, weight_logged, notes } = req.body;
+  if (!visit_date) {
+    return res.status(400).json({ error: 'Visit date is required' });
+  }
+  try {
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO pet_vet_visits (pet_id, visit_date, provider, reason, weight_logged, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [petId, visit_date, provider, reason, weight_logged ? Number(weight_logged) : null, notes]
+    );
+    
+    if (weight_logged) {
+      await db.run('UPDATE pets SET weight = ? WHERE id = ?', [Number(weight_logged), petId]);
+    }
+    
+    const newVisit = await db.get('SELECT * FROM pet_vet_visits WHERE id = ?', [result.lastID]);
+    res.status(201).json(newVisit);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE a vet visit
+app.delete('/api/pets/vet-visits/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    await db.run('DELETE FROM pet_vet_visits WHERE id = ?', [id]);
+    res.json({ message: 'Vet visit deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- PET MEDICATIONS API ---
+
+// GET all medications for a pet
+app.get('/api/pets/:petId/medications', authenticate, async (req, res) => {
+  const { petId } = req.params;
+  try {
+    const db = await getDb();
+    const meds = await db.all(`
+      SELECT m.*, MAX(l.given_at) as last_given 
+      FROM pet_medications m 
+      LEFT JOIN pet_medication_logs l ON m.id = l.medication_id 
+      WHERE m.pet_id = ? 
+      GROUP BY m.id 
+      ORDER BY m.name ASC
+    `, [petId]);
+    res.json(meds);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST a new medication for a pet
+app.post('/api/pets/:petId/medications', authenticate, async (req, res) => {
+  const { petId } = req.params;
+  const { name, dosage, frequency, instructions } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Medication name is required' });
+  }
+  try {
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO pet_medications (pet_id, name, dosage, frequency, instructions) VALUES (?, ?, ?, ?, ?)',
+      [petId, name, dosage, frequency, instructions]
+    );
+    const newMed = await db.get('SELECT * FROM pet_medications WHERE id = ?', [result.lastID]);
+    res.status(201).json(newMed);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE a pet medication
+app.delete('/api/pets/medications/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    await db.run('DELETE FROM pet_medications WHERE id = ?', [id]);
+    res.json({ message: 'Pet medication deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST log medication administration
+app.post('/api/pets/medications/:medId/log', authenticate, async (req, res) => {
+  const { medId } = req.params;
+  const { given_at } = req.body;
+  const timeVal = given_at || new Date().toISOString();
+  try {
+    const db = await getDb();
+    await db.run('INSERT INTO pet_medication_logs (medication_id, given_at) VALUES (?, ?)', [medId, timeVal]);
+    res.json({ message: 'Medication administration logged successfully', given_at: timeVal });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2541,6 +3606,3163 @@ async function syncAllUsersM365() {
 setInterval(syncAllUsersM365, 3600000);
 
 
+
+// --- RECIPE ENDPOINTS ---
+
+// GET /api/recipes - Search and list recipes
+app.get('/api/recipes', authenticate, requirePermission('recipes', 'read'), async (req, res) => {
+  try {
+    const search = req.query.q || '';
+    const recipes = await getAllRecipes(search);
+    res.json(recipes);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/recipes/recent - Get most recently added recipes (up to 10)
+app.get('/api/recipes/recent', authenticate, async (req, res) => {
+  try {
+    const list = await getRecentRecipes(10);
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/recipes/:id - Get specific recipe details
+app.get('/api/recipes/:id', authenticate, requirePermission('recipes', 'read'), async (req, res) => {
+  try {
+    const recipe = await getRecipeById(req.params.id);
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+    res.json(recipe);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/recipes - Create recipe manually
+app.post('/api/recipes', authenticate, requirePermission('recipes', 'full'), upload.single('image'), async (req, res) => {
+  try {
+    const recipeData = JSON.parse(req.body.recipe);
+    if (req.file) {
+      recipeData.image_path = `/uploads/${req.file.filename}`;
+    }
+    const id = await createRecipe(recipeData);
+    sendNotification('Recipe Added', `A new recipe has been added: "${recipeData.title}".`, 'Recipe Added');
+    res.status(201).json({ id, message: 'Recipe created successfully' });
+  } catch (error) {
+    console.error('Error creating recipe:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/recipes/:id - Update recipe
+app.put('/api/recipes/:id', authenticate, requirePermission('recipes', 'full'), upload.single('image'), async (req, res) => {
+  try {
+    const recipeData = JSON.parse(req.body.recipe);
+    if (req.file) {
+      recipeData.image_path = `/uploads/${req.file.filename}`;
+    }
+    await updateRecipe(req.params.id, recipeData);
+    res.json({ message: 'Recipe updated successfully' });
+  } catch (error) {
+    console.error('Error updating recipe:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/recipes/:id - Delete recipe
+app.delete('/api/recipes/:id', authenticate, requirePermission('recipes', 'full'), async (req, res) => {
+  try {
+    const recipe = await getRecipeById(req.params.id);
+    if (recipe && recipe.image_path) {
+      const fullPath = path.join(DATA_DIR, recipe.image_path.replace(/^\//, ''));
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    }
+    const success = await deleteRecipe(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+    if (recipe) {
+      sendNotification('Recipe Deleted', `The recipe "${recipe.title}" has been deleted.`, 'Recipe Deleted');
+    }
+    res.json({ message: 'Recipe deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/recipes/:id/toggle-favorite - Toggle recipe favorite status
+app.post('/api/recipes/:id/toggle-favorite', authenticate, requirePermission('recipes', 'full'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const favorite = await toggleRecipeFavorite(id);
+    res.json({ favorite, message: 'Recipe favorite status updated' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- BULK ACTION RECIPES ENDPOINTS ---
+
+// POST /api/recipes/bulk-delete
+app.post('/api/recipes/bulk-delete', authenticate, requirePermission('recipes', 'full'), async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No recipe IDs provided' });
+    }
+
+    const db = await getDb();
+    await db.run('BEGIN TRANSACTION');
+    try {
+      for (const id of ids) {
+        const recipe = await getRecipeById(id);
+        if (recipe && recipe.image_path) {
+          const fullPath = path.join(DATA_DIR, recipe.image_path.replace(/^\//, ''));
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        }
+        await deleteRecipe(id);
+        if (recipe) {
+          sendNotification('Recipe Deleted', `The recipe "${recipe.title}" has been deleted.`, 'Recipe Deleted');
+        }
+      }
+      await db.run('COMMIT');
+      res.json({ message: `Successfully deleted ${ids.length} recipes.` });
+    } catch (error) {
+      await db.run('ROLLBACK');
+      throw error;
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/recipes/bulk-export
+app.post('/api/recipes/bulk-export', authenticate, requirePermission('recipes', 'read'), async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No recipe IDs provided' });
+    }
+
+    const templateId = req.query.templateId;
+    let templateRecord;
+    if (templateId) {
+      templateRecord = await getTemplateById(templateId);
+    } else {
+      templateRecord = await getDefaultTemplate();
+    }
+
+    if (!templateRecord) {
+      return res.status(404).json({ error: 'No document template found.' });
+    }
+
+    const templateFullPath = path.join(DATA_DIR, templateRecord.file_path.replace(/^\//, ''));
+    if (!fs.existsSync(templateFullPath)) {
+      return res.status(404).json({ error: 'Template file not found on disk' });
+    }
+
+    const zip = new PizZip();
+    for (const id of ids) {
+      const recipe = await getRecipeById(id);
+      if (recipe) {
+        const docBuffer = renderRecipeDocx(templateFullPath, recipe);
+        const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        zip.file(`${safeTitle}.docx`, docBuffer);
+      }
+    }
+
+    const zipBuffer = zip.generate({
+      type: 'nodebuffer',
+      compression: 'DEFLATE',
+    });
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="recipes_export.zip"');
+    res.send(zipBuffer);
+  } catch (error) {
+    console.error('Bulk export failed:', error);
+    res.status(500).json({ error: 'Bulk export failed: ' + error.message });
+  }
+});
+
+// --- OCR SCREENSHOT ENDPOINT ---
+
+// POST /api/recipes/ocr - Upload and parse screenshot
+app.post('/api/recipes/ocr', authenticate, requirePermission('recipes', 'full'), upload.single('screenshot'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file uploaded' });
+    }
+    
+    console.log(`Running OCR on file: ${req.file.path}`);
+    const parsedRecipe = await parseRecipeImage(req.file.path);
+    
+    // We keep the file in uploads so it can be associated with the recipe image if desired
+    parsedRecipe.image_path = `/uploads/${req.file.filename}`;
+    
+    res.json(parsedRecipe);
+  } catch (error) {
+    console.error('OCR parsing failed:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- CSV IMPORT ENDPOINT ---
+
+// POST /api/recipes/csv - Bulk upload recipes via CSV
+app.post('/api/recipes/csv', authenticate, requirePermission('recipes', 'full'), upload.single('csvfile'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No CSV file uploaded' });
+  }
+
+  const results = [];
+  fs.createReadStream(req.file.path)
+    .pipe(csv())
+    .on('data', (data) => results.push(data))
+    .on('end', async () => {
+      // Clean up uploaded CSV file
+      fs.unlinkSync(req.file.path);
+
+      try {
+        let importedCount = 0;
+        for (const row of results) {
+          // Required field: Title
+          if (!row.title || !row.title.trim()) continue;
+
+          // Parse ingredients: format separated by semicolon
+          const ingredients = [];
+          if (row.ingredients) {
+            const rawIngs = row.ingredients.split(';');
+            for (const raw of rawIngs) {
+              if (raw.trim()) {
+                ingredients.push(parseIngredientLine(raw));
+              }
+            }
+          }
+
+          // Parse instructions: format separated by semicolon
+          const instructions = [];
+          if (row.instructions) {
+            const rawInsts = row.instructions.split(';');
+            rawInsts.forEach((inst, index) => {
+              if (inst.trim()) {
+                instructions.push({
+                  step_number: index + 1,
+                  instruction_text: inst.trim()
+                });
+              }
+            });
+          }
+
+          await createRecipe({
+            title: row.title.trim(),
+            description: row.description || '',
+            prep_time: parseInt(row.prep_time, 10) || null,
+            cook_time: parseInt(row.cook_time, 10) || null,
+            servings: parseInt(row.servings, 10) || null,
+            ingredients,
+            instructions,
+            image_path: row.image_path || '',
+            source_url: row.source_url || ''
+          });
+          importedCount++;
+        }
+
+        res.json({ message: `Successfully imported ${importedCount} recipes.` });
+      } catch (error) {
+        console.error('Failed to import CSV:', error);
+        res.status(500).json({ error: 'Failed to parse and save recipes from CSV: ' + error.message });
+      }
+    });
+});
+
+// GET /api/dashboard/stats - Fetch counts and expiring item stats for home dashboard widgets
+app.get('/api/dashboard/stats', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    
+    // Helper to parse date locally
+    const parseLocalDate = (dateStr) => {
+      if (!dateStr) return null;
+      const cleanStr = dateStr.split('T')[0].split(' ')[0];
+      const parts = cleanStr.split('-');
+      if (parts.length === 3) {
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+          return new Date(year, month, day);
+        }
+      }
+      const d = new Date(dateStr);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    };
+
+    // 1. Recipes Count
+    const recipesCountRow = await db.get('SELECT COUNT(*) as count FROM recipes');
+    const recipesCount = recipesCountRow ? recipesCountRow.count : 0;
+
+    // 2. Shopping List Items Count (unchecked, using bulletproof subquery UNION)
+    const shoppingItemsCountRow = await db.get(`
+      SELECT COUNT(*) as count
+      FROM shopping_list_items
+      WHERE list_id IN (
+        SELECT id FROM shopping_lists WHERE owner_id = ?
+        UNION
+        SELECT list_id FROM shopping_list_shares WHERE shared_with_user_id = ?
+      ) AND (is_checked = 0 OR is_checked IS NULL)
+    `, [req.user.id, req.user.id]);
+    const shoppingItemsCount = shoppingItemsCountRow ? shoppingItemsCountRow.count : 0;
+
+    // 3. Expiring Inventory (<= 5 days)
+    const inventoryItems = await db.all('SELECT expiration_date, percentage_used FROM inventory');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expiringInventoryCount = inventoryItems.filter(item => {
+      if (!item.expiration_date) return false;
+      if (item.percentage_used >= 100) return false;
+      const expDate = parseLocalDate(item.expiration_date);
+      if (!expDate) return false;
+      const diffTime = expDate - today;
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 5;
+    }).length;
+
+    // 4. Expiring Leftovers (<= 3 days)
+    const leftoversItems = await db.all('SELECT expiration_date FROM leftovers');
+    const expiringLeftoversCount = leftoversItems.filter(item => {
+      if (!item.expiration_date) return false;
+      const expDate = parseLocalDate(item.expiration_date);
+      if (!expDate) return false;
+      const diffTime = expDate - today;
+      const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 3;
+    }).length;
+
+    res.json({
+      shoppingItemsCount,
+      recipesCount,
+      expiringInventoryCount,
+      expiringLeftoversCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- WEEKLY MENU PLANNERS ---
+
+// GET /api/menu - Get current plan
+app.get('/api/menu', authenticate, requirePermission('planner', 'read'), async (req, res) => {
+  try {
+    const menu = await getWeeklyMenu();
+    res.json(menu);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/menu - Add or update a menu entry
+app.post('/api/menu', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    const { id, day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people } = req.body;
+    
+    let entryId = id;
+    if (id) {
+      // Update existing entry
+      await updateWeeklyMenuEntry(id, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, assigned_people || null);
+    } else {
+      // Create new entry
+      if (!day_of_week || !meal_type) {
+        return res.status(400).json({ error: 'Missing day_of_week or meal_type' });
+      }
+      entryId = await addWeeklyMenuEntry(day_of_week, meal_type, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, assigned_people || null);
+    }
+    
+    try {
+      let mealName = 'Cleared';
+      if (custom_meal) {
+        mealName = custom_meal;
+      } else if (recipe_id) {
+        const recipe = await getRecipeById(recipe_id);
+        if (recipe) mealName = recipe.title;
+      } else if (leftover_id) {
+        const db = await getDb();
+        const leftover = await db.get("SELECT name FROM leftovers WHERE id = ?", [leftover_id]);
+        if (leftover) mealName = `Leftover: ${leftover.name}`;
+      }
+      
+      let finalDay = day_of_week;
+      let finalMeal = meal_type;
+      if (id && (!finalDay || !finalMeal)) {
+        const db = await getDb();
+        const existing = await db.get("SELECT day_of_week, meal_type FROM weekly_menu WHERE id = ?", [id]);
+        if (existing) {
+          finalDay = existing.day_of_week;
+          finalMeal = existing.meal_type;
+        }
+      }
+      sendNotification(
+        'Meal Plan Updated',
+        `The meal plan for ${finalDay || ''} ${finalMeal || ''} has been updated to "${mealName}".`,
+        'Meal Plan Updated'
+      );
+    } catch (err) {
+      console.error('Failed to trigger Meal Plan Updated notification:', err.message);
+    }
+
+    res.json({ message: 'Menu updated successfully', id: entryId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/menu/:id - Delete a menu entry
+app.delete('/api/menu/:id', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get entry info first for notification
+    let finalDay = '';
+    let finalMeal = '';
+    let mealName = '';
+    try {
+      const db = await getDb();
+      const existing = await db.get("SELECT * FROM weekly_menu WHERE id = ?", [id]);
+      if (existing) {
+        finalDay = existing.day_of_week;
+        finalMeal = existing.meal_type;
+        if (existing.custom_meal) {
+          mealName = existing.custom_meal;
+        } else if (existing.recipe_id) {
+          const recipe = await getRecipeById(existing.recipe_id);
+          if (recipe) mealName = recipe.title;
+        } else if (existing.leftover_id) {
+          const leftover = await db.get("SELECT name FROM leftovers WHERE id = ?", [existing.leftover_id]);
+          if (leftover) mealName = `Leftover: ${leftover.name}`;
+        }
+      }
+    } catch (e) {
+      console.error("Failed to query deleted entry info:", e);
+    }
+
+    await deleteWeeklyMenuEntry(id);
+
+    if (finalDay && finalMeal) {
+      try {
+        sendNotification(
+          'Meal Plan Updated',
+          `The meal "${mealName}" has been removed from the plan for ${finalDay} ${finalMeal}.`,
+          'Meal Plan Updated'
+        );
+      } catch (err) {
+        console.error('Failed to trigger Meal Plan Updated notification:', err.message);
+      }
+    }
+
+    res.json({ message: 'Menu entry deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/menu - Clear all menu entries
+app.delete('/api/menu', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    await clearWeeklyMenu();
+    try {
+      sendNotification(
+        'Meal Plan Cleared',
+        'The entire weekly meal plan has been cleared.',
+        'Meal Plan Updated'
+      );
+    } catch (err) {
+      console.error('Failed to trigger Meal Plan Cleared notification:', err.message);
+    }
+    res.json({ message: 'Entire weekly menu cleared successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/custom-meals - Get retained custom meals
+app.get('/api/custom-meals', authenticate, requirePermission('planner', 'read'), async (req, res) => {
+  try {
+    const meals = await getCustomMeals();
+    res.json(meals);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/tags - Get retained tags
+app.get('/api/tags', authenticate, requirePermission('planner', 'read'), async (req, res) => {
+  try {
+    const tags = await getReusableTags();
+    res.json(tags);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- SHOPPING LIST ENDPOINT ---
+
+// Helpers for shopping list merges
+function parseAmount(amountStr) {
+  if (!amountStr) return 0;
+  let str = String(amountStr).trim();
+  
+  // Convert standard unicode fractions to ascii fractions
+  const uniFractions = { '½': '0.5', '⅓': '0.33', '⅔': '0.66', '¼': '0.25', '¾': '0.75' };
+  for (const [uni, asc] of Object.entries(uniFractions)) {
+    str = str.replace(uni, asc);
+  }
+
+  // Handle formats like "1 1/2" or "1-2" (take average or lower bound)
+  if (str.includes('-')) {
+    str = str.split('-')[0].trim();
+  }
+  
+  if (str.includes('/')) {
+    const parts = str.split(/\s+/);
+    let val = 0;
+    for (const part of parts) {
+      if (part.includes('/')) {
+        const [num, den] = part.split('/').map(Number);
+        if (den) val += num / den;
+      } else {
+        val += Number(part) || 0;
+      }
+    }
+    return val;
+  }
+  return Number(str) || 0;
+}
+
+function formatAmount(value) {
+  if (value % 1 === 0) return String(value);
+  const decimals = value % 1;
+  const integerPart = Math.floor(value);
+  
+  let frac = '';
+  // Check common fractions
+  if (Math.abs(decimals - 0.5) < 0.05) frac = '1/2';
+  else if (Math.abs(decimals - 0.25) < 0.05) frac = '1/4';
+  else if (Math.abs(decimals - 0.75) < 0.05) frac = '3/4';
+  else if (Math.abs(decimals - 0.33) < 0.05) frac = '1/3';
+  else if (Math.abs(decimals - 0.66) < 0.05) frac = '2/3';
+
+  if (frac) {
+    return integerPart > 0 ? `${integerPart} ${frac}` : frac;
+  }
+  return value.toFixed(2).replace(/\.?0+$/, '');
+}
+
+function categorizeIngredient(name) {
+  const nameLower = name.toLowerCase();
+  
+  const produce = ['onion', 'garlic', 'tomato', 'cilantro', 'spinach', 'lettuce', 'lemon', 'lime', 'potato', 'apple', 'banana', 'ginger', 'pepper', 'carrot', 'basil', 'parsley', 'herb', 'cucumber', 'avocado', 'cabbage', 'broccoli', 'mushroom', 'celery', 'zucchini', 'squash', 'shallot', 'scallion', 'chive', 'rosemary', 'thyme', 'oregano', 'mint', 'berry', 'strawberry', 'blueberry', 'raspberry', 'fruit', 'vegetable', 'greens', 'asparagus', 'kale', 'cilantro'];
+  const meat = ['chicken', 'beef', 'pork', 'bacon', 'sausage', 'steak', 'shrimp', 'fish', 'salmon', 'turkey', 'breast', 'thigh', 'ground', 'lamb', 'ham', 'rib', 'meat', 'seafood', 'crab', 'lobster', 'tuna', 'veal', 'venison', 'pepperoni'];
+  const dairy = ['milk', 'cheese', 'butter', 'cream', 'yogurt', 'egg', 'sour cream', 'cheddar', 'parmesan', 'mozzarella', 'ricotta', 'ghee', 'half-and-half', 'buttermilk', 'margarine', 'feta', 'provolone'];
+  const bakery = ['bread', 'bun', 'roll', 'tortilla', 'pita', 'baguette', 'loaf', 'crust', 'naan', 'wrap'];
+  const pantry = ['flour', 'sugar', 'salt', 'pepper', 'oil', 'vinegar', 'sauce', 'rice', 'pasta', 'noodle', 'bean', 'spice', 'powder', 'extract', 'honey', 'maple', 'broth', 'stock', 'can', 'canned', 'soy sauce', 'mayo', 'mustard', 'ketchup', 'vanilla', 'soda', 'yeast', 'cinnamon', 'cumin', 'chili', 'oregano', 'paprika', 'bouillon', 'chickpea', 'lentil', 'nut', 'almond', 'peanut', 'cashew', 'seed', 'dressing', 'syrup', 'tahini', 'cocoa', 'chocolate', 'chips', 'breadcrumbs', 'caper', 'olives', 'jam', 'jelly', 'broth', 'marinade'];
+  const frozen = ['frozen', 'ice cream', 'ice', 'waffles', 'veggies'];
+
+  if (meat.some(k => nameLower.includes(k))) return 'Meat & Seafood';
+  if (produce.some(k => nameLower.includes(k))) return 'Produce';
+  if (dairy.some(k => nameLower.includes(k))) return 'Dairy & Eggs';
+  if (bakery.some(k => nameLower.includes(k))) return 'Bakery';
+  if (pantry.some(k => nameLower.includes(k))) return 'Pantry';
+  if (frozen.some(k => nameLower.includes(k))) return 'Frozen';
+  
+  return 'Other';
+}
+
+// --- SHOPPING LIST ENDPOINTS (MULTIPLE LISTS & PER-USER LIST SHARING) ---
+
+// Verify helper function to check permission/access
+async function verifyListAccess(listId, userId, requiredAccess = 'read') {
+  const db = await getDb();
+  const listInfo = await db.get(`
+    SELECT sl.id, sl.name, sl.owner_id,
+           CASE WHEN sl.owner_id = ? THEN 'owner'
+                ELSE (SELECT permission FROM shopping_list_shares WHERE list_id = ? AND shared_with_user_id = ?)
+           END as permission
+    FROM shopping_lists sl WHERE sl.id = ?
+  `, [userId, listId, userId, listId]);
+
+  if (!listInfo) return { allowed: false, status: 404, error: 'Shopping list not found' };
+  
+  if (requiredAccess === 'write') {
+    if (listInfo.permission === 'owner' || listInfo.permission === 'edit') {
+      return { allowed: true, permission: listInfo.permission, ownerId: listInfo.owner_id };
+    }
+    return { allowed: false, status: 403, error: 'Forbidden: You do not have write access to this list' };
+  } else if (requiredAccess === 'owner') {
+    if (listInfo.permission === 'owner') {
+      return { allowed: true, permission: 'owner', ownerId: listInfo.owner_id };
+    }
+    return { allowed: false, status: 403, error: 'Forbidden: Only the list owner can perform this action' };
+  } else {
+    // read access
+    if (listInfo.permission) {
+      return { allowed: true, permission: listInfo.permission, ownerId: listInfo.owner_id };
+    }
+    return { allowed: false, status: 403, error: 'Forbidden: You do not have access to this list' };
+  }
+}
+
+// GET /api/users/list-sharing - Returns list of users to select for sharing (exclude self)
+app.get('/api/users/list-sharing', authenticate, async (req, res) => {
+  try {
+    const users = await getAllUsers();
+    const otherUsers = users
+      .filter(u => u.id !== req.user.id)
+      .map(u => ({ id: u.id, username: u.username }));
+    res.json(otherUsers);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/users/assignable - Returns list of all users for assignment in meal planner
+app.get('/api/users/assignable', authenticate, async (req, res) => {
+  try {
+    const users = await getAllUsers();
+    const mapped = users.map(u => ({
+      id: u.id,
+      username: u.username,
+      display_name: u.display_name || u.username
+    }));
+    res.json(mapped);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/shopping-lists - List all accessible shopping lists
+app.get('/api/shopping-lists', authenticate, requirePermission('shopping_list', 'read'), async (req, res) => {
+  try {
+    const lists = await getShoppingListsForUser(req.user.id);
+    res.json(lists);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/shopping-lists - Create a new shopping list
+app.post('/api/shopping-lists', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Missing or empty list name' });
+    }
+    const listId = await createShoppingList(name.trim(), req.user.id);
+    res.status(201).json({ id: listId, message: 'Shopping list created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/shopping-lists/:id - Rename a shopping list (Owner only)
+app.put('/api/shopping-lists/:id', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Missing or empty list name' });
+    }
+    const access = await verifyListAccess(req.params.id, req.user.id, 'owner');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    await renameShoppingList(req.params.id, name.trim());
+    res.json({ message: 'Shopping list renamed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/shopping-lists/:id - Delete a shopping list (Owner only)
+app.delete('/api/shopping-lists/:id', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const access = await verifyListAccess(req.params.id, req.user.id, 'owner');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    await deleteShoppingList(req.params.id);
+    res.json({ message: 'Shopping list deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/shopping-lists/:id - Fetch specific list details (read access)
+app.get('/api/shopping-lists/:id', authenticate, requirePermission('shopping_list', 'read'), async (req, res) => {
+  try {
+    const details = await getShoppingListDetails(req.params.id, req.user.id);
+    if (!details) {
+      return res.status(404).json({ error: 'Shopping list not found or no access' });
+    }
+    res.json(details);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/shopping-lists/:id/recipes - Link a recipe and copy ingredients (write access)
+app.post('/api/shopping-lists/:id/recipes', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const { recipe_id } = req.body;
+    if (!recipe_id) {
+      return res.status(400).json({ error: 'Missing recipe_id' });
+    }
+    const access = await verifyListAccess(req.params.id, req.user.id, 'write');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    await addRecipeToShoppingList(req.params.id, recipe_id);
+    res.json({ message: 'Recipe ingredients added to shopping list successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/shopping-lists/:id/recipes/:recipeId - Remove recipe from shopping list (write access)
+app.delete('/api/shopping-lists/:id/recipes/:recipeId', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const access = await verifyListAccess(req.params.id, req.user.id, 'write');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    await removeRecipeFromShoppingList(req.params.id, req.params.recipeId);
+    res.json({ message: 'Recipe ingredients removed from shopping list' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/shopping-lists/:id/items - Add custom manual item (write access)
+app.post('/api/shopping-lists/:id/items', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const { name, amount, unit, category, is_checked } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Missing item name' });
+    }
+    const access = await verifyListAccess(req.params.id, req.user.id, 'write');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    const itemId = await addCustomShoppingListItem(req.params.id, {
+      name: name.trim(),
+      amount: amount || '',
+      unit: unit || '',
+      category: category || 'Other',
+      is_checked: is_checked ? 1 : 0
+    });
+    res.status(201).json({ id: itemId, message: 'Custom item added successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/shopping-lists/:id/items/:itemId - Update custom/copied item (check/edit) (write access)
+app.put('/api/shopping-lists/:id/items/:itemId', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const { name, amount, unit, category, is_checked } = req.body;
+    const access = await verifyListAccess(req.params.id, req.user.id, 'write');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    const updates = {};
+    if (name !== undefined) updates.name = name.trim();
+    if (amount !== undefined) updates.amount = amount;
+    if (unit !== undefined) updates.unit = unit;
+    if (category !== undefined) updates.category = category;
+    if (is_checked !== undefined) updates.is_checked = is_checked ? 1 : 0;
+
+    await updateShoppingListItem(req.params.itemId, updates);
+    res.json({ message: 'Item updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/shopping-lists/:id/items/:itemId - Delete item from list (write access)
+app.delete('/api/shopping-lists/:id/items/:itemId', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const access = await verifyListAccess(req.params.id, req.user.id, 'write');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    await deleteShoppingListItem(req.params.itemId);
+    res.json({ message: 'Item deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/shopping-lists/:id/shares - Share list with another user (Owner only)
+app.post('/api/shopping-lists/:id/shares', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const { shared_with_user_id, permission } = req.body;
+    if (!shared_with_user_id) {
+      return res.status(400).json({ error: 'Missing shared_with_user_id' });
+    }
+    const access = await verifyListAccess(req.params.id, req.user.id, 'owner');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    if (parseInt(shared_with_user_id) === req.user.id) {
+      return res.status(400).json({ error: 'Cannot share a list with yourself' });
+    }
+    await shareShoppingList(req.params.id, shared_with_user_id, permission || 'view');
+    res.json({ message: 'Shopping list shared successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/shopping-lists/:id/shares/:shareId - Revoke sharing permission (Owner only)
+app.delete('/api/shopping-lists/:id/shares/:shareId', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const access = await verifyListAccess(req.params.id, req.user.id, 'owner');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    await removeShoppingListShare(req.params.id, req.params.shareId);
+    res.json({ message: 'Sharing permission revoked successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/shopping-lists/:id/reset - Clear all items and recipes from a list (write access)
+app.post('/api/shopping-lists/:id/reset', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
+    const access = await verifyListAccess(req.params.id, req.user.id, 'write');
+    if (!access.allowed) {
+      return res.status(access.status).json({ error: access.error });
+    }
+    await clearShoppingListItems(req.params.id);
+    res.json({ message: 'Shopping list cleared successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- WORD TEMPLATE ENDPOINTS ---
+
+// GET /api/templates - List word templates
+app.get('/api/templates', authenticate, async (req, res) => {
+  try {
+    const templates = await getAllTemplates();
+    res.json(templates);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/templates - Upload a word template
+app.post('/api/templates', authenticate, requirePermission('recipes', 'full'), upload.single('template'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No template file uploaded' });
+    }
+    const name = req.body.name || req.file.originalname.replace(/\.[^/.]+$/, '');
+    const id = await addTemplate(name, `/templates/${req.file.filename}`, 0);
+    res.status(201).json({ id, message: 'Template uploaded successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/templates/:id/default - Set template as default
+app.post('/api/templates/:id/default', authenticate, requirePermission('recipes', 'full'), async (req, res) => {
+  try {
+    const success = await setDefaultTemplate(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+    res.json({ message: 'Default template set successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/templates/:id - Delete template
+app.delete('/api/templates/:id', authenticate, requirePermission('recipes', 'full'), async (req, res) => {
+  try {
+    const filePath = await deleteTemplate(req.params.id);
+    if (!filePath) {
+      return res.status(404).json({ error: 'Template not found' });
+    }
+
+    // Attempt to delete physical file
+    const fullPath = path.join(DATA_DIR, filePath.replace(/^\//, ''));
+    if (fs.existsSync(fullPath) && !fullPath.includes('default_template.docx')) {
+      fs.unlinkSync(fullPath);
+    }
+    res.json({ message: 'Template deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/recipes/:id/export - Export recipe to Word Document
+app.get('/api/recipes/:id/export', authenticate, requirePermission('recipes', 'read'), async (req, res) => {
+  try {
+    const recipeId = req.params.id;
+    const templateId = req.query.templateId;
+
+    const recipe = await getRecipeById(recipeId);
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+
+    let templateRecord;
+    if (templateId) {
+      templateRecord = await getTemplateById(templateId);
+    } else {
+      templateRecord = await getDefaultTemplate();
+    }
+
+    if (!templateRecord) {
+      return res.status(404).json({ error: 'No document template found.' });
+    }
+
+    const templateFullPath = path.join(DATA_DIR, templateRecord.file_path.replace(/^\//, ''));
+    if (!fs.existsSync(templateFullPath)) {
+      return res.status(404).json({ error: `Template file not found on disk at: ${templateRecord.file_path}` });
+    }
+
+    console.log(`Generating DOCX for recipe "${recipe.title}" using template "${templateRecord.name}"`);
+    const docBuffer = renderRecipeDocx(templateFullPath, recipe);
+
+    // Set download headers
+    const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="recipe_${safeTitle}.docx"`);
+    res.send(docBuffer);
+
+  } catch (error) {
+    console.error('Word export failed:', error);
+    res.status(500).json({ error: 'Failed to export Word document: ' + error.message });
+  }
+});
+
+
+// --- LEFTOVERS ENDPOINTS ---
+
+app.get('/api/leftovers', authenticate, async (req, res) => {
+  try {
+    const list = await getAllLeftovers();
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/leftovers', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    const { name, recipe_id, servings, expiration_date } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Missing leftover name' });
+    }
+    const id = await createLeftover(name, recipe_id, servings || 1, expiration_date);
+    sendNotification(
+      'Meal Added to Leftovers',
+      `A new leftover has been recorded: "${name}" with ${servings || 1} servings.`,
+      'Meal Added to Leftovers'
+    );
+    res.status(201).json({ id, message: 'Leftover recorded successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/leftovers/:id', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    const success = await deleteLeftover(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Leftover not found' });
+    }
+    res.json({ message: 'Leftover consumed/deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- INVENTORY ENDPOINTS ---
+
+// GET /api/inventory/lookup-barcode/:barcode - Look up barcode info via server-side APIs to bypass CORS
+app.get('/api/inventory/lookup-barcode/:barcode', authenticate, async (req, res) => {
+  const { barcode } = req.params;
+  
+  // 1. Try Open Food Facts
+  try {
+    const offRes = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`, {
+      headers: {
+        'User-Agent': 'FamilyCookbookApp/1.0 (Node.js)'
+      }
+    });
+    if (offRes.ok) {
+      const offData = await offRes.json();
+      if (offData.status === 1 && offData.product) {
+        const prod = offData.product;
+        const name = prod.product_name || prod.product_name_en || '';
+        const brand = prod.brands ? prod.brands.split(',')[0].trim() : '';
+        const displayName = brand ? `${brand} ${name}` : name;
+        
+        let mappedCategory = 'Other';
+        const catText = ((prod.categories || '') + ' ' + (prod.categories_tags || []).join(' ')).toLowerCase();
+        if (catText.includes('produce') || catText.includes('fruit') || catText.includes('vegetable')) {
+          mappedCategory = 'Produce';
+        } else if (catText.includes('meat') || catText.includes('seafood') || catText.includes('fish') || catText.includes('poultry') || catText.includes('beef') || catText.includes('chicken') || catText.includes('pork')) {
+          mappedCategory = 'Meat & Seafood';
+        } else if (catText.includes('dairy') || catText.includes('egg') || catText.includes('cheese') || catText.includes('milk') || catText.includes('yogurt')) {
+          mappedCategory = 'Dairy & Eggs';
+        } else if (catText.includes('bakery') || catText.includes('bread') || catText.includes('cake') || catText.includes('pastry')) {
+          mappedCategory = 'Bakery';
+        } else if (catText.includes('frozen') || catText.includes('ice cream')) {
+          mappedCategory = 'Frozen';
+        } else if (catText.includes('pantry') || catText.includes('groceries') || catText.includes('snack') || catText.includes('beverage') || catText.includes('sauce') || catText.includes('condiment') || catText.includes('canned') || catText.includes('cereal') || catText.includes('pasta') || catText.includes('spice')) {
+          mappedCategory = 'Pantry';
+        }
+
+        let sizeNumVal = '';
+        let sizeUnitVal = '';
+        const quantityStr = prod.quantity || '';
+        if (quantityStr) {
+          const match = quantityStr.trim().match(/^([\d.,]+)\s*(.*)$/);
+          if (match) {
+            sizeNumVal = match[1].replace(',', '.');
+            sizeUnitVal = match[2];
+          }
+        }
+
+        return res.json({
+          source: 'openfoodfacts',
+          title: displayName || barcode,
+          category: mappedCategory,
+          size_number: sizeNumVal,
+          size_unit: sizeUnitVal
+        });
+      }
+    }
+  } catch (err) {
+    console.error("Open Food Facts lookup failed in backend:", err.message);
+  }
+
+  // 2. Try UPCitemdb
+  try {
+    const upcRes = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
+    if (upcRes.ok) {
+      const upcData = await upcRes.json();
+      if (upcData.code === 'OK' && upcData.items && upcData.items.length > 0) {
+        const item = upcData.items[0];
+        const name = item.title || '';
+        const brand = item.brand || '';
+        const displayName = brand && !name.toLowerCase().includes(brand.toLowerCase()) 
+          ? `${brand} ${name}` 
+          : name;
+
+        let mappedCategory = 'Other';
+        const catText = (item.category || '').toLowerCase();
+        if (catText.includes('produce') || catText.includes('fruit') || catText.includes('vegetable')) {
+          mappedCategory = 'Produce';
+        } else if (catText.includes('meat') || catText.includes('seafood') || catText.includes('fish') || catText.includes('poultry') || catText.includes('beef') || catText.includes('chicken') || catText.includes('pork')) {
+          mappedCategory = 'Meat & Seafood';
+        } else if (catText.includes('dairy') || catText.includes('egg') || catText.includes('cheese') || catText.includes('milk') || catText.includes('yogurt')) {
+          mappedCategory = 'Dairy & Eggs';
+        } else if (catText.includes('bakery') || catText.includes('bread') || catText.includes('cake') || catText.includes('pastry')) {
+          mappedCategory = 'Bakery';
+        } else if (catText.includes('frozen') || catText.includes('ice cream')) {
+          mappedCategory = 'Frozen';
+        } else if (catText.includes('pantry') || catText.includes('groceries') || catText.includes('snack') || catText.includes('beverage') || catText.includes('sauce') || catText.includes('condiment') || catText.includes('canned') || catText.includes('cereal') || catText.includes('pasta') || catText.includes('spice')) {
+          mappedCategory = 'Pantry';
+        }
+
+        let sizeNumVal = '';
+        let sizeUnitVal = '';
+        const titleQuantityMatch = (displayName + ' ' + (item.description || '')).match(/([\d.,]+)\s*(oz|ounce|lbs|pound|g|gram|kg|kilogram|ml|liter|l|pack|ct|count)/i);
+        if (titleQuantityMatch) {
+          sizeNumVal = titleQuantityMatch[1].replace(',', '.');
+          sizeUnitVal = titleQuantityMatch[2].toLowerCase();
+        }
+
+        return res.json({
+          source: 'upcitemdb',
+          title: displayName || barcode,
+          category: mappedCategory,
+          size_number: sizeNumVal,
+          size_unit: sizeUnitVal
+        });
+      }
+    }
+  } catch (err) {
+    console.error("UPCitemdb lookup failed in backend:", err.message);
+  }
+
+  // Not found in either, return 404
+  res.status(404).json({ error: 'Product not found' });
+});
+
+// GET /api/inventory - Retrieve all inventory items
+app.get('/api/inventory', authenticate, async (req, res) => {
+  try {
+    const list = await getAllInventory();
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/inventory - Add a new inventory item
+app.post('/api/inventory', authenticate, async (req, res) => {
+  try {
+    const { title, category, date_added, expiration_date, percentage_used, size_number, size_unit } = req.body;
+    if (!title || !category || !date_added) {
+      return res.status(400).json({ error: 'Missing title, category, or date_added' });
+    }
+    const id = await createInventoryItem({
+      title,
+      category,
+      date_added,
+      expiration_date,
+      percentage_used,
+      size_number,
+      size_unit
+    });
+    res.status(201).json({ id, message: 'Inventory item created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/inventory/:id - Update an inventory item
+app.put('/api/inventory/:id', authenticate, async (req, res) => {
+  try {
+    const { title, category, date_added, expiration_date, percentage_used, size_number, size_unit } = req.body;
+    const success = await updateInventoryItem(req.params.id, {
+      title,
+      category,
+      date_added,
+      expiration_date,
+      percentage_used,
+      size_number,
+      size_unit
+    });
+    if (!success) {
+      return res.status(404).json({ error: 'Inventory item not found or no changes made' });
+    }
+    res.json({ message: 'Inventory item updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/inventory/:id - Delete an inventory item
+app.delete('/api/inventory/:id', authenticate, async (req, res) => {
+  try {
+    const success = await deleteInventoryItem(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Inventory item not found' });
+    }
+    res.json({ message: 'Inventory item deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/inventory/bulk-delete - Bulk delete inventory items
+app.post('/api/inventory/bulk-delete', authenticate, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No inventory item IDs provided' });
+    }
+    const count = await deleteInventoryItemsBulk(ids);
+    res.json({ message: `Successfully deleted ${count} inventory items.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/inventory/bulk-update - Bulk update inventory items
+app.post('/api/inventory/bulk-update', authenticate, async (req, res) => {
+  try {
+    const { ids, updates } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0 || !updates) {
+      return res.status(400).json({ error: 'Missing ids or updates' });
+    }
+    const count = await updateInventoryItemsBulk(ids, updates);
+    res.json({ message: `Successfully updated ${count} inventory items.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================================
+// --- LIBRARY / BOOK API ENDPOINTS ---
+// ============================================================================
+
+function getLocalDateString(utcDateStr, timezone) {
+  const date = new Date(utcDateStr);
+  try {
+    const dtf = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone || 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    return dtf.format(date);
+  } catch (e) {
+    return utcDateStr.substring(0, 10);
+  }
+}
+
+// GET /api/books - Search, sort and filter library catalogue
+app.get('/api/books', authenticate, async (req, res) => {
+  try {
+    const search = req.query.q || '';
+    const tag = req.query.tag || '';
+    const status = req.query.status || 'library'; // library, archived, all
+    const books = await getAllBooks(search, tag, status);
+    res.json(books);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/books/recent - Recently added books
+app.get('/api/books/recent', authenticate, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 4;
+    const books = await getRecentBooks(limit);
+    res.json(books);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/books/:id - Details of a book
+app.get('/api/books/:id', authenticate, async (req, res) => {
+  try {
+    const book = await getBookById(req.params.id);
+    if (!book) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+    res.json(book);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/books - Add book manually
+app.post('/api/books', authenticate, upload.single('cover'), async (req, res) => {
+  try {
+    const bookData = JSON.parse(req.body.book);
+    if (req.file) {
+      bookData.cover_url = `/uploads/${req.file.filename}`;
+    }
+    bookData.added_by = req.user.id;
+    const id = await createBook(bookData);
+    sendNotification('Book Added', `A new book has been added to the library: "${bookData.title}" by ${bookData.author || 'Unknown'}.`, 'Book Added');
+    res.status(201).json({ id, message: 'Book created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/books/:id - Update book details
+app.put('/api/books/:id', authenticate, upload.single('cover'), async (req, res) => {
+  try {
+    const bookData = JSON.parse(req.body.book);
+    if (req.file) {
+      bookData.cover_url = `/uploads/${req.file.filename}`;
+    }
+    await updateBook(req.params.id, bookData);
+    res.json({ message: 'Book updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/books/:id - Delete book
+app.delete('/api/books/:id', authenticate, async (req, res) => {
+  try {
+    const book = await getBookById(req.params.id);
+    if (book && book.cover_url && book.cover_url.startsWith('/uploads/')) {
+      const fullPath = path.join(DATA_DIR, book.cover_url.replace(/^\//, ''));
+      if (fs.existsSync(fullPath)) {
+        try { fs.unlinkSync(fullPath); } catch (e) {}
+      }
+    }
+    const success = await deleteBook(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+    if (book) {
+      sendNotification('Book Deleted', `The book "${book.title}" was deleted.`, 'Book Deleted');
+    }
+    res.json({ message: 'Book deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/books/isbn-lookup - Fetch details by ISBN
+app.post('/api/books/isbn-lookup', authenticate, async (req, res) => {
+  try {
+    const { isbn } = req.body;
+    if (!isbn) {
+      return res.status(400).json({ error: 'Missing ISBN' });
+    }
+    const cleanIsbn = isbn.replace(/[^0-9X]/gi, '');
+    if (!cleanIsbn) {
+      return res.status(400).json({ error: 'Invalid ISBN format' });
+    }
+
+    let bookDetails = null;
+
+    // Primary: Open Library Data API
+    if (!bookDetails) {
+      try {
+        console.log(`Querying Open Library for ISBN: ${cleanIsbn}`);
+        const response = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`);
+        if (response.ok) {
+          const data = await response.json();
+          const bibKey = `ISBN:${cleanIsbn}`;
+          if (data && data[bibKey]) {
+            const b = data[bibKey];
+            bookDetails = {
+              isbn: cleanIsbn,
+              title: b.title,
+              author: Array.isArray(b.authors) ? b.authors.map(a => a.name).join(', ') : '',
+              publisher: Array.isArray(b.publishers) ? b.publishers.map(p => p.name).join(', ') : '',
+              published_date: b.publish_date || '',
+              description: b.notes || '',
+              cover_url: b.cover ? (b.cover.large || b.cover.medium || b.cover.small || '') : '',
+              total_pages: b.number_of_pages || 0
+            };
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching from Open Library Data API:', e);
+      }
+    }
+
+    // Fallback 2: Open Library ISBN JSON API
+    if (!bookDetails) {
+      try {
+        const response = await fetch(`https://openlibrary.org/isbn/${cleanIsbn}.json`);
+        if (response.ok) {
+          const b = await response.json();
+          bookDetails = {
+            isbn: cleanIsbn,
+            title: b.title,
+            author: '',
+            publisher: Array.isArray(b.publishers) ? b.publishers.join(', ') : '',
+            published_date: b.publish_date || '',
+            description: b.description ? (typeof b.description === 'string' ? b.description : b.description.value) : '',
+            cover_url: b.covers && b.covers.length > 0 ? `https://covers.openlibrary.org/b/id/${b.covers[0]}-L.jpg` : '',
+            total_pages: b.number_of_pages || 0
+          };
+          
+          if (b.authors && b.authors.length > 0) {
+            const authorKey = b.authors[0].key || b.authors[0].author?.key;
+            if (authorKey) {
+              const authorRes = await fetch(`https://openlibrary.org${authorKey}.json`);
+              if (authorRes.ok) {
+                const authorData = await authorRes.json();
+                bookDetails.author = authorData.name;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching from Open Library ISBN API:', e);
+      }
+    }
+
+    if (!bookDetails) {
+      return res.status(404).json({ error: 'Book details not found for this ISBN. You can still enter details manually.' });
+    }
+
+    res.json(bookDetails);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/books/bulk-delete
+app.post('/api/books/bulk-delete', authenticate, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No IDs provided' });
+    }
+    
+    // Clean up files first
+    for (const id of ids) {
+      const book = await getBookById(id);
+      if (book && book.cover_url && book.cover_url.startsWith('/uploads/')) {
+        const fullPath = path.join(DATA_DIR, book.cover_url.replace(/^\//, ''));
+        if (fs.existsSync(fullPath)) {
+          try { fs.unlinkSync(fullPath); } catch (e) {}
+        }
+      }
+    }
+
+    const count = await bulkDeleteBooks(ids);
+    sendNotification('Book Deleted', `Bulk deleted ${count} books from the library.`, 'Book Deleted');
+    res.json({ message: `Successfully deleted ${count} books.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/books/bulk-archive
+app.post('/api/books/bulk-archive', authenticate, async (req, res) => {
+  try {
+    const { ids, archive } = req.body; // archive = true/false
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'No IDs provided' });
+    }
+    const status = archive ? 'archived' : 'library';
+    const count = await bulkArchiveBooks(ids, status);
+    res.json({ message: `Successfully ${archive ? 'archived' : 'unarchived'} ${count} books.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/books/bulk-tag
+app.post('/api/books/bulk-tag', authenticate, async (req, res) => {
+  try {
+    const { ids, tags, action } = req.body; // action = 'add' / 'remove' / 'set'
+    if (!ids || !Array.isArray(ids) || ids.length === 0 || tags === undefined) {
+      return res.status(400).json({ error: 'Missing ids or tags parameter' });
+    }
+    const count = await bulkTagBooks(ids, tags, action || 'add');
+    res.json({ message: `Successfully updated tags for ${count} books.` });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- READING LIST ENDPOINTS ---
+
+// GET /api/reading-lists - Get user's reading lists
+app.get('/api/reading-lists', authenticate, async (req, res) => {
+  try {
+    const lists = await getReadingListsForUser(req.user.id);
+    res.json(lists);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/reading-lists - Create a new reading list
+app.post('/api/reading-lists', authenticate, async (req, res) => {
+  try {
+    const { name, description, is_public } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    const id = await createReadingList(req.user.id, name.trim(), description || '', is_public);
+    res.status(201).json({ id, message: 'Reading list created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/reading-lists/:id - Update reading list details
+app.put('/api/reading-lists/:id', authenticate, async (req, res) => {
+  try {
+    const { name, description, is_public } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    // Verify ownership
+    const list = await getReadingListById(req.params.id);
+    if (!list || list.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await updateReadingList(req.params.id, name.trim(), description || '', is_public);
+    res.json({ message: 'Reading list updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/reading-lists/:id - Delete a reading list
+app.delete('/api/reading-lists/:id', authenticate, async (req, res) => {
+  try {
+    const list = await getReadingListById(req.params.id);
+    if (!list || list.user_id !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    await deleteReadingList(req.params.id);
+    res.json({ message: 'Reading list deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/reading-lists/share/:token - Public view of shared list (NO auth required)
+app.get('/api/reading-lists/share/:token', async (req, res) => {
+  try {
+    const result = await getSharedReadingList(req.params.token);
+    if (!result) {
+      return res.status(404).json({ error: 'Shared reading list not found or is private' });
+    }
+    
+    // Get user's display name or username
+    const db = await getDb();
+    const listOwner = await db.get('SELECT username, display_name FROM users WHERE id = ?', [result.list.user_id]);
+    result.owner_name = listOwner ? (listOwner.display_name || listOwner.username) : 'Unknown User';
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/reading-list - Get items of a reading list
+app.get('/api/reading-list', authenticate, async (req, res) => {
+  try {
+    const listId = req.query.reading_list_id;
+    if (listId) {
+      const list = await getReadingListById(listId);
+      if (!list || (list.user_id !== req.user.id && list.is_public !== 1)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      const items = await getReadingListItems(listId);
+      return res.json(items);
+    }
+    
+    // Fallback: Get first list or create a default one
+    const userLists = await getReadingListsForUser(req.user.id);
+    let targetListId;
+    if (userLists.length === 0) {
+      targetListId = await createReadingList(req.user.id, 'My Reading List', 'My default reading list.', 0);
+    } else {
+      const sorted = [...userLists].sort((a, b) => a.id - b.id);
+      targetListId = sorted[0].id;
+    }
+    const items = await getReadingListItems(targetListId);
+    res.json(items);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/reading-list - Add item to reading list
+app.post('/api/reading-list', authenticate, async (req, res) => {
+  try {
+    const { book_id, manualBook, reading_list_id } = req.body;
+    if (!book_id && !manualBook) {
+      return res.status(400).json({ error: 'Missing book details' });
+    }
+    
+    let targetListId = reading_list_id;
+    if (!targetListId) {
+      const userLists = await getReadingListsForUser(req.user.id);
+      if (userLists.length === 0) {
+        targetListId = await createReadingList(req.user.id, 'My Reading List', 'My default reading list.', 0);
+      } else {
+        const sorted = [...userLists].sort((a, b) => a.id - b.id);
+        targetListId = sorted[0].id;
+      }
+    } else {
+      const list = await getReadingListById(targetListId);
+      if (!list || list.user_id !== req.user.id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+    
+    const id = await addBookToReadingList(req.user.id, book_id, manualBook, targetListId);
+    res.status(201).json({ id, message: 'Added to reading list successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/reading-list/:id - Remove item from reading list
+app.delete('/api/reading-list/:id', authenticate, async (req, res) => {
+  try {
+    const success = await removeBookFromReadingList(req.user.id, req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Item not found in reading list' });
+    }
+    res.json({ message: 'Removed from reading list successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/reading-list/recommendation - Get random recommendation from list
+app.get('/api/reading-list/recommendation', authenticate, async (req, res) => {
+  try {
+    const userLists = await getReadingListsForUser(req.user.id);
+    let recommendation = null;
+    
+    for (const list of userLists) {
+      const items = await getReadingListItems(list.id);
+      if (items.length > 0) {
+        const randomIndex = Math.floor(Math.random() * items.length);
+        const rec = items[randomIndex];
+        if (rec.book_id) {
+          const detail = await getBookById(rec.book_id);
+          if (detail) {
+            recommendation = { 
+              ...rec, 
+              description: detail.description, 
+              publisher: detail.publisher, 
+              published_date: detail.published_date 
+            };
+            break;
+          }
+        }
+        recommendation = rec;
+        break;
+      }
+    }
+    
+    if (!recommendation) {
+      return res.status(404).json({ error: 'Reading list is empty. Add some books first!' });
+    }
+    res.json(recommendation);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- DID NOT FINISH (DNF) ENDPOINTS ---
+
+// GET /api/reading-log/dnf - Get paused books
+app.get('/api/reading-log/dnf', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const dnfList = await db.all(`
+      SELECT d.*, b.cover_url as lib_cover_url, rl.cover_url as list_cover_url
+      FROM dnf_books d
+      LEFT JOIN books b ON d.book_id = b.id
+      LEFT JOIN reading_list rl ON d.reading_list_id = rl.id
+      WHERE d.user_id = ?
+      ORDER BY d.created_at DESC
+    `, [req.user.id]);
+    
+    for (const item of dnfList) {
+      let latestLog = null;
+      if (item.book_id) {
+        latestLog = await db.get('SELECT progress_percent FROM reading_log WHERE user_id = ? AND book_id = ? ORDER BY entry_date DESC, id DESC LIMIT 1', [req.user.id, item.book_id]);
+      } else if (item.reading_list_id) {
+        latestLog = await db.get('SELECT progress_percent FROM reading_log WHERE user_id = ? AND reading_list_id = ? ORDER BY entry_date DESC, id DESC LIMIT 1', [req.user.id, item.reading_list_id]);
+      } else {
+        latestLog = await db.get('SELECT progress_percent FROM reading_log WHERE user_id = ? AND book_title = ? AND book_id IS NULL AND reading_list_id IS NULL ORDER BY entry_date DESC, id DESC LIMIT 1', [req.user.id, item.book_title]);
+      }
+      item.latest_progress = latestLog ? latestLog.progress_percent : 0;
+    }
+    
+    res.json(dnfList);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/reading-log/dnf - Mark a book as DNF
+app.post('/api/reading-log/dnf', authenticate, async (req, res) => {
+  try {
+    const { book_id, reading_list_id, book_title, book_author, reason } = req.body;
+    const db = await getDb();
+    
+    if (!book_title) {
+      return res.status(400).json({ error: 'Book title is required' });
+    }
+    
+    let existing = null;
+    if (book_id) {
+      existing = await db.get('SELECT id FROM dnf_books WHERE user_id = ? AND book_id = ?', [req.user.id, book_id]);
+    } else if (reading_list_id) {
+      existing = await db.get('SELECT id FROM dnf_books WHERE user_id = ? AND reading_list_id = ?', [req.user.id, reading_list_id]);
+    } else {
+      existing = await db.get('SELECT id FROM dnf_books WHERE user_id = ? AND book_title = ? AND book_id IS NULL AND reading_list_id IS NULL', [req.user.id, book_title]);
+    }
+    
+    if (existing) {
+      await db.run('UPDATE dnf_books SET reason = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?', [reason || null, existing.id]);
+      return res.json({ id: existing.id, message: 'Updated DNF reason' });
+    }
+    
+    const result = await db.run(`
+      INSERT INTO dnf_books (user_id, book_id, reading_list_id, book_title, book_author, reason)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [
+      req.user.id,
+      book_id || null,
+      reading_list_id || null,
+      book_title,
+      book_author || null,
+      reason || null
+    ]);
+    res.status(201).json({ id: result.lastID, message: 'Book marked as Did Not Finish' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/reading-log/dnf/:id - Resume reading (remove DNF)
+app.delete('/api/reading-log/dnf/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const result = await db.run('DELETE FROM dnf_books WHERE user_id = ? AND id = ?', [req.user.id, req.params.id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'DNF entry not found' });
+    }
+    res.json({ message: 'Resumed book successfully (removed from DNF)' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- READING LOG ENDPOINTS ---
+
+// GET /api/reading-log
+app.get('/api/reading-log', authenticate, async (req, res) => {
+  try {
+    const logs = await getReadingLogsForUser(req.user.id);
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/reading-log/summary
+app.get('/api/reading-log/summary', authenticate, async (req, res) => {
+  try {
+    const summary = await getBooksLogSummaryForUser(req.user.id);
+    res.json(summary);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/reading-log
+app.post('/api/reading-log', authenticate, async (req, res) => {
+  try {
+    const entryData = req.body;
+    if (!entryData.book_title && !entryData.book_id && !entryData.reading_list_id) {
+      return res.status(400).json({ error: 'Missing book association or title' });
+    }
+
+    const db = await getDb();
+    const userId = req.user.id;
+    const bookId = entryData.book_id || null;
+    const bookTitle = entryData.book_title || 'a book';
+
+    let startedBefore = false;
+    let completedBefore = false;
+
+    if (bookId) {
+      const priorProgress = await db.all(
+        'SELECT progress_percent FROM reading_log WHERE user_id = ? AND book_id = ?',
+        [userId, bookId]
+      );
+      startedBefore = priorProgress.some(p => p.progress_percent > 0);
+      completedBefore = priorProgress.some(p => p.progress_percent >= 100);
+    } else {
+      const priorProgress = await db.all(
+        'SELECT progress_percent FROM reading_log WHERE user_id = ? AND book_title = ?',
+        [userId, bookTitle]
+      );
+      startedBefore = priorProgress.some(p => p.progress_percent > 0);
+      completedBefore = priorProgress.some(p => p.progress_percent >= 100);
+    }
+
+    const id = await createReadingLogEntry(userId, entryData);
+
+    sendNotification('Log Entry Added', `A new journal entry was added for: "${bookTitle}" (${entryData.progress_percent || 0}% read).`, 'Log Entry Added');
+
+    const currentProgress = entryData.progress_percent !== undefined ? Number(entryData.progress_percent) : 0;
+    if (currentProgress > 0 && !startedBefore) {
+      sendNotification('Book Started', `You started reading "${bookTitle}".`, 'Book Started');
+    }
+
+    if (currentProgress >= 100 && !completedBefore) {
+      sendNotification('Book Completed', `You completed reading "${bookTitle}"!`, 'Book Completed');
+    }
+
+    res.status(201).json({ id, message: 'Log entry added successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/reading-log/:id
+app.delete('/api/reading-log/:id', authenticate, async (req, res) => {
+  try {
+    const success = await deleteReadingLogEntry(req.user.id, req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Log entry not found' });
+    }
+    res.json({ message: 'Log entry deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/streak
+app.get('/api/streak', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const logs = await db.all(
+      'SELECT entry_date FROM reading_log WHERE user_id = ? ORDER BY entry_date DESC',
+      [req.user.id]
+    );
+
+    if (logs.length === 0) {
+      return res.json({ streak: 0 });
+    }
+
+    const timezone = req.user.timezone || 'US/New_York';
+    
+    // Get unique local date strings in descending order
+    const localDatesSet = new Set();
+    logs.forEach(l => {
+      localDatesSet.add(getLocalDateString(l.entry_date, timezone));
+    });
+
+    const localDates = Array.from(localDatesSet);
+
+    // Get today and yesterday in user's local timezone
+    const now = new Date();
+    const todayStr = getLocalDateString(now.toISOString(), timezone);
+    
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday.toISOString(), timezone);
+
+    // If neither today nor yesterday has a reading log entry, streak is 0
+    if (!localDates.includes(todayStr) && !localDates.includes(yesterdayStr)) {
+      return res.json({ streak: 0 });
+    }
+
+    // Compute streak
+    let streak = 0;
+    let checkDate = null;
+
+    for (let i = 0; i < localDates.length; i++) {
+      const dateStr = localDates[i];
+      if (i === 0) {
+        streak = 1;
+        checkDate = new Date(dateStr + 'T12:00:00');
+        continue;
+      }
+
+      // Check if this date is exactly 1 day prior to the checkDate
+      const nextExpected = new Date(checkDate);
+      nextExpected.setDate(nextExpected.getDate() - 1);
+      const nextExpectedStr = getLocalDateString(nextExpected.toISOString(), timezone);
+
+      if (dateStr === nextExpectedStr) {
+        streak += 1;
+        checkDate = new Date(dateStr + 'T12:00:00');
+      } else {
+        break;
+      }
+    }
+
+    res.json({ streak });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/books/:id/comments
+app.get('/api/books/:id/comments', authenticate, async (req, res) => {
+  try {
+    const comments = await getBookComments(req.params.id);
+    res.json(comments);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/books/:id/comments
+app.post('/api/books/:id/comments', authenticate, async (req, res) => {
+  try {
+    const { comment } = req.body;
+    if (!comment || !comment.trim()) {
+      return res.status(400).json({ error: 'Comment content is required' });
+    }
+    const id = await addBookComment(req.params.id, req.user.id, comment.trim());
+    res.status(201).json({ id, message: 'Comment posted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/books/:id/comments/:commentId
+app.delete('/api/books/:id/comments/:commentId', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const comment = await db.get('SELECT user_id FROM book_comments WHERE id = ?', [req.params.commentId]);
+    if (!comment) {
+      return res.status(404).json({ error: 'Comment not found' });
+    }
+    if (comment.user_id !== req.user.id && req.user.role_name !== 'Administrator') {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+    await db.run('DELETE FROM book_comments WHERE id = ?', [req.params.commentId]);
+    res.json({ message: 'Comment deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/users/list
+app.get('/api/users/list', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const users = await db.all('SELECT id, username, display_name FROM users ORDER BY username ASC');
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/books/:id/recommend
+app.post('/api/books/:id/recommend', authenticate, async (req, res) => {
+  try {
+    const { to_user_id, notes } = req.body;
+    if (!to_user_id) {
+      return res.status(400).json({ error: 'Target user ID is required' });
+    }
+    const id = await addBookRecommendation(req.params.id, req.user.id, to_user_id, notes);
+    res.status(201).json({ id, message: 'Book recommended successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/recommendations
+app.get('/api/recommendations', authenticate, async (req, res) => {
+  try {
+    const recs = await getRecommendationsForUser(req.user.id);
+    res.json(recs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/recommendations/:id
+app.delete('/api/recommendations/:id', authenticate, async (req, res) => {
+  try {
+    const success = await deleteRecommendation(req.params.id, req.user.id);
+    if (!success) {
+      return res.status(404).json({ error: 'Recommendation not found or access denied' });
+    }
+    res.json({ message: 'Recommendation deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper to fetch from external integrations
+async function fetchFromIntegration(appType, endpoint) {
+  const db = await getDb();
+  const settings = await getSettings();
+  let baseUrl = '';
+  let apiKey = '';
+
+  if (appType === 'cookbook') {
+    baseUrl = settings.cookbook_url;
+    apiKey = settings.cookbook_key;
+  } else if (appType === 'library') {
+    baseUrl = settings.library_url;
+    apiKey = settings.library_key;
+  } else if (appType === 'home') {
+    baseUrl = settings.home_url;
+    apiKey = settings.home_key;
+  }
+
+  // Self-reference defaults for consolidated app
+  if (!baseUrl || !baseUrl.trim()) {
+    baseUrl = `http://localhost:${process.env.PORT || 8282}`;
+  }
+  if (!apiKey || !apiKey.trim()) {
+    const keyRow = await db.get("SELECT value FROM settings WHERE key = 'api_key'");
+    apiKey = keyRow ? keyRow.value : '';
+    if (!apiKey) {
+      // Auto-generate general api_key if missing
+      const newKey = crypto.randomBytes(32).toString('hex');
+      await saveSettings({ api_key: newKey });
+      apiKey = newKey;
+    }
+  }
+
+  // Build full URL
+  const trimmedBase = baseUrl.trim().replace(/\/$/, '');
+  const url = `${trimmedBase}${endpoint}`;
+
+  console.log(`[Integration Proxy] Fetching from ${appType}: ${url}`);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-api-key': apiKey.trim(),
+        'Accept': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`[Integration Proxy] Error status ${response.status} from ${appType}: ${text}`);
+      const errMsg = `Integration App returned status ${response.status}: ${text}`;
+      await sendNotification('Integration API Error', errMsg, 'Integration Error');
+      throw new Error(errMsg);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error(`[Integration Proxy] Failed to connect to ${appType}:`, error.message);
+    const errMsg = `Failed to connect to ${appType} App: ${error.message}`;
+    await sendNotification('Integration API Error', errMsg, 'Integration Error');
+    throw new Error(errMsg);
+  }
+}
+
+let weatherCache = {
+  data: null,
+  timestamp: 0,
+  location: null,
+  unit: null
+};
+
+async function fetchWeather(location, unit) {
+  // 1. Geocode location/zip
+  const geocodeUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
+  const geoRes = await fetch(geocodeUrl);
+  if (!geoRes.ok) {
+    throw new Error('Failed to geocode location');
+  }
+  const geoData = await geoRes.json();
+  if (!geoData.results || geoData.results.length === 0) {
+    throw new Error(`Location not found: ${location}`);
+  }
+  const { latitude, longitude, name, admin1, country } = geoData.results[0];
+  const locationName = `${name}${admin1 ? `, ${admin1}` : ''} (${country})`;
+
+  // 2. Fetch weather forecast
+  const tempUnitParam = unit === 'celsius' ? '' : '&temperature_unit=fahrenheit';
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m,weathercode&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto${tempUnitParam}`;
+  
+  const weatherRes = await fetch(weatherUrl);
+  if (!weatherRes.ok) {
+    throw new Error('Failed to fetch weather forecast');
+  }
+  const weatherData = await weatherRes.json();
+  return {
+    locationName,
+    latitude,
+    longitude,
+    current: weatherData.current_weather,
+    hourly: weatherData.hourly,
+    daily: weatherData.daily,
+    unit: unit || 'fahrenheit'
+  };
+}
+
+async function getCachedWeather(location, unit) {
+  const now = Date.now();
+  const cacheDuration = 10 * 60 * 1000; // 10 minutes
+  
+  if (weatherCache.data && 
+      weatherCache.location === location && 
+      weatherCache.unit === unit && 
+      (now - weatherCache.timestamp) < cacheDuration) {
+    return weatherCache.data;
+  }
+  
+  const data = await fetchWeather(location, unit);
+  weatherCache = {
+    data,
+    timestamp: now,
+    location,
+    unit
+  };
+  return data;
+}
+
+// Map widget requests to integration endpoints
+async function getWidgetData(widget, userId) {
+  const config = widget.config ? (typeof widget.config === 'string' ? JSON.parse(widget.config) : widget.config) : {};
+  const limit = config.limit || 5;
+
+  switch (widget.type) {
+    case 'cookbook_leftovers':
+      return await fetchFromIntegration('cookbook', '/api/leftovers');
+    case 'cookbook_menu':
+    case 'cookbook_menu_3day':
+    case 'cookbook_menu_5day':
+      return await fetchFromIntegration('cookbook', '/api/menu');
+    case 'cookbook_recent':
+      return await fetchFromIntegration('cookbook', '/api/recipes/recent');
+    case 'cookbook_shopping':
+      return await fetchFromIntegration('cookbook', '/api/shopping-lists');
+      
+    case 'library_recent':
+      return await getRecentBooks(limit);
+    case 'library_summary':
+      return userId ? await getBooksLogSummaryForUser(userId) : { total_books: 0, total_pages: 0, logs: [] };
+    case 'library_reading_list':
+      return userId ? await getReadingListForUser(userId) : [];
+      
+    case 'home_tasks':
+      return await fetchFromIntegration('home', '/api/focusflow/tasks');
+    case 'home_calendar':
+      return await fetchFromIntegration('home', '/api/calendar/events');
+    case 'home_subscriptions':
+      return await fetchFromIntegration('home', '/api/subscriptions');
+    case 'home_bills':
+    case 'home_recurring_bills':
+      return await fetchFromIntegration('home', '/api/bills');
+      
+    case 'clock':
+      return { serverTime: new Date().toISOString() };
+    case 'text':
+      return { text: config.text || '' };
+    case 'weather_current':
+    case 'weather_hourly':
+    case 'weather_daily':
+    case 'weather_combo': {
+      const settings = await getSettings();
+      const weatherLoc = settings.weather_location || '10001';
+      const weatherUnit = settings.weather_unit || 'fahrenheit';
+      return await getCachedWeather(weatherLoc, weatherUnit);
+    }
+    default:
+      throw new Error(`Invalid widget type: ${widget.type}`);
+  }
+}
+
+// --- DASHBOARD WIDGETS ENDPOINTS ---
+
+app.get('/api/dashboard/widgets', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const rows = await db.all('SELECT * FROM dashboard_widgets');
+    const widgets = rows.map(r => ({
+      ...r,
+      config: r.config ? JSON.parse(r.config) : {}
+    }));
+    res.json(widgets);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/dashboard/widgets', authenticate, async (req, res) => {
+  try {
+    const { id, type, x, y, w, h, config } = req.body;
+    if (!id || !type) {
+      return res.status(400).json({ error: 'Missing widget ID or type' });
+    }
+    const db = await getDb();
+    await db.run(
+      'INSERT INTO dashboard_widgets (id, type, x, y, w, h, config) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, type, Number(x || 0), Number(y || 0), Number(w || 2), Number(h || 2), JSON.stringify(config || {})]
+    );
+    res.status(201).json({ id, message: 'Widget added successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/dashboard/widgets/layout', authenticate, async (req, res) => {
+  try {
+    const layout = req.body;
+    if (!Array.isArray(layout)) {
+      return res.status(400).json({ error: 'Layout data must be an array' });
+    }
+    const db = await getDb();
+    await db.run('BEGIN TRANSACTION');
+    for (const w of layout) {
+      await db.run(
+        'UPDATE dashboard_widgets SET x = ?, y = ?, w = ?, h = ? WHERE id = ?',
+        [Number(w.x), Number(w.y), Number(w.w), Number(w.h), w.id]
+      );
+    }
+    await db.run('COMMIT');
+    res.json({ message: 'Widgets layout updated successfully' });
+  } catch (error) {
+    try {
+      const db = await getDb();
+      await db.run('ROLLBACK');
+    } catch (e) {}
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/dashboard/widgets/:id', authenticate, async (req, res) => {
+  try {
+    const { type, x, y, w, h, config } = req.body;
+    const db = await getDb();
+    const widget = await db.get('SELECT * FROM dashboard_widgets WHERE id = ?', [req.params.id]);
+    if (!widget) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+
+    const updates = [];
+    const values = [];
+
+    if (type !== undefined) { updates.push('type = ?'); values.push(type); }
+    if (x !== undefined) { updates.push('x = ?'); values.push(Number(x)); }
+    if (y !== undefined) { updates.push('y = ?'); values.push(Number(y)); }
+    if (w !== undefined) { updates.push('w = ?'); values.push(Number(w)); }
+    if (h !== undefined) { updates.push('h = ?'); values.push(Number(h)); }
+    if (config !== undefined) { updates.push('config = ?'); values.push(JSON.stringify(config)); }
+
+    if (updates.length > 0) {
+      values.push(req.params.id);
+      await db.run(`UPDATE dashboard_widgets SET ${updates.join(', ')} WHERE id = ?`, values);
+    }
+
+    res.json({ message: 'Widget updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/dashboard/widgets/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const result = await db.run('DELETE FROM dashboard_widgets WHERE id = ?', [req.params.id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    res.json({ message: 'Widget deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/dashboard/widget-data/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const widget = await db.get('SELECT * FROM dashboard_widgets WHERE id = ?', [req.params.id]);
+    if (!widget) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    const data = await getWidgetData(widget, req.user.id);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/weather - Get today's weather forecast
+app.get('/api/weather', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const weatherLoc = settings.weather_location || '10001';
+    const weatherUnit = settings.weather_unit || 'fahrenheit';
+    const weather = await getCachedWeather(weatherLoc, weatherUnit);
+    res.json(weather);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/dashboard/background/unsplash', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const unsplashKey = settings.unsplash_key;
+    const keywords = req.query.keywords || '';
+
+    if (!unsplashKey || !unsplashKey.trim()) {
+      return res.json({ 
+        url: `https://images.unsplash.com/featured/1920x1080?sig=${req.query.sig || Date.now()}&${encodeURIComponent(keywords)}`,
+        attribution: {
+          photographerName: 'Unsplash Community',
+          photographerUrl: 'https://unsplash.com?utm_source=dashboard_app&utm_medium=referral',
+          photoUrl: 'https://unsplash.com?utm_source=dashboard_app&utm_medium=referral'
+        }
+      });
+    }
+
+    const query = keywords ? `&query=${encodeURIComponent(keywords)}` : '';
+    const url = `https://api.unsplash.com/photos/random?orientation=landscape${query}`;
+    
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Client-ID ${unsplashKey.trim()}`,
+        'Accept-Version': 'v1'
+      }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      const errMsg = `Unsplash API returned status ${response.status}: ${text}`;
+      await sendNotification('Unsplash API Error', errMsg, 'Integration Error');
+      throw new Error(errMsg);
+    }
+
+    const data = await response.json();
+    const imageUrl = data.urls?.regular || data.urls?.full;
+    
+    if (data.links?.download_location) {
+      try {
+        await fetch(data.links.download_location, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Client-ID ${unsplashKey.trim()}`,
+            'Accept-Version': 'v1'
+          }
+        });
+      } catch (dlErr) {
+        console.error('[Unsplash Integration] Failed to trigger download location:', dlErr.message);
+      }
+    }
+
+    const photographerUrl = data.user?.links?.html
+      ? `${data.user.links.html}?utm_source=dashboard_app&utm_medium=referral`
+      : 'https://unsplash.com?utm_source=dashboard_app&utm_medium=referral';
+    const photoUrl = data.links?.html
+      ? `${data.links.html}?utm_source=dashboard_app&utm_medium=referral`
+      : 'https://unsplash.com?utm_source=dashboard_app&utm_medium=referral';
+
+    res.json({ 
+      url: imageUrl,
+      attribution: {
+        photographerName: data.user?.name || data.user?.username || 'Unsplash Photographer',
+        photographerUrl: photographerUrl,
+        photoUrl: photoUrl
+      }
+    });
+  } catch (error) {
+    console.error('[Unsplash Integration] Error:', error.message);
+    await sendNotification('Unsplash API Error', `Unsplash integration error: ${error.message}`, 'Integration Error');
+    const keywords = req.query.keywords || '';
+    res.json({ 
+      url: `https://images.unsplash.com/featured/1920x1080?sig=${req.query.sig || Date.now()}&${encodeURIComponent(keywords)}`,
+      attribution: {
+        photographerName: 'Unsplash Community',
+        photographerUrl: 'https://unsplash.com?utm_source=dashboard_app&utm_medium=referral',
+        photoUrl: 'https://unsplash.com?utm_source=dashboard_app&utm_medium=referral'
+      },
+      error: error.message
+    });
+  }
+});
+
+app.get('/api/dashboard/shared/:token', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.dashboard_share_token || settings.dashboard_share_token !== req.params.token) {
+      return res.status(401).json({ error: 'Invalid or missing dashboard share token' });
+    }
+    const db = await getDb();
+    const rows = await db.all('SELECT * FROM dashboard_widgets');
+    const widgets = rows.map(r => ({
+      ...r,
+      config: r.config ? JSON.parse(r.config) : {}
+    }));
+    const adminUser = await db.get("SELECT timezone FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'Administrator' LIMIT 1) LIMIT 1");
+    const timezone = adminUser?.timezone || 'America/New_York';
+    res.json({
+      appName: settings.app_name || 'Dashboard App',
+      brandingIcon: settings.branding_icon || '📊',
+      brandingLogo: settings.branding_logo || '',
+      dashboard_refresh_interval: settings.dashboard_refresh_interval || 'disabled',
+      dashboard_bg_type: settings.dashboard_bg_type || 'theme',
+      dashboard_bg_value: settings.dashboard_bg_value || '',
+      dashboard_bg_unsplash_keywords: settings.dashboard_bg_unsplash_keywords || '',
+      weather_location: settings.weather_location || '10001',
+      weather_unit: settings.weather_unit || 'fahrenheit',
+      timezone,
+      widgets
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/dashboard/shared-widget-data/:token/:id', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.dashboard_share_token || settings.dashboard_share_token !== req.params.token) {
+      return res.status(401).json({ error: 'Invalid or missing dashboard share token' });
+    }
+    const db = await getDb();
+    const widget = await db.get('SELECT * FROM dashboard_widgets WHERE id = ?', [req.params.id]);
+    if (!widget) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    const data = await getWidgetData(widget, null);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// --- HOUSEKEEPING ENDPOINTS ---
+
+function calculateNextDueDate(currentDueDateStr, interval) {
+  if (!currentDueDateStr) return new Date().toISOString().split('T')[0];
+  const date = new Date(currentDueDateStr + 'T12:00:00');
+  switch (interval.toLowerCase()) {
+    case 'daily':
+      date.setDate(date.getDate() + 1);
+      break;
+    case 'weekly':
+      date.setDate(date.getDate() + 7);
+      break;
+    case 'monthly':
+      date.setMonth(date.getMonth() + 1);
+      break;
+    case 'yearly':
+      date.setFullYear(date.getFullYear() + 1);
+      break;
+    default:
+      break;
+  }
+  return date.toISOString().split('T')[0];
+}
+
+// GET /api/housekeeping/tasks
+app.get('/api/housekeeping/tasks', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const tasks = await db.all(`
+      SELECT t.*, u.username as assigned_username, u.display_name as assigned_display_name
+      FROM housekeeping_tasks t
+      LEFT JOIN users u ON t.assigned_to_user_id = u.id
+      ORDER BY t.due_date ASC, t.title ASC
+    `);
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/housekeeping/tasks
+app.post('/api/housekeeping/tasks', authenticate, async (req, res) => {
+  try {
+    const { title, description, due_date, reoccurrence, assigned_to_user_id } = req.body;
+    if (!title || !title.trim() || !due_date) {
+      return res.status(400).json({ error: 'Title and due date are required' });
+    }
+    const db = await getDb();
+    const result = await db.run(`
+      INSERT INTO housekeeping_tasks (title, description, due_date, reoccurrence, assigned_to_user_id)
+      VALUES (?, ?, ?, ?, ?)
+    `, [title.trim(), description, due_date, reoccurrence || 'none', assigned_to_user_id || null]);
+    res.status(201).json({ id: result.lastID, message: 'Housekeeping task created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /api/housekeeping/tasks/:id
+app.put('/api/housekeeping/tasks/:id', authenticate, async (req, res) => {
+  try {
+    const { title, description, due_date, reoccurrence, assigned_to_user_id, status } = req.body;
+    if (!title || !title.trim() || !due_date) {
+      return res.status(400).json({ error: 'Title and due date are required' });
+    }
+    const db = await getDb();
+    await db.run(`
+      UPDATE housekeeping_tasks
+      SET title = ?, description = ?, due_date = ?, reoccurrence = ?, assigned_to_user_id = ?, status = ?
+      WHERE id = ?
+    `, [title.trim(), description, due_date, reoccurrence || 'none', assigned_to_user_id || null, status || 'pending', req.params.id]);
+    res.json({ message: 'Housekeeping task updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/housekeeping/tasks/:id
+app.delete('/api/housekeeping/tasks/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run('DELETE FROM housekeeping_tasks WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Housekeeping task deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/housekeeping/tasks/:id/complete
+app.post('/api/housekeeping/tasks/:id/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const task = await db.get('SELECT * FROM housekeeping_tasks WHERE id = ?', [req.params.id]);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Insert into housekeeping logs
+    await db.run(`
+      INSERT INTO housekeeping_logs (task_id, task_title, completed_by_user_id)
+      VALUES (?, ?, ?)
+    `, [task.id, task.title, req.user.id]);
+
+    if (task.reoccurrence && task.reoccurrence !== 'none') {
+      // Calculate next due date
+      const nextDue = calculateNextDueDate(task.due_date, task.reoccurrence);
+      await db.run(`
+        UPDATE housekeeping_tasks
+        SET due_date = ?, status = 'pending'
+        WHERE id = ?
+      `, [nextDue, task.id]);
+      res.json({ message: 'Task logged and scheduled for next occurrence', next_due_date: nextDue });
+    } else {
+      // Mark as completed
+      await db.run(`
+        UPDATE housekeeping_tasks
+        SET status = 'completed'
+        WHERE id = ?
+      `, [task.id]);
+      res.json({ message: 'Task marked as completed' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/housekeeping/tasks/:id/grab
+app.post('/api/housekeeping/tasks/:id/grab', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run(`
+      UPDATE housekeeping_tasks
+      SET assigned_to_user_id = ?
+      WHERE id = ?
+    `, [req.user.id, req.params.id]);
+    res.json({ message: 'Task grabbed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/housekeeping/logs
+app.get('/api/housekeeping/logs', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const logs = await db.all(`
+      SELECT l.*, u.username as completed_by_username, u.display_name as completed_by_display_name
+      FROM housekeeping_logs l
+      LEFT JOIN users u ON l.completed_by_user_id = u.id
+      ORDER BY l.completed_at DESC
+      LIMIT 50
+    `);
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- FOCUSFLOW LOCAL INTEGRATION ENDPOINTS ---
+
+function getUserToday(user) {
+  const tz = normalizeTimezone(user?.timezone || 'America/New_York');
+  return new Date().toLocaleDateString('sv', { timeZone: tz });
+}
+
+// PROJECTS
+app.get('/api/focusflow/projects', authenticate, async (req, res) => {
+  try {
+    const projects = await getAllProjects();
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/projects', authenticate, async (req, res) => {
+  try {
+    const projectId = await createProject(req.body);
+    res.status(201).json({ id: projectId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/focusflow/projects/:id', authenticate, async (req, res) => {
+  try {
+    await updateProject(req.params.id, req.body);
+    res.json({ message: 'Project updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/projects/:id', authenticate, async (req, res) => {
+  try {
+    await deleteProject(req.params.id);
+    res.json({ message: 'Project deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// TASKS
+app.get('/api/focusflow/tasks', authenticate, async (req, res) => {
+  try {
+    const todayStr = getUserToday(req.user);
+    const db = await getDb();
+    
+    // Auto-update tasks due today to status = 'today' if they are pending
+    await db.run(
+      "UPDATE tasks SET status = 'today' WHERE user_id = ? AND due_date = ? AND status NOT IN ('completed', 'archived')",
+      [req.user.id, todayStr]
+    );
+
+    const filters = {
+      search: req.query.q || null,
+      project_id: req.query.project_id || null,
+      status: req.query.status || null,
+      priority: req.query.priority || null,
+      due_date: req.query.due_date || null,
+      routine_id: req.query.routine_id || null,
+      habit_id: req.query.habit_id || null,
+      include_routines: req.query.include_routines === 'true' || null,
+      include_habits: req.query.include_habits === 'true' || null
+    };
+    const tasks = await getAllTasks(req.user.id, filters, todayStr);
+    res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+async function canAccessTask(userId, task) {
+  if (!task) return false;
+  if (task.user_id === userId) return true;
+  if (task.project_id) {
+    const project = await getProjectById(task.project_id);
+    if (project && project.is_shared === 1) {
+      return true;
+    }
+  }
+  return false;
+}
+
+app.get('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
+  try {
+    const task = await getTaskById(req.params.id);
+    const hasAccess = await canAccessTask(req.user.id, task);
+    if (!hasAccess) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    res.json(task);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/tasks', authenticate, async (req, res) => {
+  try {
+    const taskId = await createTask(req.user.id, req.body);
+    await sendNotification('New Task Created', `Task "${req.body.title}" has been created.`, 'Task Created');
+    res.status(201).json({ id: taskId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
+  try {
+    const existing = await getTaskById(req.params.id);
+    const hasAccess = await canAccessTask(req.user.id, existing);
+    if (!hasAccess) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    const assignedUserId = req.body.user_id || existing.user_id;
+    await updateTask(req.params.id, { ...req.body, user_id: assignedUserId });
+    res.json({ message: 'Task updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
+  try {
+    const existing = await getTaskById(req.params.id);
+    const hasAccess = await canAccessTask(req.user.id, existing);
+    if (!hasAccess) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    await deleteTask(req.params.id);
+    res.json({ message: 'Task deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/tasks/:id/complete', authenticate, async (req, res) => {
+  try {
+    const success = await completeTask(req.user.id, req.params.id, req.body.completed);
+    if (!success) {
+      return res.status(404).json({ error: 'Task not found or update failed' });
+    }
+    if (req.body.completed) {
+      await sendNotification('Task Completed', `Task "${req.body.title || 'Untitled'}" was completed! 🎯`, 'Task Completed');
+    }
+    res.json({ message: 'Task status updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// TIMELOGS
+app.get('/api/focusflow/timelogs/active', authenticate, async (req, res) => {
+  try {
+    const activeLog = await getActiveTimeLog(req.user.id);
+    if (!activeLog) {
+      return res.status(404).json({ error: 'No active time log' });
+    }
+    res.json(activeLog);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/timelogs/start', authenticate, async (req, res) => {
+  try {
+    const { task_id } = req.body;
+    if (!task_id) {
+      return res.status(400).json({ error: 'Task ID is required' });
+    }
+    const task = await getTaskById(task_id);
+    if (!task || task.user_id !== req.user.id) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    const logId = await startTimeLog(task_id);
+    res.status(201).json({ id: logId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/timelogs/stop', authenticate, async (req, res) => {
+  try {
+    const { log_id } = req.body;
+    if (!log_id) {
+      return res.status(400).json({ error: 'Log ID is required' });
+    }
+    const success = await stopTimeLog(log_id);
+    if (!success) {
+      return res.status(404).json({ error: 'Log entry not found or already stopped' });
+    }
+    res.json({ message: 'Time tracking stopped successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// FOCUS SESSIONS
+app.post('/api/focusflow/focus', authenticate, async (req, res) => {
+  try {
+    const { task_id, type, duration, completed } = req.body;
+    if (!duration) {
+      return res.status(400).json({ error: 'Duration is required' });
+    }
+    const sessionId = await createFocusSession(req.user.id, { task_id, type, duration, completed });
+    if (completed) {
+      await sendNotification('Focus Session Completed', `Completed a ${type} session (${Math.round(duration / 60)} minutes)! ⏱️`, 'Focus Session Completed');
+    }
+    res.status(201).json({ id: sessionId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// STREAKS
+app.get('/api/focusflow/streaks', authenticate, async (req, res) => {
+  try {
+    const stats = await checkAndResetStreak(req.user.id);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PROJECT SCHEDULES
+app.get('/api/focusflow/projects/:id/schedules', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const schedules = await db.all('SELECT * FROM project_schedules WHERE project_id = ? ORDER BY day_of_week, start_time', [req.params.id]);
+    res.json(schedules);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/focusflow/projects/:id/schedules', authenticate, async (req, res) => {
+  try {
+    const { schedule_enabled, blocks } = req.body;
+    const db = await getDb();
+    await db.run('BEGIN TRANSACTION');
+    await db.run('UPDATE projects SET schedule_enabled = ? WHERE id = ?', [schedule_enabled ? 1 : 0, req.params.id]);
+    await db.run('DELETE FROM project_schedules WHERE project_id = ?', [req.params.id]);
+    if (Array.isArray(blocks)) {
+      for (const b of blocks) {
+        await db.run('INSERT INTO project_schedules (project_id, day_of_week, all_day, start_time, end_time) VALUES (?, ?, ?, ?, ?)',
+          [req.params.id, b.day_of_week, b.all_day ? 1 : 0, b.start_time || null, b.end_time || null]);
+      }
+    }
+    await db.run('COMMIT');
+    res.json({ message: 'Schedule saved' });
+  } catch (error) {
+    try { const db2 = await getDb(); await db2.run('ROLLBACK'); } catch(_) {}
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ROUTINES
+app.get('/api/focusflow/routines', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    const routines = await db.all('SELECT * FROM routines WHERE user_id = ? ORDER BY sort_order, created_at', [req.user.id]);
+    const result = await Promise.all(routines.map(async (r) => {
+      const todayLog = await db.get('SELECT id FROM routine_logs WHERE routine_id = ? AND completed_date = ?', [r.id, today]);
+      const logs = await db.all('SELECT completed_date FROM routine_logs WHERE routine_id = ? AND user_id = ? ORDER BY completed_date DESC', [r.id, req.user.id]);
+      let streak = 0; let checkDate = new Date();
+      if (!todayLog) checkDate.setDate(checkDate.getDate() - 1);
+      const userTz = normalizeTimezone(req.user.timezone || 'America/New_York');
+      for (const log of logs) {
+        if (log.completed_date === checkDate.toLocaleDateString('sv', { timeZone: userTz })) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      const tasks = await db.all('SELECT * FROM tasks WHERE routine_id = ?', [r.id]);
+      for (const t of tasks) {
+        const taskLog = await db.get('SELECT id FROM routine_task_logs WHERE task_id = ? AND completed_date = ?', [t.id, today]);
+        t.completed_today = !!taskLog;
+        const subtasks = await db.all("SELECT id, title, status FROM tasks WHERE parent_id = ? AND is_micro_step = 1", [t.id]);
+        t.subtasks = subtasks;
+      }
+      return { ...r, completed_today: !!todayLog, streak, tasks };
+    }));
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/routines', authenticate, async (req, res) => {
+  try {
+    const { title, description, frequency, custom_days, time_of_day, estimated_time } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+    const db = await getDb();
+    const result = await db.run('INSERT INTO routines (user_id, title, description, frequency, custom_days, time_of_day, estimated_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.user.id, title, description || null, frequency || 'daily', custom_days ? JSON.stringify(custom_days) : null, time_of_day || null, estimated_time || 0]);
+    res.status(201).json({ id: result.lastID, message: 'Routine created' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/focusflow/routines/:id', authenticate, async (req, res) => {
+  try {
+    const { title, description, frequency, custom_days, time_of_day, estimated_time, is_active, sort_order } = req.body;
+    const db = await getDb();
+    await db.run('UPDATE routines SET title=?, description=?, frequency=?, custom_days=?, time_of_day=?, estimated_time=?, is_active=?, sort_order=? WHERE id=? AND user_id=?',
+      [title, description || null, frequency || 'daily', custom_days ? JSON.stringify(custom_days) : null, time_of_day || null, estimated_time || 0, is_active !== undefined ? (is_active ? 1 : 0) : 1, sort_order || 0, req.params.id, req.user.id]);
+    res.json({ message: 'Routine updated' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/routines/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run('DELETE FROM routines WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
+    res.json({ message: 'Routine deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/routines/:id/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    await db.run('INSERT OR IGNORE INTO routine_logs (routine_id, user_id, completed_date) VALUES (?, ?, ?)', [req.params.id, req.user.id, today]);
+    res.json({ message: 'Routine marked complete' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/routines/:id/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    await db.run('DELETE FROM routine_logs WHERE routine_id=? AND user_id=? AND completed_date=?', [req.params.id, req.user.id, today]);
+    res.json({ message: 'Routine unmarked' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/routines/tasks/:taskId/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    const taskId = req.params.taskId;
+    await db.run('INSERT OR IGNORE INTO routine_task_logs (task_id, user_id, completed_date) VALUES (?, ?, ?)',
+      [taskId, req.user.id, today]);
+    const task = await db.get('SELECT routine_id FROM tasks WHERE id = ?', [taskId]);
+    if (task && task.routine_id) {
+      const allTasks = await db.all('SELECT id FROM tasks WHERE routine_id = ?', [task.routine_id]);
+      if (allTasks.length > 0) {
+        const completedTasks = await db.all('SELECT task_id FROM routine_task_logs WHERE completed_date = ? AND task_id IN (' + allTasks.map(() => '?').join(',') + ')', [today, ...allTasks.map(t => t.id)]);
+        if (completedTasks.length === allTasks.length) {
+          await db.run('INSERT OR IGNORE INTO routine_logs (routine_id, user_id, completed_date) VALUES (?, ?, ?)',
+            [task.routine_id, req.user.id, today]);
+        }
+      }
+    }
+    res.json({ message: 'Routine task marked complete' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/routines/tasks/:taskId/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    const taskId = req.params.taskId;
+    await db.run('DELETE FROM routine_task_logs WHERE task_id = ? AND user_id = ? AND completed_date = ?',
+      [taskId, req.user.id, today]);
+    const task = await db.get('SELECT routine_id FROM tasks WHERE id = ?', [taskId]);
+    if (task && task.routine_id) {
+      await db.run('DELETE FROM routine_logs WHERE routine_id = ? AND user_id = ? AND completed_date = ?',
+        [task.routine_id, req.user.id, today]);
+    }
+    res.json({ message: 'Routine task unmarked' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// HABITS
+app.get('/api/focusflow/habits', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    const habits = await db.all('SELECT * FROM habits WHERE user_id=? ORDER BY sort_order, created_at', [req.user.id]);
+    const result = await Promise.all(habits.map(async (h) => {
+      const todayLog = await db.get('SELECT id FROM habit_logs WHERE habit_id=? AND completed_date=?', [h.id, today]);
+      const logs = await db.all('SELECT completed_date FROM habit_logs WHERE habit_id=? AND user_id=? ORDER BY completed_date DESC', [h.id, req.user.id]);
+      let streak = 0; let checkDate = new Date();
+      if (!todayLog) checkDate.setDate(checkDate.getDate() - 1);
+      const userTz = normalizeTimezone(req.user.timezone || 'America/New_York');
+      for (const log of logs) {
+        if (log.completed_date === checkDate.toLocaleDateString('sv', { timeZone: userTz })) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      const thirtyAgo = new Date();
+      thirtyAgo.setDate(thirtyAgo.getDate() - 29);
+      const recent = await db.get('SELECT COUNT(*) as cnt FROM habit_logs WHERE habit_id=? AND user_id=? AND completed_date>=?', [h.id, req.user.id, thirtyAgo.toLocaleDateString('sv', { timeZone: userTz })]);
+      const tasks = await db.all('SELECT * FROM tasks WHERE habit_id = ?', [h.id]);
+      for (const t of tasks) {
+        if (t.habit_task_type === 'recurring') {
+          const taskLog = await db.get('SELECT id FROM habit_task_logs WHERE task_id = ? AND completed_date = ?', [t.id, today]);
+          t.completed_today = !!taskLog;
+        } else {
+          t.completed_today = t.status === 'completed';
+        }
+        const subtasks = await db.all("SELECT id, title, status FROM tasks WHERE parent_id = ? AND is_micro_step = 1", [t.id]);
+        t.subtasks = subtasks;
+      }
+      return { ...h, completed_today: !!todayLog, streak, completion_rate: Math.round((recent.cnt / 30) * 100), tasks };
+    }));
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/habits', authenticate, async (req, res) => {
+  try {
+    const { title, description, color, icon, target_frequency, custom_days } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title is required' });
+    const db = await getDb();
+    const result = await db.run('INSERT INTO habits (user_id, title, description, color, icon, target_frequency, custom_days) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.user.id, title, description || null, color || '#3b82f6', icon || 'star', target_frequency || 'daily', custom_days ? JSON.stringify(custom_days) : null]);
+    res.status(201).json({ id: result.lastID, message: 'Habit created' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/focusflow/habits/:id', authenticate, async (req, res) => {
+  try {
+    const { title, description, color, icon, target_frequency, custom_days, is_active, sort_order } = req.body;
+    const db = await getDb();
+    await db.run('UPDATE habits SET title=?, description=?, color=?, icon=?, target_frequency=?, custom_days=?, is_active=?, sort_order=? WHERE id=? AND user_id=?',
+      [title, description || null, color || '#3b82f6', icon || 'star', target_frequency || 'daily', custom_days ? JSON.stringify(custom_days) : null, is_active !== undefined ? (is_active ? 1 : 0) : 1, sort_order || 0, req.params.id, req.user.id]);
+    res.json({ message: 'Habit updated' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/habits/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run('DELETE FROM habits WHERE id=? AND user_id=?', [req.params.id, req.user.id]);
+    res.json({ message: 'Habit deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/habits/:id/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    await db.run('INSERT OR IGNORE INTO habit_logs (habit_id, user_id, completed_date) VALUES (?, ?, ?)', [req.params.id, req.user.id, today]);
+    res.json({ message: 'Habit marked complete' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/habits/:id/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    await db.run('DELETE FROM habit_logs WHERE habit_id=? AND user_id=? AND completed_date=?', [req.params.id, req.user.id, today]);
+    res.json({ message: 'Habit unmarked' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/habits/tasks/:taskId/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    const taskId = req.params.taskId;
+    const task = await db.get('SELECT habit_id, habit_task_type FROM tasks WHERE id = ?', [taskId]);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (task.habit_task_type === 'recurring') {
+      await db.run('INSERT OR IGNORE INTO habit_task_logs (task_id, user_id, completed_date) VALUES (?, ?, ?)',
+        [taskId, req.user.id, today]);
+    } else {
+      await db.run("UPDATE tasks SET status = 'completed', completed_at = CURRENT_TIMESTAMP WHERE id = ?",
+        [taskId]);
+    }
+    if (task.habit_id) {
+      const allTasks = await db.all('SELECT id, habit_task_type, status FROM tasks WHERE habit_id = ?', [task.habit_id]);
+      if (allTasks.length > 0) {
+        let allDone = true;
+        for (const t of allTasks) {
+          if (t.habit_task_type === 'recurring') {
+            const log = await db.get('SELECT id FROM habit_task_logs WHERE task_id = ? AND completed_date = ?', [t.id, today]);
+            if (!log) { allDone = false; break; }
+          } else {
+            if (t.status !== 'completed') { allDone = false; break; }
+          }
+        }
+        if (allDone) {
+          await db.run('INSERT OR IGNORE INTO habit_logs (habit_id, user_id, completed_date) VALUES (?, ?, ?)',
+            [task.habit_id, req.user.id, today]);
+        }
+      }
+    }
+    res.json({ message: 'Habit task marked complete' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/focusflow/habits/tasks/:taskId/complete', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    const taskId = req.params.taskId;
+    const task = await db.get('SELECT habit_id, habit_task_type FROM tasks WHERE id = ?', [taskId]);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (task.habit_task_type === 'recurring') {
+      await db.run('DELETE FROM habit_task_logs WHERE task_id = ? AND user_id = ? AND completed_date = ?',
+        [taskId, req.user.id, today]);
+    } else {
+      await db.run("UPDATE tasks SET status = 'backlog', completed_at = NULL WHERE id = ?",
+        [taskId]);
+    }
+    if (task.habit_id) {
+      await db.run('DELETE FROM habit_logs WHERE habit_id = ? AND user_id = ? AND completed_date = ?',
+        [task.habit_id, req.user.id, today]);
+    }
+    res.json({ message: 'Habit task unmarked' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/focusflow/habits/:id/history', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const ninetyAgo = new Date();
+    ninetyAgo.setDate(ninetyAgo.getDate() - 89);
+    const userTz = normalizeTimezone(req.user.timezone || 'America/New_York');
+    const logs = await db.all('SELECT completed_date FROM habit_logs WHERE habit_id=? AND user_id=? AND completed_date>=? ORDER BY completed_date',
+      [req.params.id, req.user.id, ninetyAgo.toLocaleDateString('sv', { timeZone: userTz })]);
+    res.json(logs.map(l => l.completed_date));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// SETTINGS
+app.get('/api/focusflow/settings', authenticate, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    delete settings.api_key;
+    delete settings.notify_smtp_pass;
+    delete settings.notify_webhook_secret;
+    res.json(settings);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Serve frontend static files in production
+const staticPath = path.join(process.cwd(), './public');
+app.use(express.static(staticPath));
+
+// Fallback: serve React frontend index.html for all other routes
+
 // Serve frontend build static files (production ready)
 const FRONTEND_BUILD_DIR = fs.existsSync(path.join(__dirname, '../frontend/dist'))
   ? path.join(__dirname, '../frontend/dist')
@@ -2565,7 +6787,28 @@ app.get('*', (req, res, next) => {
 });
 
 // Start Express Server
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server started on http://localhost:${PORT}`);
+  
+  // Bootstrap templates folder
+  try {
+    await initDefaultTemplate();
+    console.log('Default Word templates initialized successfully.');
+  } catch (err) {
+    console.error('Error initializing default templates:', err.message);
+  }
+
+  // Check due today notifications
   checkDueTodayNotifications().catch(console.error);
+
+  // Check expiring ingredients/leftovers
+  setTimeout(() => {
+    checkExpiringItems().catch(console.error);
+  }, 5000);
+
+  // Schedule expiring items checks (every 12 hours)
+  setInterval(() => {
+    checkExpiringItems().catch(console.error);
+  }, 12 * 60 * 60 * 1000);
 });
+

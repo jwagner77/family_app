@@ -43,6 +43,16 @@ export default function SubscriptionsView({ showToast }) {
 
   useEffect(() => {
     fetchSubscriptions();
+
+    const handleAddTrigger = (e) => {
+      if (e.detail.tab === 'subscriptions') {
+        openCreateModal();
+      }
+    };
+    window.addEventListener('trigger-add-action', handleAddTrigger);
+    return () => {
+      window.removeEventListener('trigger-add-action', handleAddTrigger);
+    };
   }, []);
 
   const fetchSubscriptions = async () => {
@@ -211,13 +221,6 @@ export default function SubscriptionsView({ showToast }) {
           <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>Subscription Management</h2>
           <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)' }}>Track recurring bills, monthly spend, and upcoming renewals.</p>
         </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={openCreateModal}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-        >
-          <Plus size={18} /> Add Subscription
-        </button>
       </div>
 
       {/* Analytics Cards Dashboard */}
@@ -358,13 +361,13 @@ export default function SubscriptionsView({ showToast }) {
       {/* Subscription Edit/Create Modal Overlay */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '800' }}>
-                {modalMode === 'create' ? 'Add Subscription' : 'Edit Subscription Details'}
-              </h2>
+              <h2>{modalMode === 'create' ? 'Add Subscription' : 'Edit Subscription Details'}</h2>
               <button className="close-btn" onClick={() => setIsModalOpen(false)}>×</button>
             </div>
+            
+            <div className="modal-body">
             
             <form onSubmit={handleSaveSubscription} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingTop: '0.5rem' }}>
               <div className="form-group">
@@ -457,11 +460,12 @@ export default function SubscriptionsView({ showToast }) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save Subscription</button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}

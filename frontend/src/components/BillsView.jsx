@@ -47,6 +47,16 @@ export default function BillsView({ showToast }) {
   useEffect(() => {
     fetchBills();
     fetchTags();
+
+    const handleAddTrigger = (e) => {
+      if (e.detail.tab === 'bills') {
+        openCreateModal();
+      }
+    };
+    window.addEventListener('trigger-add-action', handleAddTrigger);
+    return () => {
+      window.removeEventListener('trigger-add-action', handleAddTrigger);
+    };
   }, []);
 
   const fetchBills = async () => {
@@ -229,13 +239,6 @@ export default function BillsView({ showToast }) {
           <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0 }}>Recurring Bills Management</h2>
           <p style={{ margin: '0.25rem 0 0 0', color: 'var(--text-muted)' }}>Track recurring household bills, custom tags, and billing dates.</p>
         </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={openCreateModal}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-        >
-          <Plus size={18} /> Add Bill
-        </button>
       </div>
 
       {/* Analytics Cards Dashboard */}
@@ -382,13 +385,13 @@ export default function BillsView({ showToast }) {
       {/* Bill Edit/Create Modal Overlay */}
       {isModalOpen && (
         <div className="modal-overlay" onClick={() => setIsModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 style={{ fontSize: '1.25rem', fontWeight: '800' }}>
-                {modalMode === 'create' ? 'Add Recurring Bill' : 'Edit Bill Details'}
-              </h2>
+              <h2>{modalMode === 'create' ? 'Add Recurring Bill' : 'Edit Bill Details'}</h2>
               <button className="close-btn" onClick={() => setIsModalOpen(false)}>×</button>
             </div>
+            
+            <div className="modal-body">
             
             <form onSubmit={handleSaveBill} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingTop: '0.5rem' }}>
               <div className="form-group">
@@ -482,11 +485,12 @@ export default function BillsView({ showToast }) {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsModalOpen(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary">Save Bill</button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}

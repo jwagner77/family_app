@@ -8,7 +8,14 @@ import {
   ArrowRight,
   TrendingUp,
   ListTodo,
-  Receipt
+  Receipt,
+  ChefHat,
+  Utensils,
+  AlertTriangle,
+  Soup,
+  BookOpen,
+  Bookmark,
+  Flame
 } from 'lucide-react';
 
 export default function HomeView({ onNavigateTab, user }) {
@@ -16,21 +23,50 @@ export default function HomeView({ onNavigateTab, user }) {
   const [events, setEvents] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [bills, setBills] = useState([]);
-  const [hoveredWidget, setHoveredWidget] = useState(null);
+  const [contacts, setContacts] = useState([]);
+  const [weather, setWeather] = useState(null);
+  const [weeklyMenu, setWeeklyMenu] = useState([]);
   
   useEffect(() => {
     fetchTasks();
     fetchEvents();
     fetchSubscriptions();
     fetchBills();
+    fetchKitchenData();
+    fetchContacts();
+    fetchWeather();
   }, []);
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch('/api/todo/all-tasks');
+      const res = await fetch('/api/focusflow/tasks');
       if (res.ok) {
         const data = await res.json();
         setTasks(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const res = await fetch('/api/contacts');
+      if (res.ok) {
+        const data = await res.json();
+        setContacts(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchWeather = async () => {
+    try {
+      const res = await fetch('/api/weather');
+      if (res.ok) {
+        const data = await res.json();
+        setWeather(data);
       }
     } catch (err) {
       console.error(err);
@@ -73,7 +109,18 @@ export default function HomeView({ onNavigateTab, user }) {
     }
   };
 
-  // Get dynamic greeting
+  const fetchKitchenData = async () => {
+    try {
+      const menuRes = await fetch('/api/menu');
+      if (menuRes.ok) {
+        const data = await menuRes.json();
+        setWeeklyMenu(data);
+      }
+    } catch (e) {
+      console.error('Failed to load kitchen dashboard data:', e);
+    }
+  };
+
   const getGreeting = () => {
     const hr = new Date().getHours();
     if (hr < 12) return 'Good morning';
@@ -81,353 +128,232 @@ export default function HomeView({ onNavigateTab, user }) {
     return 'Good evening';
   };
 
-  // Filter items
-  const todayStr = new Date().toISOString().split('T')[0];
-  const nextWeekDate = new Date();
-  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
-  const nextWeekStr = nextWeekDate.toISOString().split('T')[0];
-
-  // Upcoming / Overdue Tasks
-  const pendingTasks = tasks.filter(t => t.status !== 'completed');
-  const upcomingTasks = pendingTasks.filter(t => {
-    if (!t.due_date) return false;
-    return t.due_date <= nextWeekStr;
-  });
-
-  // Upcoming Events in the next 7 days
-  const upcomingEvents = events.filter(e => {
-    const eventDate = e.start_time.split('T')[0];
-    return eventDate >= todayStr && eventDate <= nextWeekStr;
-  });
-
-  const formatDueDays = (dueInDays) => {
-    if (dueInDays === 0) return 'Today';
-    if (dueInDays === 1) return 'Tomorrow';
-    if (dueInDays < 0) return `Overdue by ${Math.abs(dueInDays)} days`;
-    return `due in ${dueInDays} days`;
+  const getWeatherInfo = (code) => {
+    if (code === undefined || code === null) return { text: 'Unknown', icon: '❓' };
+    switch (code) {
+      case 0: return { text: 'Clear Sky', icon: '☀️' };
+      case 1: case 2: case 3: return { text: 'Partly Cloudy', icon: '⛅' };
+      case 45: case 48: return { text: 'Foggy', icon: '🌫️' };
+      case 51: case 53: case 55: return { text: 'Drizzle', icon: '🌧️' };
+      case 56: case 57: return { text: 'Freezing Drizzle', icon: '🌧️' };
+      case 61: case 63: case 65: return { text: 'Rainy', icon: '🌧️' };
+      case 66: case 67: return { text: 'Freezing Rain', icon: '🌧️' };
+      case 71: case 73: case 75: return { text: 'Snowy', icon: '❄️' };
+      case 77: return { text: 'Snow Grains', icon: '❄️' };
+      case 80: case 81: case 82: return { text: 'Rain Showers', icon: '🌦️' };
+      case 85: case 86: return { text: 'Snow Showers', icon: '❄️' };
+      case 95: return { text: 'Thunderstorms', icon: '⛈️' };
+      case 96: case 99: return { text: 'Thunderstorms w/ Hail', icon: '⛈️' };
+      default: return { text: 'Overcast', icon: '☁️' };
+    }
   };
 
-  // Active subscriptions renewal alerts (next 7 days)
-  const activeSubs = subscriptions.filter(s => s.active === 1);
-  const renewingSubsSoon = activeSubs.filter(s => s.due_in_days !== undefined && s.due_in_days !== null && s.due_in_days >= 0 && s.due_in_days <= 7);
+  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const todayDayName = daysOfWeek[new Date().getDay()];
+  const todaysMeals = weeklyMenu.filter(item => item.day_of_week === todayDayName);
 
-  // Active bills renewals (next 7 days)
-  const activeBills = bills.filter(b => b.active === 1);
-  const upcomingBillsSoon = activeBills.filter(b => b.due_in_days !== undefined && b.due_in_days !== null && b.due_in_days >= 0 && b.due_in_days <= 7);
+  const todayDateStr = new Date().toLocaleDateString('sv');
+  const todayEvents = events.filter(e => {
+    if (!e.start_time) return false;
+    return e.start_time.split('T')[0] === todayDateStr;
+  });
 
-  // Sum monthly spending
-  const monthlySubscriptionSpend = activeSubs.reduce((acc, curr) => {
-    if (curr.billing_cycle === 'monthly') {
-      return acc + curr.amount;
-    } else {
-      return acc + (curr.amount / 12);
+  const todayTasks = tasks.filter(t => {
+    if (!t.due_date) return false;
+    const isPending = t.status !== 'completed' && !t.completed;
+    return isPending && t.due_date.split('T')[0] === todayDateStr;
+  });
+
+  const todayBills = bills.filter(b => b.due_date && b.due_date.split('T')[0] === todayDateStr);
+  const todaySubs = subscriptions.filter(s => s.next_billing_date && s.next_billing_date.split('T')[0] === todayDateStr);
+
+  const todayObj = new Date();
+  const currentMonth = todayObj.getMonth() + 1;
+  const currentDay = todayObj.getDate();
+  
+  const todayBirthdays = contacts.filter(c => {
+    if (!c.birthday) return false;
+    const parts = c.birthday.split('-');
+    if (parts.length === 3) {
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+      return m === currentMonth && d === currentDay;
     }
-  }, 0);
+    return false;
+  }).map(c => {
+    const parts = c.birthday.split('-');
+    const age = todayObj.getFullYear() - parseInt(parts[0], 10);
+    return { name: c.name, age };
+  });
 
-  const monthlyBillSpend = activeBills.reduce((acc, curr) => {
-    if (curr.billing_cycle === 'monthly') {
-      return acc + curr.amount;
-    } else {
-      return acc + (curr.amount / 12);
-    }
-  }, 0);
-
-  const totalMonthlySpend = monthlySubscriptionSpend + monthlyBillSpend;
+  const todayAnniversaries = todayEvents.filter(e => {
+    const title = e.title || '';
+    return title.toLowerCase().includes('anniversary');
+  });
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', paddingBottom: '3rem' }}>
       
-      {/* Welcome Banner */}
+      {/* Merged Welcome & What's Happening Today Card */}
       <div 
-        className="card" 
+        className="card animate-fade-in" 
         style={{ 
           padding: '2rem', 
-          background: 'linear-gradient(to right, var(--card), rgba(220, 38, 38, 0.01) 70%, rgba(220, 38, 38, 0.04))', 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          flexWrap: 'wrap', 
+          background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.05) 0%, rgba(30, 30, 35, 0.4) 100%)', 
+          border: '1px solid var(--border)',
+          borderRadius: '12px',
+          display: 'flex',
+          flexDirection: 'column',
           gap: '1.5rem',
-          border: '1px solid var(--border)'
+          position: 'relative',
+          overflow: 'hidden'
         }}
       >
-        <div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, letterSpacing: '-0.5px', color: 'var(--foreground)' }}>
-            {getGreeting()}, {user?.display_name || user?.username}!
-          </h2>
-          <p style={{ color: 'var(--muted-foreground)', marginTop: '0.35rem', fontSize: '0.875rem', marginBottom: 0 }}>
-            Here is a summary of what's happening in your household.
-          </p>
+        {/* Welcome Section / Header of merged card */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, letterSpacing: '-0.5px', color: 'var(--foreground)' }}>
+              {getGreeting()}, {user?.display_name || user?.username}!
+            </h2>
+            <p style={{ color: 'var(--muted-foreground)', marginTop: '0.35rem', fontSize: '0.875rem', marginBottom: 0 }}>
+              Here is a summary of what's happening in your household today.
+            </p>
+          </div>
+
+          {weather && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255, 255, 255, 0.03)', padding: '0.5rem 1rem', borderRadius: '20px', border: '1px solid var(--border)' }}>
+              <span style={{ fontSize: '1.75rem' }}>{getWeatherInfo(weather.current?.weathercode).icon}</span>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span style={{ fontSize: '0.9375rem', fontWeight: 'bold', color: 'var(--foreground)' }}>
+                  {weather.current?.temperature}°{weather.unit === 'celsius' ? 'C' : 'F'}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                  {getWeatherInfo(weather.current?.weathercode).text} {weather.daily?.temperature_2m_min?.[0] !== undefined && `(Low: ${weather.daily?.temperature_2m_min?.[0]}° / High: ${weather.daily?.temperature_2m_max?.[0]}°)`}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
-        
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {/* TASKS TO DO */}
-          <div 
-            onClick={() => onNavigateTab('todo')}
-            onMouseEnter={() => setHoveredWidget('tasks')}
-            onMouseLeave={() => setHoveredWidget(null)}
-            style={{
-              textAlign: 'center',
-              background: '#09090b',
-              padding: '0.75rem 1rem',
-              borderRadius: 'var(--radius)',
-              border: hoveredWidget === 'tasks' ? '1px solid var(--primary)' : '1px solid var(--border)',
-              minWidth: '110px',
-              cursor: 'pointer',
-              transform: hoveredWidget === 'tasks' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s ease-in-out',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}
-            title="Go to Todo List"
-          >
-            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>TASKS TO DO</span>
-            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>{pendingTasks.length}</h4>
-          </div>
 
-          {/* SUBSCRIPTION SPEND */}
-          <div 
-            onClick={() => onNavigateTab('subscriptions')}
-            onMouseEnter={() => setHoveredWidget('subs')}
-            onMouseLeave={() => setHoveredWidget(null)}
-            style={{
-              textAlign: 'center',
-              background: '#09090b',
-              padding: '0.75rem 1rem',
-              borderRadius: 'var(--radius)',
-              border: hoveredWidget === 'subs' ? '1px solid var(--primary)' : '1px solid var(--border)',
-              minWidth: '110px',
-              cursor: 'pointer',
-              transform: hoveredWidget === 'subs' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s ease-in-out',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}
-            title="Go to Subscriptions"
-          >
-            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>SUBSCRIPTION SPEND</span>
-            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>${monthlySubscriptionSpend.toFixed(0)}</h4>
-          </div>
-
-          {/* BILL SPEND */}
-          <div 
-            onClick={() => onNavigateTab('bills')}
-            onMouseEnter={() => setHoveredWidget('bills')}
-            onMouseLeave={() => setHoveredWidget(null)}
-            style={{
-              textAlign: 'center',
-              background: '#09090b',
-              padding: '0.75rem 1rem',
-              borderRadius: 'var(--radius)',
-              border: hoveredWidget === 'bills' ? '1px solid var(--primary)' : '1px solid var(--border)',
-              minWidth: '110px',
-              cursor: 'pointer',
-              transform: hoveredWidget === 'bills' ? 'translateY(-2px)' : 'none',
-              transition: 'all 0.2s ease-in-out',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}
-            title="Go to Bills"
-          >
-            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>BILL SPEND</span>
-            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>${monthlyBillSpend.toFixed(0)}</h4>
-          </div>
-
-          {/* TOTAL SPEND */}
-          <div 
-            style={{
-              textAlign: 'center',
-              background: '#09090b',
-              padding: '0.75rem 1rem',
-              borderRadius: 'var(--radius)',
-              border: '1px solid var(--border)',
-              minWidth: '110px',
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
-              alignItems: 'center'
-            }}
-          >
-            <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontWeight: '700', letterSpacing: '0.05em' }}>TOTAL SPEND</span>
-            <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '1.25rem', fontWeight: '800', color: 'var(--foreground)' }}>${totalMonthlySpend.toFixed(0)}</h4>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Dashboard Layout Grid */}
-      <div className="grid-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-        
-        {/* Column 1: Tasks Due Soon */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-              <ListTodo size={20} style={{ color: '#4caf50' }} /> Tasks Due Soon
+        {/* What's Happening Today Section */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: '800', margin: 0, color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span>📅</span> What's Happening Today
             </h3>
-            <button 
-              className="btn btn-outline" 
-              style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-              onClick={() => onNavigateTab('todo')}
-            >
-              View All <ArrowRight size={12} />
-            </button>
+            <p style={{ color: 'var(--muted-foreground)', margin: '0.25rem 0 0 0', fontSize: '0.85rem' }}>
+              {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+            </p>
           </div>
 
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {upcomingTasks.slice(0, 5).map(task => (
-              <div key={task.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.5rem', borderRadius: '12px', background: 'var(--muted)' }}>
-                <CheckCircle size={18} style={{ color: 'var(--muted-foreground)', marginTop: '0.15rem', shrink: 0 }} />
-                <div style={{ overflow: 'hidden' }}>
-                  <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{task.title}</h5>
-                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--destructive)', fontWeight: '600' }}>
-                      Due: {task.due_date}
-                    </span>
-                    {task.list_name && (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                        in {task.list_name}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1.5rem', marginTop: '0.5rem' }}>
+            
+            {/* Column: Today's Meals */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#ec4899', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+                Today's Meals
+              </h4>
+              {todaysMeals.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {todaysMeals.map(meal => (
+                    <div key={meal.id} style={{ fontSize: '0.8125rem', padding: '0.35rem 0.5rem', background: 'rgba(236, 72, 153, 0.05)', borderRadius: '4px', borderLeft: '3px solid #ec4899' }}>
+                      <span style={{ fontSize: '0.65rem', color: '#f472b6', fontWeight: '700', textTransform: 'uppercase', display: 'block' }}>{meal.meal_type}</span>
+                      <strong style={{ color: 'var(--foreground)' }}>{meal.recipe_title || meal.custom_meal || 'Leftovers'}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>No meals planned today.</span>
+              )}
+            </div>
+
+            {/* Column 1: Today's Schedule */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+                Today's Schedule
+              </h4>
+              {todayEvents.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {todayEvents.map(e => (
+                    <div key={e.id} style={{ fontSize: '0.8125rem', padding: '0.35rem 0.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', borderLeft: '3px solid var(--primary)' }}>
+                      <strong style={{ display: 'block', color: 'var(--foreground)' }}>{e.title}</strong>
+                      <span style={{ color: 'var(--muted-foreground)', fontSize: '0.7rem' }}>
+                        {e.all_day ? 'All Day' : new Date(e.start_time).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            ))}
-            {upcomingTasks.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
-                <CheckCircle size={32} style={{ color: '#4caf50', opacity: 0.5 }} />
-                No tasks due this week!
-              </div>
-            )}
+              ) : (
+                <span style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>No events scheduled today.</span>
+              )}
+            </div>
+
+            {/* Column 2: Tasks Due Today */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#10b981', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+                Tasks Due Today
+              </h4>
+              {todayTasks.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {todayTasks.map(t => (
+                    <div key={t.id} style={{ fontSize: '0.8125rem', padding: '0.35rem 0.5rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '4px', borderLeft: '3px solid #10b981' }}>
+                      <span style={{ color: 'var(--foreground)' }}>{t.title}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>No tasks due today.</span>
+              )}
+            </div>
+
+            {/* Column 3: Celebrations */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+                Celebrations
+              </h4>
+              {(todayBirthdays.length > 0 || todayAnniversaries.length > 0) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {todayBirthdays.map((b, idx) => (
+                    <div key={`bday-${idx}`} style={{ fontSize: '0.8125rem', padding: '0.35rem 0.5rem', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '4px', borderLeft: '3px solid #ef4444', color: '#fca5a5' }}>
+                      <strong>🎂 {b.name}</strong> (turning {b.age} today!)
+                    </div>
+                  ))}
+                  {todayAnniversaries.map(a => (
+                    <div key={a.id} style={{ fontSize: '0.8125rem', padding: '0.35rem 0.5rem', background: 'rgba(245, 158, 11, 0.05)', borderRadius: '4px', borderLeft: '3px solid #f59e0b', color: '#fde047' }}>
+                      <strong>🥂 {a.title}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>No birthdays or anniversaries today.</span>
+              )}
+            </div>
+
+            {/* Column 4: Bills & Subscriptions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#3b82f6', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+                Bills & Subscriptions
+              </h4>
+              {(todayBills.length > 0 || todaySubs.length > 0) ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  {todayBills.map(b => (
+                    <div key={b.id} style={{ fontSize: '0.8125rem', padding: '0.35rem 0.5rem', background: 'rgba(59, 130, 246, 0.05)', borderRadius: '4px', borderLeft: '3px solid #3b82f6' }}>
+                      <span style={{ color: 'var(--foreground)' }}>💸 {b.name} (${b.amount})</span>
+                    </div>
+                  ))}
+                  {todaySubs.map(s => (
+                    <div key={s.id} style={{ fontSize: '0.8125rem', padding: '0.35rem 0.5rem', background: 'rgba(139, 92, 246, 0.05)', borderRadius: '4px', borderLeft: '3px solid #8b5cf6' }}>
+                      <span style={{ color: 'var(--foreground)' }}>🔁 {s.name} (${s.amount})</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>No bills or subscriptions due today.</span>
+              )}
+            </div>
+
           </div>
         </div>
-
-        {/* Column 2: Upcoming Events */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-              <Calendar size={20} style={{ color: 'var(--primary)' }} /> Next 7 Days Events
-            </h3>
-            <button 
-              className="btn btn-outline" 
-              style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-              onClick={() => onNavigateTab('calendar')}
-            >
-              Calendar <ArrowRight size={12} />
-            </button>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {upcomingEvents.slice(0, 5).map(event => {
-              const datePart = event.start_time.split('T')[0];
-              const timePart = event.start_time.split('T')[1]?.substring(0, 5) || '';
-              return (
-                <div key={event.id} style={{ display: 'flex', gap: '0.75rem', padding: '0.65rem', borderRadius: '12px', background: 'var(--muted)' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', background: 'var(--primary-light)', color: 'var(--primary)', padding: '0.4rem 0.6rem', borderRadius: '10px', minWidth: '50px', fontWeight: '700', fontSize: '0.8rem' }}>
-                    <span style={{ fontSize: '0.65rem', textTransform: 'uppercase' }}>
-                      {new Date(datePart + 'T12:00:00').toLocaleString('default', { month: 'short' })}
-                    </span>
-                    <span>{new Date(datePart + 'T12:00:00').getDate()}</span>
-                  </div>
-                  
-                  <div style={{ overflow: 'hidden' }}>
-                    <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{event.title}</h5>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.2rem' }}>
-                      <Clock size={12} /> {timePart || 'All day'} {event.location ? `• ${event.location}` : ''}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-            {upcomingEvents.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
-                <Calendar size={32} style={{ color: 'var(--primary)', opacity: 0.5 }} />
-                No events scheduled this week.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Column 3: Subscription Alerts */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-              <CreditCard size={20} style={{ color: '#ff9800' }} /> Subscription Alerts
-            </h3>
-            <button 
-              className="btn btn-outline" 
-              style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-              onClick={() => onNavigateTab('subscriptions')}
-            >
-              Manage <ArrowRight size={12} />
-            </button>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {renewingSubsSoon.map(sub => (
-              <div key={sub.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '12px', background: 'rgba(255, 152, 0, 0.08)', border: '1px solid rgba(255, 152, 0, 0.2)' }}>
-                <div>
-                  <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{sub.name}</h5>
-                  <span style={{ fontSize: '0.75rem', color: '#e65100', fontWeight: '600' }}>
-                    Renews: {sub.next_billing_date} ({formatDueDays(sub.due_in_days)})
-                  </span>
-                </div>
-                <div style={{ fontWeight: '800', fontSize: '1rem', color: '#e65100' }}>
-                  ${sub.amount.toFixed(2)}
-                </div>
-              </div>
-            ))}
-            {renewingSubsSoon.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
-                <TrendingUp size={32} style={{ color: '#ff9800', opacity: 0.5 }} />
-                No subscription renewals in the next 7 days.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Column 4: Upcoming Bills */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', padding: '1.5rem', gap: '1rem', minHeight: '380px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: '850', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-              <Receipt size={20} style={{ color: '#03a9f4' }} /> Upcoming Bills
-            </h3>
-            <button 
-              className="btn btn-outline" 
-              style={{ padding: '0.25rem 0.5rem', minWidth: 'auto', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-              onClick={() => onNavigateTab('bills')}
-            >
-              Manage <ArrowRight size={12} />
-            </button>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {upcomingBillsSoon.map(bill => (
-              <div key={bill.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.65rem 0.75rem', borderRadius: '12px', background: 'rgba(3, 169, 244, 0.08)', border: '1px solid rgba(3, 169, 244, 0.2)' }}>
-                <div>
-                  <h5 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '600' }}>{bill.name}</h5>
-                  <span style={{ fontSize: '0.75rem', color: '#0288d1', fontWeight: '600' }}>
-                    Due: {bill.next_billing_date} ({formatDueDays(bill.due_in_days)}) {bill.tag && `• ${bill.tag}`}
-                  </span>
-                </div>
-                <div style={{ fontWeight: '800', fontSize: '1rem', color: '#0288d1' }}>
-                  ${bill.amount.toFixed(2)}
-                </div>
-              </div>
-            ))}
-            {upcomingBillsSoon.length === 0 && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--muted-foreground)', fontSize: '0.9rem', gap: '0.5rem' }}>
-                <TrendingUp size={32} style={{ color: '#03a9f4', opacity: 0.5 }} />
-                No bill renewals in the next 7 days.
-              </div>
-            )}
-          </div>
-        </div>
-
       </div>
 
     </div>

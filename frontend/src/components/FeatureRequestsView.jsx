@@ -32,6 +32,16 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
 
   useEffect(() => {
     fetchFeatures();
+
+    const handleAddTrigger = (e) => {
+      if (e.detail.tab === 'features') {
+        setFormOpen(true);
+      }
+    };
+    window.addEventListener('trigger-add-action', handleAddTrigger);
+    return () => {
+      window.removeEventListener('trigger-add-action', handleAddTrigger);
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -126,55 +136,54 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
           <h2>Feature Requests</h2>
           <p>Submit and review community ideas for new features or updates.</p>
         </div>
-        <button 
-          className="btn btn-primary" 
-          onClick={() => setFormOpen(!formOpen)}
-          style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-        >
-          <Plus size={16} /> Submit Idea
-        </button>
       </div>
 
       {formOpen && (
-        <div className="card animate-slide-up">
-          <h3 style={{ fontSize: '1.1rem', fontWeight: '600', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Lightbulb size={18} style={{ color: 'var(--primary)' }} /> Request a Feature
-          </h3>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <div className="form-group">
-              <label htmlFor="feature-title">Title *</label>
-              <input 
-                id="feature-title"
-                type="text" 
-                className="input-control" 
-                placeholder="What is your idea?" 
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-              />
+        <div className="modal-overlay" onClick={() => setFormOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Request a Feature</h2>
+              <button className="close-btn" onClick={() => setFormOpen(false)}>×</button>
             </div>
-            <div className="form-group">
-              <label htmlFor="feature-desc">Description *</label>
-              <textarea 
-                id="feature-desc"
-                className="input-control" 
-                rows="4"
-                placeholder="Describe the feature, why it is useful, and how it should work..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                required
-                style={{ resize: 'vertical' }}
-              />
+
+            <div className="modal-body">
+              <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="form-group">
+                  <label htmlFor="feature-title">Title *</label>
+                  <input 
+                    id="feature-title"
+                    type="text" 
+                    className="input-control" 
+                    placeholder="What is your idea?" 
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="feature-desc">Description *</label>
+                  <textarea 
+                    id="feature-desc"
+                    className="input-control" 
+                    rows="6"
+                    placeholder="Describe the feature, why it is useful, and how it should work..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    required
+                    style={{ resize: 'vertical' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setFormOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? 'Submitting...' : 'Submit Request'}
+                  </button>
+                </div>
+              </form>
             </div>
-            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-              <button type="button" className="btn btn-outline" onClick={() => setFormOpen(false)}>
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary" disabled={submitting}>
-                {submitting ? 'Submitting...' : 'Submit Request'}
-              </button>
-            </div>
-          </form>
+          </div>
         </div>
       )}
 

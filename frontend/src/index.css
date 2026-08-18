@@ -665,8 +665,8 @@ select.input-control {
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 2);
-  width: 100%;
-  max-width: 480px;
+  width: 25vw;
+  max-width: 25vw;
   height: calc(100vh - 2rem); /* Float similarly to the navbar */
   margin: 1rem; /* Floating padding gap */
   box-shadow: var(--shadow-lg);
@@ -675,6 +675,22 @@ select.input-control {
   flex-direction: column;
   transform: translateX(calc(100% + 2rem));
   animation: modalSlideIn 0.25s forwards cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (max-width: 1200px) {
+  .modal-content {
+    width: 40vw;
+    max-width: 40vw;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-content {
+    width: 90vw;
+    max-width: 90vw;
+    margin: 0.5rem;
+    height: calc(100vh - 1rem);
+  }
 }
 
 .modal-content.closing {
@@ -1411,4 +1427,469 @@ input[type="checkbox"].switch-input:checked + .switch-control {
 
 input[type="checkbox"].switch-input:checked + .switch-control::after {
   transform: translateX(1.25rem); /* 20px */
+}
+
+
+/* --- COOKBOOK SPECIFIC CSS --- */
+
+/* Recipe Card details */
+.recipe-card-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-bottom: 1px solid var(--border);
+  margin-top: -1.75rem;
+  margin-left: -1.75rem;
+  margin-right: -1.75rem;
+  width: calc(100% + 3.5rem);
+}
+
+.recipe-placeholder-img {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, var(--primary-light), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  border-bottom: 1px solid var(--border);
+  margin-top: -1.75rem;
+  margin-left: -1.75rem;
+  margin-right: -1.75rem;
+  width: calc(100% + 3.5rem);
+}
+
+.recipe-meta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.badge-primary {
+  background: var(--primary-light);
+  color: var(--primary-foreground);
+}
+
+/* Dual Pane Layout (OCR, Edits) */
+.dual-pane {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+
+
+/* --- COOKBOOK SPECIFIC CSS --- */
+
+/* Recipe Card details */
+.recipe-card-img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  border-bottom: 1px solid var(--border);
+  margin-top: -1.75rem;
+  margin-left: -1.75rem;
+  margin-right: -1.75rem;
+  width: calc(100% + 3.5rem);
+}
+
+.recipe-placeholder-img {
+  width: 100%;
+  height: 200px;
+  background: linear-gradient(135deg, var(--primary-light), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  border-bottom: 1px solid var(--border);
+  margin-top: -1.75rem;
+  margin-left: -1.75rem;
+  margin-right: -1.75rem;
+  width: calc(100% + 3.5rem);
+}
+
+.recipe-meta-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: var(--radius);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.badge-primary {
+  background: var(--primary-light);
+  color: var(--primary-foreground);
+}
+
+/* Dual Pane Layout (OCR, Edits) */
+.dual-pane {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .dual-pane {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+}
+
+.recipe-ingredient-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  width: 100%;
+}
+.recipe-ingredient-row .ingredient-amount {
+  width: 80px;
+  flex-shrink: 0;
+}
+.recipe-ingredient-row .ingredient-unit {
+  width: 90px;
+  flex-shrink: 0;
+}
+.recipe-ingredient-row .ingredient-name {
+  flex: 1;
+}
+
+/* Planner Row Class */
+.planner-day-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 1fr 1fr;
+  align-items: center;
+  gap: 1.25rem;
+  min-width: 750px;
+}
+
+@media (max-width: 768px) {
+  /* Weekly Menu Planner Mobile Collapse Row layout */
+  .planner-day-row {
+    grid-template-columns: 1fr;
+    min-width: 0;
+    gap: 0.75rem;
+    padding: 1.25rem 1rem;
+  }
+  .planner-day-row h3 {
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .recipe-ingredient-row {
+    flex-wrap: wrap;
+    border-bottom: 1px dashed var(--border);
+    padding-bottom: 0.75rem;
+    margin-bottom: 0.25rem;
+  }
+  .recipe-ingredient-row .ingredient-amount {
+    width: calc(50% - 0.25rem) !important;
+    flex-grow: 1;
+  }
+  .recipe-ingredient-row .ingredient-unit {
+    width: calc(50% - 0.25rem) !important;
+    flex-grow: 1;
+  }
+  .recipe-ingredient-row .ingredient-name {
+    width: 100% !important;
+    flex: 1 1 100%;
+  }
+}
+
+/* Sidebar category header styling */
+.sidebar-category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.5rem 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--primary-foreground) 40%, transparent);
+  cursor: pointer;
+  user-select: none;
+  margin-top: 0.75rem;
+  border-radius: var(--radius);
+  transition: all 0.2s ease-in-out;
+}
+
+.sidebar-category-header:hover {
+  color: var(--primary-foreground);
+  background-color: color-mix(in srgb, var(--primary-foreground) 5%, transparent);
+}
+
+.sidebar-category-header svg {
+  color: currentColor;
+  transition: transform 0.2s ease-in-out;
+}
+
+/* Hide category headers when sidebar is collapsed */
+.sidebar.collapsed .sidebar-category-header {
+  display: none !important;
+}
+
+/* --- DASHBOARD WIDGET GRID STACK CUSTOM CSS --- */
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-auto-rows: 95px;
+  gap: 1.25rem;
+  min-height: 500px;
+  border-radius: var(--radius-md);
+  padding: 0.5rem;
+  transition: all var(--transition-normal);
+  position: relative;
+}
+
+/* Dotted grid lines background for Edit Mode */
+.dashboard-grid.editing {
+  background-size: calc((100% - 11 * 1.25rem) / 12 + 1.25rem) 95px;
+  background-image: 
+    linear-gradient(to right, var(--border-color) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--border-color) 1px, transparent 1px);
+  background-position: 0 0;
+  outline: 2px dashed var(--primary);
+  outline-offset: 4px;
+}
+
+/* Widget Card Custom Styling */
+.widget-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+.widget-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+}
+
+.widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 1.05rem;
+  background: var(--primary-light);
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  user-select: none;
+}
+
+.widget-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.widget-body {
+  padding: 0.85rem 1.05rem;
+  flex: 1;
+  overflow-y: auto;
+  font-size: 0.825rem;
+}
+
+/* Widget Controls overlay active in Edit Mode */
+.widget-controls-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(2px);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  padding: 0.5rem;
+}
+
+.theme-dark .widget-controls-overlay {
+  background: rgba(26, 28, 34, 0.95);
+}
+
+.widget-card.editing:hover .widget-controls-overlay,
+.widget-card.editing-focused .widget-controls-overlay {
+  opacity: 1;
+}
+
+.widget-card.dragging {
+  transition: none !important;
+  z-index: 1000 !important;
+  opacity: 0.85;
+  box-shadow: var(--shadow-lg);
+}
+
+.widget-card.dragging .widget-controls-overlay {
+  opacity: 0 !important;
+}
+
+.control-btn-group {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.control-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.control-btn:hover {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.control-btn.danger:hover {
+  background: var(--danger);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+/* Scrollbars for widget body */
+.widget-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.widget-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.widget-body::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 4px;
+}
+.widget-body::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* Shared mode full viewport overrides */
+.shared-dashboard-container {
+  min-height: 100vh;
+  background-color: var(--bg-app);
+  padding: 2.5rem;
+}
+
+/* Card theme styling with 75% opacity */
+.widget-card.theme-light {
+  background: rgba(255, 255, 255, 0.75) !important;
+  color: #1e293b !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  backdrop-filter: blur(8px);
+}
+.widget-card.theme-light .widget-header {
+  background: rgba(241, 245, 249, 0.85) !important;
+  color: #0f172a !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+}
+.widget-card.theme-light .widget-body {
+  color: #334155 !important;
+}
+.widget-card.theme-light h3, 
+.widget-card.theme-light h4, 
+.widget-card.theme-light .widget-title {
+  color: #0f172a !important;
+}
+.widget-card.theme-light p, 
+.widget-card.theme-light .text-muted,
+.widget-card.theme-light span,
+.widget-card.theme-light label {
+  color: #475569 !important;
+}
+.widget-card.theme-light a {
+  color: #2563eb !important;
+}
+.widget-card.theme-light .btn-outline {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+  color: #1e293b !important;
+}
+.widget-card.theme-light .btn-outline:hover {
+  background: rgba(0, 0, 0, 0.05) !important;
+}
+
+.widget-card.theme-dark {
+  background: rgba(15, 23, 42, 0.75) !important;
+  color: #f8fafc !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(8px);
+}
+.widget-card.theme-dark .widget-header {
+  background: rgba(30, 41, 59, 0.85) !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.widget-card.theme-dark .widget-body {
+  color: #cbd5e1 !important;
+}
+.widget-card.theme-dark h3, 
+.widget-card.theme-dark h4, 
+.widget-card.theme-dark .widget-title {
+  color: #ffffff !important;
+}
+.widget-card.theme-dark p, 
+.widget-card.theme-dark .text-muted,
+.widget-card.theme-dark span,
+.widget-card.theme-dark label {
+  color: #cbd5e1 !important;
+}
+.widget-card.theme-dark a {
+  color: #60a5fa !important;
+}
+.widget-card.theme-dark .btn-outline {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  color: #f8fafc !important;
+}
+.widget-card.theme-dark .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info } from 'lucide-react';
+import WordTemplateExport from './WordTemplateExport';
 
 const CATEGORIES_LABELS = {
   recipes: 'Create/Manage Recipes',
@@ -78,6 +79,13 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [oidcAutoProvision, setOidcAutoProvision] = useState(true);
   const [oidcDefaultRole, setOidcDefaultRole] = useState('Viewer');
 
+  // Google SSO Settings states
+  const [googleSsoEnabled, setGoogleSsoEnabled] = useState(false);
+  const [googleClientId, setGoogleClientId] = useState('');
+  const [googleClientSecret, setGoogleClientSecret] = useState('');
+  const [googleAutoProvision, setGoogleAutoProvision] = useState(true);
+  const [googleDefaultRole, setGoogleDefaultRole] = useState('Viewer');
+
   // Branding Settings states
   const [brandingIcon, setBrandingIcon] = useState('🍳');
   const [brandingLogo, setBrandingLogo] = useState('');
@@ -116,6 +124,88 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [apiKey, setApiKey] = useState(null);
   const [revealKey, setRevealKey] = useState(false);
   const [loadingApiKey, setLoadingApiKey] = useState(false);
+  
+  const [shareToken, setShareToken] = useState('');
+  const [revealShareToken, setRevealShareToken] = useState(false);
+  const [loadingShareToken, setLoadingShareToken] = useState(false);
+
+  const [cookbookUrl, setCookbookUrl] = useState('');
+  const [cookbookKey, setCookbookKey] = useState('');
+  const [libraryUrl, setLibraryUrl] = useState('');
+  const [libraryKey, setLibraryKey] = useState('');
+  const [homeUrl, setHomeUrl] = useState('');
+  const [homeKey, setHomeKey] = useState('');
+  const [taskUrl, setTaskUrl] = useState('');
+  const [taskKey, setTaskKey] = useState('');
+  const [unsplashKey, setUnsplashKey] = useState('');
+  const [unsplashAppId, setUnsplashAppId] = useState('');
+  const [unsplashSecret, setUnsplashSecret] = useState('');
+  const [weatherLocation, setWeatherLocation] = useState('10001');
+  const [weatherUnit, setWeatherUnit] = useState('fahrenheit');
+  const [savingIntegrations, setSavingIntegrations] = useState(false);
+
+  const [dashboardRefreshInterval, setDashboardRefreshInterval] = useState('disabled');
+  const [dashboardBgType, setDashboardBgType] = useState('theme');
+  const [dashboardBgValue, setDashboardBgValue] = useState('');
+  const [dashboardBgUnsplashKeywords, setDashboardBgUnsplashKeywords] = useState('');
+  const [uploadingBg, setUploadingBg] = useState(false);
+
+  const [calendarEventColor, setCalendarEventColor] = useState('#3b82f6');
+  const [calendarTaskColor, setCalendarTaskColor] = useState('#10b981');
+  const [calendarBillColor, setCalendarBillColor] = useState('#ef4444');
+  const [calendarSubColor, setCalendarSubColor] = useState('#8b5cf6');
+
+  const fetchShareToken = async () => {
+    setLoadingShareToken(true);
+    try {
+      const res = await fetch('/api/settings/share-token');
+      if (res.ok) {
+        const data = await res.json();
+        setShareToken(data.share_token || '');
+      }
+    } catch (e) {
+      console.error('Error fetching share token:', e);
+    } finally {
+      setLoadingShareToken(false);
+    }
+  };
+
+  const handleGenerateShareToken = async () => {
+    setLoadingShareToken(true);
+    try {
+      const res = await fetch('/api/settings/share-token', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        setShareToken(data.share_token);
+        showToast('Shared dashboard token generated successfully!', 'success');
+      } else {
+        throw new Error(data.error || 'Failed to generate token');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoadingShareToken(false);
+    }
+  };
+
+  const handleRevokeShareToken = async () => {
+    if (!window.confirm('Are you sure you want to revoke the shared dashboard token? The public read-only link will stop working immediately.')) return;
+    setLoadingShareToken(true);
+    try {
+      const res = await fetch('/api/settings/share-token', { method: 'DELETE' });
+      if (res.ok) {
+        setShareToken('');
+        showToast('Shared dashboard token revoked successfully!', 'success');
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to revoke token');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setLoadingShareToken(false);
+    }
+  };
 
   // Fetch API key helper
   const fetchApiKey = async () => {
@@ -191,6 +281,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   useEffect(() => {
     if (activeSubTab === 'integrations' && currentUser?.role_name === 'Administrator') {
       fetchApiKey();
+      fetchShareToken();
     }
   }, [activeSubTab]);
 
@@ -225,6 +316,19 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   // Toggles
   const [notifySubscriptionDueToday, setNotifySubscriptionDueToday] = useState(false);
   const [notifyBillDueToday, setNotifyBillDueToday] = useState(false);
+  const [notifyRecipeAdded, setNotifyRecipeAdded] = useState(false);
+  const [notifyRecipeDeleted, setNotifyRecipeDeleted] = useState(false);
+  const [notifyMealPlanUpdated, setNotifyMealPlanUpdated] = useState(false);
+  const [notifyLeftoversAdded, setNotifyLeftoversAdded] = useState(false);
+  const [notifyLeftoversExpiring, setNotifyLeftoversExpiring] = useState(false);
+  const [notifyInventoryExpiring, setNotifyInventoryExpiring] = useState(false);
+  const [notifyLeftoversExpiryDays, setNotifyLeftoversExpiryDays] = useState(2);
+  const [notifyInventoryExpiryDays, setNotifyInventoryExpiryDays] = useState(3);
+  const [notifyBookAdded, setNotifyBookAdded] = useState(false);
+  const [notifyBookDeleted, setNotifyBookDeleted] = useState(false);
+  const [notifyLogAdded, setNotifyLogAdded] = useState(false);
+  const [notifyBookStarted, setNotifyBookStarted] = useState(false);
+  const [notifyBookCompleted, setNotifyBookCompleted] = useState(false);
   
   // Log list
   const [notificationLogs, setNotificationLogs] = useState([]);
@@ -248,6 +352,19 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setNotifyWebhookSecret(data.notify_webhook_secret || '');
         setNotifySubscriptionDueToday(data.notify_subscription_due_today === 'true');
         setNotifyBillDueToday(data.notify_bill_due_today === 'true');
+        setNotifyRecipeAdded(data.notify_recipe_added === 'true');
+        setNotifyRecipeDeleted(data.notify_recipe_deleted === 'true');
+        setNotifyMealPlanUpdated(data.notify_meal_plan_updated === 'true');
+        setNotifyLeftoversAdded(data.notify_leftovers_added === 'true');
+        setNotifyLeftoversExpiring(data.notify_leftovers_expiring === 'true');
+        setNotifyInventoryExpiring(data.notify_inventory_expiring === 'true');
+        setNotifyLeftoversExpiryDays(parseInt(data.notify_leftovers_expiry_days, 10) || 2);
+        setNotifyInventoryExpiryDays(parseInt(data.notify_inventory_expiry_days, 10) || 3);
+        setNotifyBookAdded(data.notify_book_added === 'true');
+        setNotifyBookDeleted(data.notify_book_deleted === 'true');
+        setNotifyLogAdded(data.notify_log_added === 'true');
+        setNotifyBookStarted(data.notify_book_started === 'true');
+        setNotifyBookCompleted(data.notify_book_completed === 'true');
 
         setFrNotifySmtpEnabled(data.fr_notify_smtp_enabled === 'true');
         setFrNotifySmtpTo(data.fr_notify_smtp_to || '');
@@ -300,7 +417,20 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         notify_webhook_secret: notifyWebhookSecret.trim(),
         notify_subscription_due_today: String(notifySubscriptionDueToday),
         notify_bill_due_today: String(notifyBillDueToday),
-
+        notify_recipe_added: String(notifyRecipeAdded),
+        notify_recipe_deleted: String(notifyRecipeDeleted),
+        notify_meal_plan_updated: String(notifyMealPlanUpdated),
+        notify_leftovers_added: String(notifyLeftoversAdded),
+        notify_leftovers_expiring: String(notifyLeftoversExpiring),
+        notify_inventory_expiring: String(notifyInventoryExpiring),
+        notify_leftovers_expiry_days: String(notifyLeftoversExpiryDays),
+        notify_inventory_expiry_days: String(notifyInventoryExpiryDays),
+        notify_book_added: String(notifyBookAdded),
+        notify_book_deleted: String(notifyBookDeleted),
+        notify_log_added: String(notifyLogAdded),
+        notify_book_started: String(notifyBookStarted),
+        notify_book_completed: String(notifyBookCompleted),
+        
         fr_notify_smtp_enabled: String(frNotifySmtpEnabled),
         fr_notify_smtp_to: frNotifySmtpTo.trim(),
         fr_notify_discord_enabled: String(frNotifyDiscordEnabled),
@@ -390,11 +520,42 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setOidcRedirectUri(data.oidc_redirect_uri || '');
         setOidcAutoProvision(data.oidc_auto_provision !== 'false');
         setOidcDefaultRole(data.oidc_default_role || 'Viewer');
+
+        setGoogleSsoEnabled(data.google_sso_enabled === 'true');
+        setGoogleClientId(data.google_client_id || '');
+        setGoogleClientSecret(data.google_client_secret || '');
+        setGoogleAutoProvision(data.google_auto_provision !== 'false');
+        setGoogleDefaultRole(data.google_default_role || 'Viewer');
+
         setBrandingIcon(data.branding_icon !== undefined ? data.branding_icon : '🍳');
         setBrandingLogo(data.branding_logo || '');
         setBrandingLogoLight(data.branding_logo_light || '');
         setBrandingLogoDark(data.branding_logo_dark || '');
         setBrandingFavicon(data.branding_favicon || '');
+
+        setCookbookUrl(data.cookbook_url || '');
+        setCookbookKey(data.cookbook_key || '');
+        setLibraryUrl(data.library_url || '');
+        setLibraryKey(data.library_key || '');
+        setHomeUrl(data.home_url || '');
+        setHomeKey(data.home_key || '');
+        setTaskUrl(data.task_url || '');
+        setTaskKey(data.task_key || '');
+        setUnsplashKey(data.unsplash_key || '');
+        setUnsplashAppId(data.unsplash_app_id || '');
+        setUnsplashSecret(data.unsplash_secret || '');
+        setWeatherLocation(data.weather_location || '10001');
+        setWeatherUnit(data.weather_unit || 'fahrenheit');
+
+        setDashboardRefreshInterval(data.dashboard_refresh_interval || 'disabled');
+        setDashboardBgType(data.dashboard_bg_type || 'theme');
+        setDashboardBgValue(data.dashboard_bg_value || '');
+        setDashboardBgUnsplashKeywords(data.dashboard_bg_unsplash_keywords || '');
+
+        setCalendarEventColor(data.calendar_event_color || '#3b82f6');
+        setCalendarTaskColor(data.calendar_task_color || '#10b981');
+        setCalendarBillColor(data.calendar_bill_color || '#ef4444');
+        setCalendarSubColor(data.calendar_sub_color || '#8b5cf6');
       }
 
       if (canReadUsers) {
@@ -429,65 +590,147 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     setSaving(true);
 
     try {
-      // Normalize and validate primaryColor hex code
-      let validatedColor = primaryColor.trim();
-      if (!validatedColor) {
-        validatedColor = '#d35400';
-      } else {
-        if (!validatedColor.startsWith('#')) {
-          validatedColor = '#' + validatedColor;
-        }
-        // Expand 3-digit hex to 6-digit hex if needed
-        if (/^#[0-9A-Fa-f]{3}$/.test(validatedColor)) {
-          validatedColor = '#' + validatedColor[1] + validatedColor[1] + validatedColor[2] + validatedColor[2] + validatedColor[3] + validatedColor[3];
-        }
-        const hexRegex = /^#[0-9A-Fa-f]{6}$/;
-        if (!hexRegex.test(validatedColor)) {
-          throw new Error('Please enter a valid hex color code (e.g. #7B0000 or #333).');
-        }
-      }
-
-      // Update local state to show the validated, normalized color code
-      setPrimaryColor(validatedColor);
-
-      // 1. Update personal profile primary color, theme, display name, and timezone
-      const profileRes = await fetch('/api/users/profile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ primary_color: validatedColor, theme: theme, display_name: displayName, timezone: timezone })
-      });
-      if (!profileRes.ok) throw new Error('Failed to save personal settings');
-
-      // 2. Update global settings if user has permission
       const canSaveGlobal = canManageGeneral || currentUser?.permissions?.roles === 'full';
       if (canSaveGlobal) {
         if (!appName.trim()) {
           throw new Error('App Name cannot be empty.');
         }
         const globalPayload = {
-          app_name: appName.trim(),
-          theme: theme
+          app_name: appName.trim()
         };
         const globalRes = await fetch('/api/settings', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(globalPayload)
         });
-        if (!globalRes.ok) throw new Error('Failed to save global branding settings');
-      }
+        if (!globalRes.ok) throw new Error('Failed to save global app settings');
 
-      showToast('Settings saved successfully!');
-      onSettingsChange({
-        appName: canSaveGlobal ? appName.trim() : undefined,
-        primaryColor: validatedColor,
-        theme: theme,
-        displayName: displayName,
-        timezone: timezone
-      });
+        showToast('System settings saved successfully!');
+        if (onSettingsChange) {
+          onSettingsChange({
+            appName: appName.trim()
+          });
+        }
+      } else {
+        throw new Error('You do not have permission to modify system-wide settings.');
+      }
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveIntegrations = async (e) => {
+    e.preventDefault();
+    setSavingIntegrations(true);
+    try {
+      const payload = {
+        cookbook_url: cookbookUrl.trim(),
+        cookbook_key: cookbookKey,
+        library_url: libraryUrl.trim(),
+        library_key: libraryKey,
+        home_url: homeUrl.trim(),
+        home_key: homeKey,
+        task_url: taskUrl.trim(),
+        task_key: taskKey,
+        unsplash_key: unsplashKey,
+        unsplash_app_id: unsplashAppId.trim(),
+        unsplash_secret: unsplashSecret,
+        weather_location: weatherLocation.trim(),
+        weather_unit: weatherUnit
+      };
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        showToast('Integration settings saved successfully!', 'success');
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to save integration settings');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSavingIntegrations(false);
+    }
+  };
+
+  const handleSaveDashboardSettings = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = {
+        dashboard_refresh_interval: dashboardRefreshInterval,
+        dashboard_bg_type: dashboardBgType,
+        dashboard_bg_value: dashboardBgValue,
+        dashboard_bg_unsplash_keywords: dashboardBgUnsplashKeywords
+      };
+
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (res.ok) {
+        showToast('Dashboard settings saved successfully!', 'success');
+        onSettingsChange({});
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to save settings');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUploadBgImage = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const formData = new FormData();
+    formData.append('background', file);
+
+    setUploadingBg(true);
+    try {
+      const res = await fetch('/api/settings/dashboard/background', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDashboardBgValue(data.backgroundUrl);
+        showToast('Background image uploaded successfully! Save settings to apply.');
+      } else {
+        throw new Error(data.error || 'Upload failed');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setUploadingBg(false);
+    }
+  };
+
+  const handleDeleteBgImage = async () => {
+    if (!window.confirm('Are you sure you want to delete the custom background image?')) return;
+    try {
+      const res = await fetch('/api/settings/dashboard/background', { method: 'DELETE' });
+      if (res.ok) {
+        setDashboardBgValue('');
+        showToast('Custom background image removed.');
+      } else {
+        const data = await res.json();
+        throw new Error(data.error || 'Delete failed');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   };
 
@@ -502,7 +745,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         oidc_tenant_id: oidcTenantId.trim(),
         oidc_redirect_uri: oidcRedirectUri.trim(),
         oidc_auto_provision: String(oidcAutoProvision),
-        oidc_default_role: oidcDefaultRole
+        oidc_default_role: oidcDefaultRole,
+        google_sso_enabled: String(googleSsoEnabled),
+        google_client_id: googleClientId.trim(),
+        google_client_secret: googleClientSecret.trim(),
+        google_auto_provision: String(googleAutoProvision),
+        google_default_role: googleDefaultRole
       };
       const res = await fetch('/api/settings', {
         method: 'POST',
@@ -836,14 +1084,30 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await fetch('/api/users/profile', {
+      if (currentUser?.auth_provider === 'sso') {
+        const res = await fetch('/api/users/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ calendar_guid: calendarGuid.trim() })
+        });
+        if (!res.ok) throw new Error('Failed to save calendar GUID');
+      }
+
+      const colorPayload = {
+        calendar_event_color: calendarEventColor,
+        calendar_task_color: calendarTaskColor,
+        calendar_bill_color: calendarBillColor,
+        calendar_sub_color: calendarSubColor
+      };
+
+      const settingsRes = await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ calendar_guid: calendarGuid.trim() })
+        body: JSON.stringify(colorPayload)
       });
-      if (!res.ok) throw new Error('Failed to save calendar GUID');
-      
-      showToast('Calendar settings saved successfully!');
+      if (!settingsRes.ok) throw new Error('Failed to save calendar color settings');
+
+      showToast('Calendar settings saved successfully!', 'success');
       onSettingsChange({ calendarGuid: calendarGuid.trim() });
     } catch (err) {
       showToast(err.message, 'error');
@@ -908,293 +1172,148 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       </div>
 
 
-
-      {/* GENERAL APP SETTINGS TAB */}
-      {activeSubTab === 'general' && (
+      {/* DASHBOARD LAYOUT TAB */}
+      {activeSubTab === 'dashboard' && canReadGeneral && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           <div className="card">
-            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <Settings size={18} style={{ color: 'var(--primary)' }} />
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Dashboard Layout Settings</h3>
+            </div>
             
-            <div className="form-group">
-              <label htmlFor="settings-display-name" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <User size={16} /> Display Name
-              </label>
-              <input 
-                id="settings-display-name"
-                type="text" 
-                className="input-control" 
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="e.g. Joshua"
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                This is how your name will appear throughout the application (e.g. in greetings).
-              </span>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="settings-timezone" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Clock size={16} /> Preferred Time Zone
-              </label>
-              <select 
-                id="settings-timezone"
-                className="input-control" 
-                value={timezone}
-                onChange={(e) => setTimezone(e.target.value)}
-              >
-                <option value="US/New_York">Eastern Time (US/New_York)</option>
-                <option value="US/Central">Central Time (US/Central)</option>
-                <option value="US/Mountain">Mountain Time (US/Mountain)</option>
-                <option value="US/Pacific">Pacific Time (US/Pacific)</option>
-                <option value="US/Alaska">Alaska/Anchorage Time (US/Alaska)</option>
-                <option value="US/Hawaii">Hawaii Time (US/Hawaii)</option>
-                <option value="UTC">Coordinated Universal Time (UTC)</option>
-              </select>
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                This time zone is used to schedule events on your synchronized Microsoft 365 Calendar.
-              </span>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="settings-app-name" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Settings size={16} /> Custom App Name
-              </label>
-              <input 
-                id="settings-app-name"
-                type="text" 
-                className="input-control" 
-                value={appName}
-                onChange={(e) => setAppName(e.target.value)}
-                placeholder="e.g. WagnerTech Portal"
-                required 
-                disabled={!canManageGeneral && currentUser?.permissions?.roles !== 'full'} // settings save endpoint mapped to roles write access
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                This modifies the application title displayed in the sidebar.
-              </span>
-            </div>
-
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Palette size={16} /> Theme Accent Color
-              </label>
-              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                <div 
-                  style={{ 
-                    position: 'relative',
-                    width: '44px', 
-                    height: '44px', 
-                    borderRadius: '50%', 
-                    overflow: 'hidden',
-                    border: '1px solid var(--border)',
-                    boxShadow: 'var(--shadow-sm)',
-                    flexShrink: 0
-                  }}
+            <form onSubmit={handleSaveDashboardSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div className="form-group">
+                <label htmlFor="dashboard-refresh-interval">Auto-Refresh Interval</label>
+                <select
+                  id="dashboard-refresh-interval"
+                  className="input-control"
+                  value={dashboardRefreshInterval}
+                  onChange={(e) => setDashboardRefreshInterval(e.target.value)}
+                  disabled={!canManageGeneral}
                 >
-                  <input 
-                    type="color" 
-                    value={getValidColorPickerValue(primaryColor)}
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    style={{ 
-                      position: 'absolute', 
-                      top: '-10px', 
-                      left: '-10px', 
-                      width: '64px', 
-                      height: '64px', 
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
-                    title="Choose accent color"
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>Accent Color Hex:</span>
-                    <input 
-                      type="text" 
-                      value={primaryColor} 
-                      onChange={(e) => setPrimaryColor(e.target.value)}
-                      placeholder="#d35400"
-                      maxLength={7}
-                      style={{ 
-                        width: '90px', 
-                        padding: '0.25rem 0.5rem', 
-                        borderRadius: 'var(--radius)', 
-                        border: '1px solid var(--border)', 
-                        background: 'var(--background)', 
-                        color: 'var(--foreground)', 
-                        fontFamily: 'monospace',
-                        fontWeight: '600',
-                        fontSize: '0.8125rem' 
-                      }}
-                      title="Accent Color hex code"
-                    />
+                  <option value="disabled">Disabled</option>
+                  <option value="10">10 Seconds</option>
+                  <option value="30">30 Seconds</option>
+                  <option value="60">1 Minute</option>
+                  <option value="120">2 Minutes</option>
+                  <option value="300">5 Minutes</option>
+                  <option value="600">10 Minutes</option>
+                  <option value="1800">30 Minutes</option>
+                </select>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                  Set how often widgets automatically refresh their data.
+                </span>
+              </div>
+
+              <div className="form-group">
+                <label style={{ marginBottom: '0.5rem' }}>Dashboard Background</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.5rem' }}>
+                    {[
+                      { value: 'theme', label: 'Theme Default' },
+                      { value: 'light', label: 'Solid Light' },
+                      { value: 'dark', label: 'Solid Dark' },
+                      { value: 'unsplash', label: 'Unsplash Random' },
+                      { value: 'upload', label: 'Custom Upload' }
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        className={`btn ${dashboardBgType === opt.value ? 'btn-primary' : 'btn-outline'}`}
+                        onClick={() => setDashboardBgType(opt.value)}
+                        style={{ padding: '0.5rem', fontSize: '0.8rem' }}
+                        disabled={!canManageGeneral}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                    Use the color selector or enter a hex code to customize highlights, badges, and accents.
-                  </span>
+
+                  {dashboardBgType === 'unsplash' && (
+                    <div className="card" style={{ padding: '1rem', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--muted)' }}>
+                      <div className="form-group">
+                        <label htmlFor="unsplash-keywords" style={{ fontSize: '0.8rem' }}>Unsplash Keywords</label>
+                        <input
+                          id="unsplash-keywords"
+                          type="text"
+                          className="input-control"
+                          placeholder="e.g. nature, space, minimalist"
+                          value={dashboardBgUnsplashKeywords}
+                          onChange={(e) => setDashboardBgUnsplashKeywords(e.target.value)}
+                          disabled={!canManageGeneral}
+                        />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                          Comma-separated keywords to filter random backgrounds.
+                        </span>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        style={{ alignSelf: 'flex-start', padding: '0.35rem 0.75rem', display: 'flex', gap: '0.35rem', alignItems: 'center', fontSize: '0.75rem' }}
+                        onClick={() => {
+                          const newSig = Date.now().toString();
+                          setDashboardBgValue(newSig);
+                          showToast('Unsplash signature rotated. Save settings to apply.');
+                        }}
+                        disabled={!canManageGeneral}
+                      >
+                        <RotateCcw size={12} /> Force Next Image
+                      </button>
+                    </div>
+                  )}
+
+                  {dashboardBgType === 'upload' && (
+                    <div className="card" style={{ padding: '1rem', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--muted)' }}>
+                      {dashboardBgValue && dashboardBgValue.startsWith('/uploads/') ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <span style={{ fontSize: '0.8rem' }}>Current Background Image:</span>
+                          <div style={{ position: 'relative', width: '100%', maxHeight: '150px', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                            <img src={dashboardBgValue} alt="Custom Background" style={{ width: '100%', height: '150px', objectFit: 'cover' }} />
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              onClick={handleDeleteBgImage}
+                              style={{ position: 'absolute', top: '0.5rem', right: '0.5rem', background: 'var(--popover)', color: 'var(--destructive)', padding: '0.25rem 0.5rem', fontSize: '0.7rem', borderColor: 'var(--destructive)' }}
+                              disabled={!canManageGeneral}
+                            >
+                              <Trash2 size={10} /> Delete Image
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          <label htmlFor="bg-image-upload" style={{ fontSize: '0.8rem' }}>Upload Background Image</label>
+                          <input
+                            id="bg-image-upload"
+                            type="file"
+                            accept="image/*"
+                            onChange={handleUploadBgImage}
+                            disabled={uploadingBg || !canManageGeneral}
+                            style={{ fontSize: '0.8rem' }}
+                          />
+                          {uploadingBg && <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>Uploading background...</span>}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
 
-            <div className="form-group">
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
-                Theme Mode
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginTop: '0.125rem' }}>
-                <div 
-                  onClick={() => setTheme('system')}
-                  style={{ 
-                    padding: '0.75rem', 
-                    border: `1px solid ${theme === 'system' ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.375rem',
-                    background: theme === 'system' ? 'var(--accent)' : 'transparent',
-                    transition: 'var(--transition-fast)'
-                  }}
+              {canManageGeneral && (
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ alignSelf: 'flex-start', display: 'flex', gap: '0.35rem', alignItems: 'center' }}
+                  disabled={saving}
                 >
-                  <Laptop size={16} style={{ color: 'var(--foreground)' }} />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: '500' }}>System</span>
-                </div>
-
-                <div 
-                  onClick={() => setTheme('light')}
-                  style={{ 
-                    padding: '0.75rem', 
-                    border: `1px solid ${theme === 'light' ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.375rem',
-                    background: theme === 'light' ? 'var(--accent)' : 'transparent',
-                    transition: 'var(--transition-fast)'
-                  }}
-                >
-                  <Sun size={16} style={{ color: 'var(--foreground)' }} />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: '500' }}>Light</span>
-                </div>
-
-                <div 
-                  onClick={() => setTheme('dark')}
-                  style={{ 
-                    padding: '0.75rem', 
-                    border: `1px solid ${theme === 'dark' ? 'var(--primary)' : 'var(--border)'}`,
-                    borderRadius: 'var(--radius)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: '0.375rem',
-                    background: theme === 'dark' ? 'var(--accent)' : 'transparent',
-                    transition: 'var(--transition-fast)'
-                  }}
-                >
-                  <Moon size={16} style={{ color: 'var(--foreground)' }} />
-                  <span style={{ fontSize: '0.8125rem', fontWeight: '500' }}>Dark</span>
-                </div>
-              </div>
-            </div>
-
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '0.25rem 0' }} />
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button 
-                type="button" 
-                className="btn btn-outline" 
-                onClick={handleResetSettings} 
-                style={{ gap: '0.25rem' }}
-                disabled={saving}
-              >
-                <RotateCcw size={14} /> Reset defaults
-              </button>
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
-                style={{ gap: '0.5rem' }}
-                disabled={saving}
-              >
-                <Save size={16} /> {saving ? 'Saving...' : 'Save Settings'}
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Local User Password Reset Form */}
-        {currentUser?.auth_provider === 'local' && (
-          <div className="card">
-            <h3 style={{ marginBottom: '0.5rem', fontSize: '1.125rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
-              <Lock size={18} /> Reset Your Password
-            </h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem' }}>
-              Change the password you use to log in to the application.
-            </p>
-            
-            <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label htmlFor="current-password">Current Password *</label>
-                <input 
-                  id="current-password"
-                  type="password" 
-                  className="input-control" 
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="new-password">New Password *</label>
-                <input 
-                  id="new-password"
-                  type="password" 
-                  className="input-control" 
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="confirm-password">Confirm New Password *</label>
-                <input 
-                  id="confirm-password"
-                  type="password" 
-                  className="input-control" 
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                />
-              </div>
-              
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
-                style={{ alignSelf: 'flex-start', marginTop: '0.25rem' }} 
-                disabled={resettingPassword}
-              >
-                {resettingPassword ? 'Updating...' : 'Update Password'}
-              </button>
+                  <Save size={14} /> Save Dashboard Settings
+                </button>
+              )}
             </form>
           </div>
-        )}
-
-        {/* SSO User Notice */}
-        {currentUser?.auth_provider === 'sso' && (
-          <div className="card" style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-            <Shield size={28} style={{ color: 'var(--primary)' }} />
-            <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>M365 Single Sign-On Active</h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', maxWidth: '460px', margin: 0, lineHeight: '1.5' }}>
-              Your account is managed via Microsoft 365 Single Sign-On. 
-              Passwords and directory settings must be managed by your organization's IT department.
-            </p>
-          </div>
-        )}
-      </div>
-    )}
+        </div>
+      )}
 
       {/* USER MANAGEMENT TAB */}
       {activeSubTab === 'users' && canReadUsers && (
@@ -1643,6 +1762,94 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               </span>
             </div>
 
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.25rem 0' }} />
+
+            <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', fontWeight: '600' }}>
+              Google Single Sign-On (OAuth 2.0)
+            </h3>
+
+            <div className="form-group">
+              <label className="switch-container">
+                <input 
+                  id="google-sso-enabled"
+                  type="checkbox"
+                  className="switch-input"
+                  checked={googleSsoEnabled}
+                  onChange={(e) => setGoogleSsoEnabled(e.target.checked)}
+                />
+                <div className="switch-control" />
+                <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Enable Google OAuth SSO</span>
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="google-client-id">Client ID *</label>
+              <input 
+                id="google-client-id"
+                type="text" 
+                className="input-control" 
+                value={googleClientId}
+                onChange={(e) => setGoogleClientId(e.target.value)}
+                placeholder="Enter Google OAuth Client ID"
+                required={googleSsoEnabled} 
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="google-secret">Client Secret *</label>
+              <input 
+                id="google-secret"
+                type="password" 
+                className="input-control" 
+                value={googleClientSecret}
+                onChange={(e) => setGoogleClientSecret(e.target.value)}
+                placeholder="Enter Google OAuth Client Secret"
+                required={googleSsoEnabled} 
+              />
+            </div>
+
+            <div className="form-group">
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                Configure redirect URI in Google API Console. Authorized redirect URI: <strong>{window.location.origin}/api/auth/google/callback</strong>
+              </span>
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '0.25rem 0' }} />
+
+            <h4 style={{ fontSize: '1rem', margin: 0, fontWeight: '600' }}>Google User Provisioning & Roles</h4>
+
+            <div className="form-group">
+              <label className="switch-container">
+                <input 
+                  id="google-provision"
+                  type="checkbox"
+                  className="switch-input"
+                  checked={googleAutoProvision}
+                  onChange={(e) => setGoogleAutoProvision(e.target.checked)}
+                />
+                <div className="switch-control" />
+                <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Auto-provision new users on Google login</span>
+              </label>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="google-default-role">Default Assigned Role</label>
+              <select 
+                id="google-default-role"
+                className="input-control"
+                value={googleDefaultRole}
+                onChange={(e) => setGoogleDefaultRole(e.target.value)}
+                disabled={!googleAutoProvision}
+              >
+                {roles.map(role => (
+                  <option key={role.id} value={role.name}>{role.name}</option>
+                ))}
+              </select>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                New accounts created via Google login will automatically be assigned this role.
+              </span>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
               <button 
                 type="submit" 
@@ -1660,6 +1867,38 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       {activeSubTab === 'branding' && canManageRoles && (
         <div className="card">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.75rem' }}>
+            
+            {/* Custom App Name */}
+            <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>App Name Settings</h3>
+              
+              <div className="form-group" style={{ maxWidth: '400px' }}>
+                <label htmlFor="settings-app-name">Custom App Name</label>
+                <input 
+                  id="settings-app-name"
+                  type="text" 
+                  className="input-control" 
+                  value={appName}
+                  onChange={(e) => setAppName(e.target.value)}
+                  placeholder="e.g. WagnerTech Portal"
+                  required 
+                  disabled={!canManageGeneral && currentUser?.permissions?.roles !== 'full'}
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                  This modifies the application title displayed in the sidebar.
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  disabled={saving || (!canManageGeneral && currentUser?.permissions?.roles !== 'full')}
+                >
+                  Save App Name
+                </button>
+              </div>
+            </form>
             
             {/* Title Icon Customization */}
             <form onSubmit={handleSaveBrandingIcon} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1.5rem' }}>
@@ -1859,132 +2098,426 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       )}
 
       {/* CALENDAR SETTINGS TAB */}
-      {activeSubTab === 'calendar' && currentUser?.auth_provider === 'sso' && canReadCalendar && (
-        <div className="card">
-          <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px' }}>
-            <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
-              <Calendar size={18} /> Microsoft Calendar Sync Settings
-            </h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
-              Configure which Microsoft 365 calendar you want your events to sync to.
-            </p>
-
-            <div className="form-group">
-              <label htmlFor="calendar-guid-input">Calendar GUID / ID</label>
-              <input 
-                id="calendar-guid-input"
-                type="text" 
-                className="input-control" 
-                value={calendarGuid}
-                onChange={(e) => setCalendarGuid(e.target.value)}
-                placeholder="e.g. AAMkAGI2TAAA="
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                Leave this field blank to use your default <strong>M365 Calendar</strong>.
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-              <button 
-                type="submit" 
-                className="btn btn-primary" 
-                style={{ gap: '0.5rem' }}
-                disabled={saving}
+      {activeSubTab === 'calendar' && canReadCalendar && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {(() => {
+            const isSSO = currentUser?.auth_provider === 'sso';
+            return (
+              <div 
+                className="card" 
+                style={{ 
+                  opacity: isSSO ? 1 : 0.6, 
+                  position: 'relative'
+                }}
               >
-                <Save size={16} /> {saving ? 'Saving...' : 'Save Calendar Settings'}
-              </button>
-            </div>
+                {!isSSO && (
+                  <div style={{
+                    marginBottom: '1.5rem',
+                    padding: '0.75rem 1rem',
+                    background: 'var(--muted)',
+                    borderRadius: 'var(--radius)',
+                    border: '1px solid var(--border)',
+                    fontSize: '0.8125rem',
+                    color: 'var(--muted-foreground)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <Info size={16} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+                    <span>Microsoft Calendar Sync Settings are only available for accounts authenticated via Microsoft 365 Single Sign-On.</span>
+                  </div>
+                )}
+                <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px', pointerEvents: isSSO ? 'auto' : 'none' }}>
+                  <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+                    <Calendar size={18} /> Microsoft Calendar Sync Settings
+                  </h3>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
+                    Configure which Microsoft 365 calendar you want your events to sync to.
+                  </p>
 
-            {/* Available Calendars Section */}
-            <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '600' }}>Available M365 Calendars</h4>
-                <button 
-                  type="button" 
-                  className="btn btn-outline" 
-                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem' }}
-                  onClick={async () => {
-                    const tokenVal = localStorage.getItem('token') || '';
-                    try {
-                      const res = await fetch('/api/users/calendars', {
-                        headers: {
-                          'Authorization': `Bearer ${tokenVal}`
-                        }
-                      });
-                      if (res.ok) {
-                        const data = await res.json();
-                        setAvailableCalendars(data.calendars || []);
-                        showToast('Successfully loaded available calendars!', 'success');
-                      } else if (res.status === 401) {
-                        // Redirect as fallback
-                        window.location.href = `/api/auth/ms-calendar/list-login?token=${encodeURIComponent(tokenVal)}`;
-                      } else {
-                        const errData = await res.json();
-                        throw new Error(errData.error || 'Failed to load calendars');
-                      }
-                    } catch (err) {
-                      showToast('Failed to load calendars: ' + err.message, 'error');
-                    }
-                  }}
-                >
-                  {availableCalendars.length > 0 ? 'Refresh List' : 'Load Calendars from Microsoft'}
-                </button>
-              </div>
+                  <div className="form-group">
+                    <label htmlFor="calendar-guid-input">Calendar GUID / ID</label>
+                    <input 
+                      id="calendar-guid-input"
+                      type="text" 
+                      className="input-control" 
+                      value={calendarGuid}
+                      onChange={(e) => setCalendarGuid(e.target.value)}
+                      placeholder="e.g. AAMkAGI2TAAA="
+                      disabled={!isSSO}
+                    />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                      Leave this field blank to use your default <strong>M365 Calendar</strong>.
+                    </span>
+                  </div>
 
-              {availableCalendars.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                  {availableCalendars.map(cal => (
-                    <div 
-                      key={cal.id} 
-                      style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center', 
-                        padding: '0.5rem 0.75rem', 
-                        border: '1px solid var(--border)', 
-                        borderRadius: 'var(--radius)',
-                        background: 'var(--muted)',
-                        gap: '0.75rem'
-                      }}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                    <button 
+                      type="submit" 
+                      className="btn btn-primary" 
+                      style={{ gap: '0.5rem' }}
+                      disabled={saving || !isSSO}
                     >
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', overflow: 'hidden' }}>
-                        <span style={{ fontWeight: '600', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                          {cal.name}
-                          {cal.isDefault && (
-                            <span className="badge badge-primary" style={{ fontSize: '0.5625rem', padding: '0.05rem 0.3rem' }}>Default</span>
-                          )}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }} title={cal.id}>
-                          ID: {cal.id}
-                        </span>
-                      </div>
+                      <Save size={16} /> {saving ? 'Saving...' : 'Save Calendar Settings'}
+                    </button>
+                  </div>
+
+                  {/* Available Calendars Section */}
+                  <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                      <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '600' }}>Available M365 Calendars</h4>
                       <button 
                         type="button" 
                         className="btn btn-outline" 
-                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem', flexShrink: 0 }}
-                        onClick={() => {
-                          setCalendarGuid(cal.id);
-                          showToast(`Selected "${cal.name}" calendar. Don't forget to click Save!`, 'success');
+                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem' }}
+                        disabled={!isSSO}
+                        onClick={async () => {
+                          const tokenVal = localStorage.getItem('token') || '';
+                          try {
+                            const res = await fetch('/api/users/calendars', {
+                              headers: {
+                                'Authorization': `Bearer ${tokenVal}`
+                              }
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              setAvailableCalendars(data.calendars || []);
+                              showToast('Successfully loaded available calendars!', 'success');
+                            } else if (res.status === 401) {
+                              // Redirect as fallback
+                              window.location.href = `/api/auth/ms-calendar/list-login?token=${encodeURIComponent(tokenVal)}`;
+                            } else {
+                              const errData = await res.json();
+                              throw new Error(errData.error || 'Failed to load calendars');
+                            }
+                          } catch (err) {
+                            showToast('Failed to load calendars: ' + err.message, 'error');
+                          }
                         }}
                       >
-                        Select
+                        {availableCalendars.length > 0 ? 'Refresh List' : 'Load Calendars from Microsoft'}
                       </button>
                     </div>
-                  ))}
+
+                    {availableCalendars.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                        {availableCalendars.map(cal => (
+                          <div 
+                            key={cal.id} 
+                            style={{ 
+                              display: 'flex', 
+                              justifyContent: 'space-between', 
+                              alignItems: 'center', 
+                              padding: '0.5rem 0.75rem', 
+                              border: '1px solid var(--border)', 
+                              borderRadius: 'var(--radius)',
+                              background: 'var(--muted)',
+                              gap: '0.75rem'
+                            }}
+                          >
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', overflow: 'hidden' }}>
+                              <span style={{ fontWeight: '600', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                                {cal.name}
+                                {cal.isDefault && (
+                                  <span className="badge badge-primary" style={{ fontSize: '0.5625rem', padding: '0.05rem 0.3rem' }}>Default</span>
+                                )}
+                              </span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }} title={cal.id}>
+                                ID: {cal.id}
+                              </span>
+                            </div>
+                            <button 
+                              type="button" 
+                              className="btn btn-outline" 
+                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem', flexShrink: 0 }}
+                              disabled={!isSSO}
+                              onClick={() => {
+                                setCalendarGuid(cal.id);
+                                showToast(`Selected "${cal.name}" calendar. Don't forget to click Save!`, 'success');
+                              }}
+                            >
+                              Select
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: '0.125rem 0' }}>
+                        Connect your Microsoft 365 account to list and select from your custom calendars.
+                      </p>
+                    )}
+                  </div>
+                </form>
+              </div>
+            );
+          })()}
+
+          {/* Calendar Color Settings Card */}
+          <div className="card">
+            <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px' }}>
+              <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+                <Palette size={18} /> Calendar Event Label Colors
+              </h3>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
+                Customize the colors used to represent different items on your calendar view.
+              </p>
+
+              <div className="form-group">
+                <label htmlFor="calendar-event-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarEventColor }} />
+                  Events Color
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    id="calendar-event-color-picker"
+                    type="color"
+                    value={calendarEventColor}
+                    onChange={(e) => setCalendarEventColor(e.target.value)}
+                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={calendarEventColor}
+                    onChange={(e) => setCalendarEventColor(e.target.value)}
+                    placeholder="#3b82f6"
+                  />
                 </div>
-              ) : (
-                <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: '0.125rem 0' }}>
-                  Connect your Microsoft 365 account to list and select from your custom calendars.
-                </p>
-              )}
-            </div>
-          </form>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="calendar-task-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarTaskColor }} />
+                  Tasks Color
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    id="calendar-task-color-picker"
+                    type="color"
+                    value={calendarTaskColor}
+                    onChange={(e) => setCalendarTaskColor(e.target.value)}
+                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={calendarTaskColor}
+                    onChange={(e) => setCalendarTaskColor(e.target.value)}
+                    placeholder="#10b981"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="calendar-bill-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarBillColor }} />
+                  Bills Color
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    id="calendar-bill-color-picker"
+                    type="color"
+                    value={calendarBillColor}
+                    onChange={(e) => setCalendarBillColor(e.target.value)}
+                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={calendarBillColor}
+                    onChange={(e) => setCalendarBillColor(e.target.value)}
+                    placeholder="#ef4444"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="calendar-sub-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarSubColor }} />
+                  Subscriptions Color
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    id="calendar-sub-color-picker"
+                    type="color"
+                    value={calendarSubColor}
+                    onChange={(e) => setCalendarSubColor(e.target.value)}
+                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={calendarSubColor}
+                    onChange={(e) => setCalendarSubColor(e.target.value)}
+                    placeholder="#8b5cf6"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ gap: '0.5rem' }}
+                  disabled={saving}
+                >
+                  <Save size={16} /> {saving ? 'Saving...' : 'Save Color Settings'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
       {/* INTEGRATIONS & API KEY TAB */}
       {activeSubTab === 'integrations' && currentUser?.role_name === 'Administrator' && (
         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Application Integrations Card */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <Settings size={20} style={{ color: 'var(--primary)' }} />
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Application Integrations</h3>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
+              Configure the connection URLs and API keys for the Cookbook, Library, Task App, and external integrations. 
+              These settings enable widgets on your custom dashboard to reflect your personal data in real time.
+            </p>
+
+            <form onSubmit={handleSaveIntegrations} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+                
+                {/* Cookbook Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.75rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>🍳</span> Cookbook App
+                  </h4>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>App URL</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={cookbookUrl}
+                      onChange={(e) => setCookbookUrl(e.target.value)}
+                      placeholder="e.g. http://localhost:8282"
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>API Key</label>
+                    <input
+                      type="password"
+                      className="input-control"
+                      value={cookbookKey}
+                      onChange={(e) => setCookbookKey(e.target.value)}
+                      placeholder={cookbookKey ? "••••••••" : "Enter API key"}
+                    />
+                  </div>
+                </div>
+
+                {/* Home App Integration (Consolidated fallback representation) */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.75rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>🏠</span> Home App
+                  </h4>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>App URL</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={homeUrl}
+                      onChange={(e) => setHomeUrl(e.target.value)}
+                      placeholder="e.g. http://localhost:8383"
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>API Key</label>
+                    <input
+                      type="password"
+                      className="input-control"
+                      value={homeKey}
+                      onChange={(e) => setHomeKey(e.target.value)}
+                      placeholder={homeKey ? "••••••••" : "Enter API key"}
+                    />
+                  </div>
+                </div>
+
+                {/* Unsplash Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>📷</span> Unsplash API
+                  </h4>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>App ID / Client Name</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={unsplashAppId}
+                      onChange={(e) => setUnsplashAppId(e.target.value)}
+                      placeholder="Enter Unsplash App ID"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Access Key</label>
+                    <input
+                      type="password"
+                      className="input-control"
+                      value={unsplashKey}
+                      onChange={(e) => setUnsplashKey(e.target.value)}
+                      placeholder={unsplashKey ? "••••••••" : "Enter Access key"}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Secret Key</label>
+                    <input
+                      type="password"
+                      className="input-control"
+                      value={unsplashSecret}
+                      onChange={(e) => setUnsplashSecret(e.target.value)}
+                      placeholder={unsplashSecret ? "••••••••" : "Enter Secret key"}
+                    />
+                  </div>
+                </div>
+
+                {/* Weather Widgets Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>🌤️</span> Weather Widgets
+                  </h4>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Zip Code / Location</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={weatherLocation}
+                      onChange={(e) => setWeatherLocation(e.target.value)}
+                      placeholder="e.g. 10001 or New York"
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Temperature Unit</label>
+                    <select
+                      className="input-control"
+                      value={weatherUnit}
+                      onChange={(e) => setWeatherUnit(e.target.value)}
+                      style={{ padding: '0.35rem 0.5rem' }}
+                    >
+                      <option value="fahrenheit">Fahrenheit (°F)</option>
+                      <option value="celsius">Celsius (°C)</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} disabled={savingIntegrations}>
+                  <Save size={14} /> {savingIntegrations ? 'Saving...' : 'Save Integration Settings'}
+                </button>
+              </div>
+            </form>
+          </div>
+
           {/* Key Management Card */}
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -2076,6 +2609,102 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   >
                     <Trash2 size={14} />
                     Revoke Key
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Public Dashboard Sharing Card */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <Eye size={20} style={{ color: 'var(--primary)' }} />
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Public Dashboard Sharing</h3>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
+              Generate a secure, read-only token to share your dashboard publicly. Anyone with the link can view your dashboard on a monitor or tablet screen without needing to log in.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label>Read-Only Share Link</label>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <div style={{ position: 'relative', flex: 1 }}>
+                    <input
+                      type={revealShareToken ? "text" : "password"}
+                      className="input-control"
+                      value={shareToken ? `${window.location.origin}/shared/${shareToken}` : ''}
+                      placeholder={loadingShareToken ? "Loading token..." : "No share token generated yet"}
+                      readOnly
+                      style={{
+                        fontFamily: shareToken ? 'var(--font-mono)' : 'inherit',
+                        paddingRight: '2.5rem',
+                        background: 'var(--muted)',
+                        color: shareToken ? 'var(--foreground)' : 'var(--muted-foreground)',
+                        fontSize: '0.8rem'
+                      }}
+                    />
+                    {shareToken && (
+                      <button
+                        type="button"
+                        onClick={() => setRevealShareToken(!revealShareToken)}
+                        style={{
+                          position: 'absolute',
+                          right: '0.5rem',
+                          top: '50%',
+                          transform: 'translateY(-50%)',
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--muted-foreground)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '0.25rem'
+                        }}
+                        title={revealShareToken ? "Hide Share Link" : "Reveal Share Link"}
+                      >
+                        {revealShareToken ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    )}
+                  </div>
+
+                  {shareToken && (
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={() => handleCopyText(`${window.location.origin}/shared/${shareToken}`, 'Share Link')}
+                      style={{ padding: '0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, height: '2.5rem' }}
+                      title="Copy Share Link to Clipboard"
+                    >
+                      <Copy size={14} /> Copy
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={handleGenerateShareToken}
+                  disabled={loadingShareToken}
+                  style={{ gap: '0.35rem', display: 'flex', alignItems: 'center' }}
+                >
+                  <Eye size={14} />
+                  {shareToken ? 'Regenerate Share Token' : 'Generate Share Token'}
+                </button>
+
+                {shareToken && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handleRevokeShareToken}
+                    disabled={loadingShareToken}
+                    style={{ gap: '0.35rem', display: 'flex', alignItems: 'center', color: 'var(--destructive)' }}
+                  >
+                    <Trash2 size={14} />
+                    Revoke Share Token
                   </button>
                 )}
               </div>
@@ -2403,7 +3032,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                 {/* Event toggles */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                   
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.5rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '1.25rem' }}>
                     <div className="form-group">
                       <label className="switch-container">
                         <input 
@@ -2431,7 +3060,195 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Bill Due Today</span>
                       </label>
                     </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-recipe-added"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyRecipeAdded} 
+                          onChange={(e) => setNotifyRecipeAdded(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Recipe Added</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-recipe-deleted"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyRecipeDeleted} 
+                          onChange={(e) => setNotifyRecipeDeleted(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Recipe Deleted</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-meal-plan-updated"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyMealPlanUpdated} 
+                          onChange={(e) => setNotifyMealPlanUpdated(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Meal Plan Updated</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-leftovers-added"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyLeftoversAdded} 
+                          onChange={(e) => setNotifyLeftoversAdded(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Leftover Added</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-leftovers-expiring"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyLeftoversExpiring} 
+                          onChange={(e) => setNotifyLeftoversExpiring(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Leftovers Expiring</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-inventory-expiring"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyInventoryExpiring} 
+                          onChange={(e) => setNotifyInventoryExpiring(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Inventory Item Expiring</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-book-added"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyBookAdded} 
+                          onChange={(e) => setNotifyBookAdded(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Book Added</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-book-deleted"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyBookDeleted} 
+                          onChange={(e) => setNotifyBookDeleted(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Book Deleted</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-log-added"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyLogAdded} 
+                          onChange={(e) => setNotifyLogAdded(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Reading Log Added</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-book-started"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyBookStarted} 
+                          onChange={(e) => setNotifyBookStarted(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Book Started</span>
+                      </label>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="switch-container">
+                        <input 
+                          id="rule-book-completed"
+                          type="checkbox" 
+                          className="switch-input"
+                          checked={notifyBookCompleted} 
+                          onChange={(e) => setNotifyBookCompleted(e.target.checked)} 
+                        />
+                        <div className="switch-control" />
+                        <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Book Completed</span>
+                      </label>
+                    </div>
                   </div>
+
+                  {(notifyLeftoversExpiring || notifyInventoryExpiring) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                      {notifyLeftoversExpiring && (
+                        <div className="form-group">
+                          <label htmlFor="leftover-lead-days">Leftovers Expiry Lead Days</label>
+                          <input 
+                            id="leftover-lead-days"
+                            type="number" 
+                            className="input-control" 
+                            min="1" 
+                            max="30"
+                            value={notifyLeftoversExpiryDays} 
+                            onChange={(e) => setNotifyLeftoversExpiryDays(parseInt(e.target.value, 10) || 2)} 
+                          />
+                        </div>
+                      )}
+                      
+                      {notifyInventoryExpiring && (
+                        <div className="form-group">
+                          <label htmlFor="inventory-lead-days">Inventory Expiry Lead Days</label>
+                          <input 
+                            id="inventory-lead-days"
+                            type="number" 
+                            className="input-control" 
+                            min="1" 
+                            max="30"
+                            value={notifyInventoryExpiryDays} 
+                            onChange={(e) => setNotifyInventoryExpiryDays(parseInt(e.target.value, 10) || 3)} 
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                 </div>
 
@@ -2720,6 +3537,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             )}
           </div>
         </div>
+      )}
+
+      {activeSubTab === 'templates' && currentUser?.permissions?.recipes !== 'none' && (
+        <WordTemplateExport showToast={showToast} user={currentUser} />
       )}
 
     </div>
