@@ -120,4 +120,4 @@ This document tracks the features, functions, and updates completed in the conso
 - [ ] **Repository Segregation**: 
   - [ ] Set up a separate, clean, open-source Git repository separate from the private development repository.
   - [ ] Sanitize configuration files, remove personal data, and strip the custom MTG App API integration from the codebase prior to public deployment.
-- [ ] **GitHub Issues Feedback Sync**: Build a Feature Request and Bug Report modal/module that automatically posts submissions directly to the public GitHub Repository's Issues tab for centralized project tracking and visibility.
+- [x] **GitHub Issues Feedback Sync**: Build a Feature Request and Bug Report modal/module that automatically posts submissions directly to the public GitHub Repository's Issues tab for centralized project tracking and visibility.
