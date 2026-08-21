@@ -158,6 +158,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [calendarTaskColor, setCalendarTaskColor] = useState('#10b981');
   const [calendarBillColor, setCalendarBillColor] = useState('#ef4444');
   const [calendarSubColor, setCalendarSubColor] = useState('#8b5cf6');
+  const [calendarContactEventColor, setCalendarContactEventColor] = useState('#ec4899');
 
   const fetchShareToken = async () => {
     setLoadingShareToken(true);
@@ -564,6 +565,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setCalendarTaskColor(data.calendar_task_color || '#10b981');
         setCalendarBillColor(data.calendar_bill_color || '#ef4444');
         setCalendarSubColor(data.calendar_sub_color || '#8b5cf6');
+        setCalendarContactEventColor(data.calendar_contact_event_color || '#ec4899');
       }
 
       if (canReadUsers) {
@@ -1109,7 +1111,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         calendar_event_color: calendarEventColor,
         calendar_task_color: calendarTaskColor,
         calendar_bill_color: calendarBillColor,
-        calendar_sub_color: calendarSubColor
+        calendar_sub_color: calendarSubColor,
+        calendar_contact_event_color: calendarContactEventColor
       };
 
       const settingsRes = await fetch('/api/settings', {
@@ -2362,6 +2365,29 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     value={calendarSubColor}
                     onChange={(e) => setCalendarSubColor(e.target.value)}
                     placeholder="#8b5cf6"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="calendar-contact-event-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarContactEventColor }} />
+                  Contact Events Color
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    id="calendar-contact-event-color-picker"
+                    type="color"
+                    value={calendarContactEventColor}
+                    onChange={(e) => setCalendarContactEventColor(e.target.value)}
+                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
+                  />
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={calendarContactEventColor}
+                    onChange={(e) => setCalendarContactEventColor(e.target.value)}
+                    placeholder="#ec4899"
                   />
                 </div>
               </div>

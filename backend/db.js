@@ -552,6 +552,11 @@ export async function getDb() {
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_token', '')");
   } catch (err) {}
 
+  // Safe Migration to pre-populate calendar contact events color
+  try {
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('calendar_contact_event_color', '#ec4899')");
+  } catch (err) {}
+
   // Safe Migration to add github issue columns to feature_requests & bug_reports
   try {
     await dbInstance.run("ALTER TABLE feature_requests ADD COLUMN github_issue_url TEXT");

@@ -26,6 +26,11 @@ export default function CalendarView({ showToast, currentUser }) {
   const [taskColor, setTaskColor] = useState('#10b981');
   const [billColor, setBillColor] = useState('#ef4444');
   const [subColor, setSubColor] = useState('#8b5cf6');
+  const [contactEventColor, setContactEventColor] = useState('#ec4899');
+
+  // Contacts & Anniversaries Data
+  const [contacts, setContacts] = useState([]);
+  const [importantDates, setImportantDates] = useState([]);
 
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,6 +51,8 @@ export default function CalendarView({ showToast, currentUser }) {
     fetchBills();
     fetchSubscriptions();
     fetchCalendarSettings();
+    fetchContacts();
+    fetchImportantDates();
   }, [currentDate]);
 
   useEffect(() => {
@@ -117,9 +124,34 @@ export default function CalendarView({ showToast, currentUser }) {
         if (data.calendar_task_color) setTaskColor(data.calendar_task_color);
         if (data.calendar_bill_color) setBillColor(data.calendar_bill_color);
         if (data.calendar_sub_color) setSubColor(data.calendar_sub_color);
+        if (data.calendar_contact_event_color) setContactEventColor(data.calendar_contact_event_color);
       }
     } catch (err) {
       console.error('Error fetching calendar color settings:', err);
+    }
+  };
+
+  const fetchContacts = async () => {
+    try {
+      const res = await fetch('/api/contacts');
+      if (res.ok) {
+        const data = await res.json();
+        setContacts(data);
+      }
+    } catch (err) {
+      console.error('Error fetching contacts:', err);
+    }
+  };
+
+  const fetchImportantDates = async () => {
+    try {
+      const res = await fetch('/api/users/profile/important-dates');
+      if (res.ok) {
+        const data = await res.json();
+        setImportantDates(data);
+      }
+    } catch (err) {
+      console.error('Error fetching important dates:', err);
     }
   };
 
@@ -348,6 +380,62 @@ export default function CalendarView({ showToast, currentUser }) {
     }
   });
 
+  // Compile Contacts birthdays
+  contacts.forEach(c => {
+    if (c.birthday) {
+      const parts = c.birthday.split('-');
+      if (parts.length === 3) {
+        const birthYear = parseInt(parts[0]);
+        const birthMonth = parts[1];
+        const birthDay = parts[2];
+        
+        // Project to the currently viewed calendar year
+        const projectedDate = `${year}-${birthMonth}-${birthDay}`;
+        
+        // Calculate turning age
+        const age = year - birthYear;
+        const titleSuffix = age > 0 ? ` (${age} Birthday)` : ' Birthday';
+        
+        if (!eventsByDate[projectedDate]) eventsByDate[projectedDate] = [];
+        eventsByDate[projectedDate].push({
+          id: `contact-birthday-${c.id}`,
+          title: `🎂 ${c.name}${titleSuffix}`,
+          description: `${c.name}'s Birthday. Born ${c.birthday}.`,
+          calendar_type: 'contact_event',
+          is_birthday: true
+        });
+      }
+    }
+  });
+
+  // Compile User Anniversaries/Important Dates
+  importantDates.forEach(d => {
+    if (d.date) {
+      const parts = d.date.split('-');
+      if (parts.length === 3) {
+        const startYear = parseInt(parts[0]);
+        const startMonth = parts[1];
+        const startDay = parts[2];
+        
+        // Project to the currently viewed calendar year
+        const projectedDate = `${year}-${startMonth}-${startDay}`;
+        
+        // Calculate years elapsed
+        const years = year - startYear;
+        const titleSuffix = years > 0 ? ` (${years} Years)` : '';
+        
+        if (!eventsByDate[projectedDate]) eventsByDate[projectedDate] = [];
+        eventsByDate[projectedDate].push({
+          id: `important-date-${d.id}`,
+          title: `✨ ${d.name}${titleSuffix}`,
+          description: `${d.name}. Date: ${d.date}.`,
+          calendar_type: 'contact_event',
+          is_anniversary: true
+        });
+      }
+    }
+  });
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', height: '100%', paddingBottom: '2rem' }}>
       
@@ -389,6 +477,9 @@ export default function CalendarView({ showToast, currentUser }) {
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: subColor }} /> Subscriptions
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: contactEventColor }} /> Contact Events
             </span>
           </div>
 
@@ -466,6 +557,7 @@ export default function CalendarView({ showToast, currentUser }) {
                     const isTask = item.calendar_type === 'task';
                     const isBill = item.calendar_type === 'bill';
                     const isSub = item.calendar_type === 'subscription';
+                    const isContactEvent = item.calendar_type === 'contact_event';
 
                     let colorVal = eventColor;
                     let titleText = item.title;
@@ -477,6 +569,9 @@ export default function CalendarView({ showToast, currentUser }) {
                     } else if (isSub) {
                       colorVal = subColor;
                       titleText = `💳 Sub: ${item.name} ($${item.cost})`;
+                    } else if (isContactEvent) {
+                      colorVal = contactEventColor;
+                      titleText = item.title;
                     }
 
                     const bgVal = colorVal + '1f'; // approx 12% opacity hex suffix

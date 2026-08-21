@@ -1144,7 +1144,8 @@ app.get('/api/settings/public', async (req, res) => {
       calendar_event_color: settings.calendar_event_color || '#3b82f6',
       calendar_task_color: settings.calendar_task_color || '#10b981',
       calendar_bill_color: settings.calendar_bill_color || '#ef4444',
-      calendar_sub_color: settings.calendar_sub_color || '#8b5cf6'
+      calendar_sub_color: settings.calendar_sub_color || '#8b5cf6',
+      calendar_contact_event_color: settings.calendar_contact_event_color || '#ec4899'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
