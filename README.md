@@ -1,99 +1,189 @@
-# Home App Dashboard
+# 🏡 Family App
 
-A clean, responsive, and premium full-stack dashboard application built on React (Vite) and Node (Express) with a SQLite database. It features a polished glassmorphism design system inspired by Material Design 3 (MD3), featuring theme customizations, Single Sign-On, notification routing, and productivity modules.
-
----
-
-## Features
-
-- **Dashboard / Home**: A centralized start screen containing quick shortcuts and recently used connections.
-- **Task Management**: A responsive checklist to log, filter, and track daily tasks and TODO items.
-- **Calendar Scheduling**: Integrated calendar schedule view to log meals, reminders, and activities, with native support for syncing with Microsoft 365 calendar.
-- **Subscriptions Tracker**: Track recurring payments, subscription costs, renewal dates, and billing periods in a structured data table.
-- **Theme & Brand customizer**: Choose custom primary accent colors, toggle dark/light theme options, and upload logos or browser favicons that persist globally.
-- **Single Sign-On (SSO)**: OIDC configuration layer supporting Microsoft Entra ID (Azure AD) user authentication.
-- **SMTP & Webhook Notifications**: Configurable SMTP email dispatcher, Discord webhook embeds, and signature-validated generic HTTP webhooks.
-- **Security Enhancements**: 
-  - Dynamic **"Show Password" checkboxes** integrated into all password and client secret entry fields (Login page, User Password resets, Add/Edit User forms, SSO secret inputs, SMTP server configuration, and Webhook secret signature token inputs).
-  - Secure PBKDF2 password hashing with custom random salting.
-  - Role-Based Access Control (RBAC) user authorization matrix.
+A modern, responsive, and all-in-one household management platform built on **React (Vite)**, **Node.js (Express)**, and **SQLite**. Designed with a glassmorphism aesthetic, customizable themes, and rich interactive widgets, Family App unifies household calendars, task delegation, meal planning, finances, reading logs, contacts, chores, and dashboard displays into a single, cohesive experience.
 
 ---
 
-## File Structure
+## 🌟 Key Features
+
+### 📊 Customizable Dashboards & Rotation
+- **Multiple Dashboards**: Create, rename, clone, and manage multiple independent dashboards.
+- **Auto-Rotation**: Configure automated rotating carousel between selected dashboards with custom interval timing (pause/resume controls included).
+- **Public & Kiosk Sharing**: Generate shareable read-only dashboard links with individual themes, auto-rotation support, and token-based security.
+- **Drag-and-Drop Canvas**: Freely position and resize widgets on an interactive dotted grid canvas.
+
+### 📅 Calendar & Agenda Widget Series
+- **Daily Agenda**: Focused view of today's or any selected date's schedule, events, tasks, bills, and birthdays with day-to-day navigation.
+- **Weekly Agenda**: Rolling 7-day view with visual today highlights and day breakdown.
+- **Monthly Agenda**: Chronological agenda feed for the entire month with category badges.
+- **Monthly Calendar (Full Grid)**: Full 7-column calendar grid matching the dedicated Calendar view, featuring month steppers, category color legends, and an interactive day inspector drawer.
+- **Universal Availability**: All 4 calendar widgets can be placed on the **Custom Dashboard**, **Shared Kiosk Displays**, or enabled as cards on the **Overview Page**.
+
+### 🏠 Overview Page
+- **12-Column Responsive Grid**: Reorder cards and grab card edges or corners to stretch/shrink cards across the grid.
+- **Custom Wallpapers**: Set persistent background styles (Unsplash daily wallpapers with attribution, custom image URLs, gradients, or solid colors) that persist across sessions.
+- **Unified Summary**: View upcoming tasks, today's schedule, expiring leftovers, bills, and weather in one place.
+
+### 🗓️ Household Calendar & Microsoft 365 Sync
+- **Event Scheduling**: Create, edit, and organize household events with start/end times and location tags.
+- **Microsoft 365 Sync**: Seamless two-way / pull sync with Microsoft Entra ID calendar.
+- **Category Customization**: Custom color pickers for Events, FocusFlow Tasks, Recurring Bills, Subscriptions, and Contact Birthdays.
+- **Auto-Populated Contact Dates**: Contact birthdays, anniversaries, and milestones automatically populate the calendar.
+
+### 🎯 FocusFlow Task Management
+- **Task Organization**: Categorize tasks into custom lists with priorities, due dates, and tags.
+- **Subtasks & Checklists**: Break complex chores and projects into actionable steps.
+- **Recurring Tasks**: Configure daily, weekly, or monthly repeating schedules.
+
+### 🧹 Chores & Housekeeping
+- **Family Profiles**: Set up avatars, roles, and profiles for every household member.
+- **Chore Assignments & Points**: Assign chores, track completion status, and award points.
+- **Housekeeping Schedules**: Manage periodic maintenance and cleaning rotations.
+
+### 💳 Financial Tracker (Bills & Subscriptions)
+- **Recurring Bills**: Track utility bills, due dates, amounts, payment URLs, and payment statuses.
+- **Subscriptions Manager**: Monitor active subscriptions, billing cycles, monthly/yearly spend totals, and renewal alerts.
+
+### 🍳 Cookbook & Meal Planning
+- **Recipe Management**: Store ingredients, instructions, tags, and preparation times.
+- **Meal Planning**: Plan 3-day, 5-day, or weekly menus.
+- **Leftovers Tracker**: Log leftovers with expiration dates to minimize food waste.
+- **Shopping Lists**: Automatically aggregate grocery items from planned meals.
+
+### 📚 Library & Reading Progress
+- **Book Tracker**: Log books read, current reads, and to-read wishlist.
+- **Reading Progress**: Track pages read, ratings, and yearly reading goals.
+
+### 👥 Contacts & Relationships
+- **Contact Directory**: Manage family, friends, and service provider details.
+- **Important Dates**: Track birthdays, anniversaries, and custom milestones.
+
+### 🎮 Arcade & Word Games
+- Built-in casual word puzzles and mini-games for family entertainment.
+
+### 🔒 Security, Authentication & Notifications
+- **Single Sign-On (SSO)**: OpenID Connect (OIDC) / Microsoft Entra ID integration.
+- **Role-Based Access Control (RBAC)**: Fine-grained permissions for administrators, members, and guests.
+- **Notifications Engine**: Multi-channel alerts via SMTP Email, Discord Webhooks, and generic HTTP webhooks.
+- **Password Visibility Toggles**: Interactive show/hide controls across all credential inputs.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend**: React 18, Vite, Lucide Icons, CSS Custom Properties (Theme Engine)
+- **Backend**: Node.js, Express, SQLite (`better-sqlite3` / `sqlite3`)
+- **Containerization**: Docker, Docker Compose, GitHub Container Registry (`ghcr.io`)
+- **Authentication**: JWT, bcrypt / PBKDF2, OIDC (Microsoft Entra ID)
+
+---
+
+## 📁 Repository Structure
 
 ```text
+├── .github/
+│   └── workflows/
+│       └── docker-publish.yml    # GitHub Actions Docker build & publish workflow
 ├── backend/
-│   ├── db.js          # SQLite migrations, schema configuration, and CRUD helper methods
-│   ├── server.js      # Express API server, token authentication, SSO, and configuration endpoints
-│   └── package.json   # Node server dependencies
-├── data/              # SQLite database and uploads directory (git ignored)
+│   ├── db.js                     # SQLite database schema, migrations & seed data
+│   ├── server.js                 # Express API server, routes & authentication
+│   └── package.json              # Backend dependencies
+├── data/                         # Persistent database & uploads (mounted volume)
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── HomeView.jsx            # Sleek developer dashboard landing page
-│   │   │   ├── SettingsView.jsx        # Complete settings panel (General, Users, Roles, SSO, Notifications, etc.)
-│   │   │   ├── TasksView.jsx           # Task/todo checklist management component
-│   │   │   ├── CalendarView.jsx        # Calendar event viewer and M365 syncer component
-│   │   │   └── SubscriptionsView.jsx   # Subscriptions cost tracking component
-│   │   ├── App.jsx                     # Sidebar layout, global authentication, and tab routing
-│   │   ├── index.css                   # Global CSS stylesheet (themes, typography, MD3 classes)
-│   │   └── main.jsx                    # React app entry point
-│   ├── index.html                      # HTML layout wrapper
-│   ├── package.json                    # React application dependencies
-│   └── vite.config.js                  # Vite server configurations and API proxy settings
-├── .env.example                        # Example configurations template for environment vars
-└── .gitignore                          # Default git exclusions list
+│   │   │   ├── HomeView.jsx            # 12-column customizable Overview page
+│   │   │   ├── CustomDashboardView.jsx # Multi-dashboard editor & widget renderer
+│   │   │   ├── SharedDashboardView.jsx # Kiosk / public read-only dashboard
+│   │   │   ├── CalendarView.jsx        # Full household calendar & M365 syncer
+│   │   │   ├── FocusView.jsx           # FocusFlow task management
+│   │   │   ├── HousekeepingView.jsx    # Chores, family profiles & points
+│   │   │   ├── ContactsView.jsx        # Contacts directory & milestones
+│   │   │   ├── SettingsView.jsx        # Admin & system settings panel
+│   │   │   ├── GamesView.jsx           # Mini-games & arcade
+│   │   │   └── UserProfileView.jsx     # User settings & profile preferences
+│   │   ├── App.jsx                     # Layout shell, sidebar navigation & auth
+│   │   ├── index.css                   # Glassmorphism design system & styles
+│   │   └── main.jsx                    # React entry point
+│   ├── index.html                      # HTML template
+│   ├── package.json                    # Frontend dependencies
+│   └── vite.config.js                  # Vite configuration & API proxy
+├── docker-compose.yml                  # Docker Compose configuration
+├── Dockerfile                          # Multi-stage production container build
+└── README.md                           # Documentation
 ```
 
 ---
 
-## Configuration & Environment Variables
+## 🚀 Quick Start (Docker)
 
-Create a `.env` file in the root directory and populate it with the configurations:
+The fastest way to run Family App is using Docker Compose:
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/jwagner77/family_app.git
+cd family_app
+
+# 2. Build and start the containers
+docker compose up -d --build
+```
+
+Access the application in your browser at:
+👉 **`http://localhost:8282`**
+
+### Default Administrator Credentials
+- **Username**: `admin`
+- **Password**: `admin123`
+
+*(Please change your password immediately upon first login via Settings → User Management).*
+
+---
+
+## 💻 Local Development Setup
+
+If you prefer running frontend and backend separately for development:
+
+### 1. Backend
+```bash
+cd backend
+npm install
+npm run dev
+# Server runs on http://localhost:5000 (or PORT specified in .env)
+```
+
+### 2. Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+# Dev server runs on http://localhost:3000 (proxies /api to backend)
+```
+
+---
+
+## ⚙️ Environment Configuration
+
+You can customize environment variables via `.env` in the root directory:
 
 ```env
 PORT=5000
 DATABASE_PATH=./data/base.db
-JWT_SECRET=your_super_secret_jwt_key
+JWT_SECRET=your_secure_random_jwt_secret_key
 SSL_KEY_PATH=./data/ssl.key
 SSL_CERT_PATH=./data/ssl.crt
 ```
 
 ---
 
-## Deployment & Running
+## 📦 Container Registry
 
-### Using Docker (Recommended)
+Official Docker container images are automatically built and published via GitHub Actions to:
+```text
+ghcr.io/jwagner77/family_app:latest
+```
 
-To run the application inside docker with hot reloading or production compilation:
+---
 
-1. **Rebuild & Run**:
-   ```bash
-   docker compose build
-   docker compose up -d
-   ```
-2. **Access URL**:
-   Open `http://localhost:8282` in your web browser.
+## 📄 License
 
-### Local Development Setup
-
-1. **Backend Installation**:
-   ```bash
-   cd backend
-   npm install
-   npm run dev
-   ```
-
-2. **Frontend Installation**:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-   *Note: Open `http://localhost:3000` in your browser. The Vite server is configured to proxy `/api` calls to the Express backend running on port `5000`.*
-
-3. **Bootstrap Credentials**:
-   Log in with the default Administrator account:
-   - **Username**: `admin`
-   - **Password**: `admin123`
+This project is licensed under the MIT License.
