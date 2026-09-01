@@ -137,6 +137,72 @@ function getContrastColor(hexColor) {
   return luminance > 0.179 ? '#09090b' : '#ffffff';
 }
 
+function getColoredContrastColor(hexColor, shouldBeLight) {
+  if (!hexColor) return shouldBeLight ? '#e0e7ff' : '#1e1b4b';
+  let hex = hexColor.replace('#', '');
+  if (hex.length === 3) {
+    hex = hex.split('').map(char => char + char).join('');
+  }
+  if (hex.length !== 6) return shouldBeLight ? '#e0e7ff' : '#1e1b4b';
+  
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  
+  if (isNaN(r) || isNaN(g) || isNaN(b)) return shouldBeLight ? '#e0e7ff' : '#1e1b4b';
+  
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+  const max = Math.max(rNorm, gNorm, bNorm);
+  const min = Math.min(rNorm, gNorm, bNorm);
+  let h, s, l = (max + min) / 2;
+  
+  if (max === min) {
+    h = s = 0;
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case rNorm: h = (gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0); break;
+      case gNorm: h = (bNorm - rNorm) / d + 2; break;
+      case bNorm: h = (rNorm - gNorm) / d + 4; break;
+    }
+    h /= 6;
+  }
+  
+  const newS = Math.max(s, 0.75); 
+  const newL = shouldBeLight ? 0.88 : 0.15; 
+  
+  return hslToHex(h, newS, newL);
+}
+
+function hslToHex(h, s, l) {
+  let r, g, b;
+  if (s === 0) {
+    r = g = b = l;
+  } else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  const toHex = (x) => {
+    const hex = Math.round(x * 255).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token') || '');
   const [user, setUser] = useState(null);
@@ -302,7 +368,7 @@ export default function App() {
 
 
 
-  const [settingsSubTab, setSettingsSubTab] = useState('branding');
+  const [settingsSubTab, setSettingsSubTab] = useState('users');
   const [lastTab, setLastTab] = useState('home');
 
   useEffect(() => {
@@ -323,6 +389,7 @@ export default function App() {
   const [brandingLogoLight, setBrandingLogoLight] = useState('');
   const [brandingLogoDark, setBrandingLogoDark] = useState('');
   const [brandingFavicon, setBrandingFavicon] = useState('');
+  const [appBg, setAppBg] = useState(localStorage.getItem('last_app_bg') || '');
 
   const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
   const resolvedTheme = theme === 'system' ? (isSystemDark ? 'dark' : 'light') : theme;
@@ -398,10 +465,44 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    applyPrimaryColor(primaryColor);
-    applyTheme(theme);
+    const lastPrimary = localStorage.getItem('last_primary_color') || primaryColor;
+    applyPrimaryColor(lastPrimary);
+
+    const lastTheme = localStorage.getItem('last_theme') || theme;
+    applyTheme(lastTheme);
+
+    const lastNavbarBg = localStorage.getItem('last_navbar_bg') || '';
+    applyNavbarBg(lastNavbarBg);
+
+    const lastNavbarOpacity = localStorage.getItem('last_navbar_opacity');
+    if (lastNavbarOpacity !== null && lastNavbarOpacity !== undefined) {
+      applyNavbarOpacity(parseFloat(lastNavbarOpacity));
+    }
+
+    const lastAppBg = localStorage.getItem('last_app_bg') || '';
+    applyAppBg(lastAppBg);
+    
+    const lastThemeInfoCards = localStorage.getItem('last_theme_info_cards') || '0';
+    applyThemeInfoCards(lastThemeInfoCards);
+
+    const lastTextColor = localStorage.getItem('last_text_color') || 'white';
+    applyTextColor(lastTextColor);
+
+    const lastDynamicTextColor = localStorage.getItem('last_dynamic_text_color') || '0';
+    applyDynamicTextColor(lastDynamicTextColor);
+
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    const isDynamic = user?.dynamic_text_color !== undefined 
+      ? (user.dynamic_text_color === 1 || user.dynamic_text_color === true)
+      : (localStorage.getItem('last_dynamic_text_color') === '1');
+      
+    if (isDynamic) {
+      applyDynamicTextColor(1, user);
+    }
+  }, [user, theme, primaryColor]);
 
   useEffect(() => {
     const favicon = document.querySelector('link[rel="icon"]');
@@ -483,10 +584,34 @@ export default function App() {
       applyPrimaryColor(loggedUser.primary_color);
       localStorage.setItem('last_primary_color', loggedUser.primary_color);
     }
+    if (loggedUser.navbar_bg) {
+      applyNavbarBg(loggedUser.navbar_bg);
+    } else {
+      applyNavbarBg('');
+    }
+    if (loggedUser.navbar_opacity !== undefined) {
+      applyNavbarOpacity(loggedUser.navbar_opacity);
+    } else {
+      applyNavbarOpacity(0.75);
+    }
+    if (loggedUser.app_bg) {
+      applyAppBg(loggedUser.app_bg);
+    } else {
+      applyAppBg('');
+    }
     if (loggedUser.theme) {
       setTheme(loggedUser.theme);
       applyTheme(loggedUser.theme);
       localStorage.setItem('last_theme', loggedUser.theme);
+    }
+    if (loggedUser.theme_info_cards !== undefined) {
+      applyThemeInfoCards(loggedUser.theme_info_cards);
+    }
+    if (loggedUser.text_color !== undefined) {
+      applyTextColor(loggedUser.text_color);
+    }
+    if (loggedUser.dynamic_text_color !== undefined) {
+      applyDynamicTextColor(loggedUser.dynamic_text_color, loggedUser);
     }
     setToken(newToken);
     setUser(loggedUser);
@@ -497,6 +622,13 @@ export default function App() {
     localStorage.removeItem('token');
     setToken('');
     setUser(null);
+    applyPrimaryColor('#0f172a');
+    applyNavbarBg('');
+    applyNavbarOpacity(0.75);
+    applyAppBg('');
+    applyThemeInfoCards(0);
+    applyTextColor('white');
+    applyDynamicTextColor(0);
   };
 
   const applyPrimaryColor = (color) => {
@@ -508,6 +640,89 @@ export default function App() {
       } catch (err) {
         console.error('Error setting primary foreground contrast:', err);
       }
+    }
+  };
+
+  const applyNavbarBg = (bg) => {
+    if (bg) {
+      const value = bg.startsWith('linear-gradient') || bg.startsWith('radial-gradient')
+        ? bg
+        : `url(${bg})`;
+      document.documentElement.style.setProperty('--navbar-bg', value);
+      localStorage.setItem('last_navbar_bg', bg);
+    } else {
+      document.documentElement.style.setProperty('--navbar-bg', 'none');
+      localStorage.removeItem('last_navbar_bg');
+    }
+  };
+
+  const applyNavbarOpacity = (opacity) => {
+    const val = opacity !== undefined && opacity !== null ? opacity : 0.75;
+    document.documentElement.style.setProperty('--navbar-opacity', String(val));
+    localStorage.setItem('last_navbar_opacity', String(val));
+  };
+
+  const applyAppBg = (bg) => {
+    setAppBg(bg || '');
+    if (bg) {
+      document.documentElement.style.setProperty('--app-bg', `url(${bg})`);
+      document.documentElement.classList.add('has-app-bg');
+      localStorage.setItem('last_app_bg', bg);
+    } else {
+      document.documentElement.style.setProperty('--app-bg', 'none');
+      document.documentElement.classList.remove('has-app-bg');
+      localStorage.removeItem('last_app_bg');
+    }
+  };
+
+  const applyThemeInfoCards = (enabled) => {
+    const root = document.documentElement;
+    if (enabled === 1 || enabled === true || String(enabled) === '1') {
+      root.classList.add('cards-themed');
+      localStorage.setItem('last_theme_info_cards', '1');
+    } else {
+      root.classList.remove('cards-themed');
+      localStorage.setItem('last_theme_info_cards', '0');
+    }
+  };
+
+  const applyTextColor = (color) => {
+    const val = color || 'white';
+    const rootEl = document.documentElement;
+    if (val === 'white') {
+      rootEl.classList.add('force-text-white');
+      rootEl.classList.remove('force-text-black');
+      localStorage.setItem('last_text_color', 'white');
+    } else {
+      rootEl.classList.add('force-text-black');
+      rootEl.classList.remove('force-text-white');
+      localStorage.setItem('last_text_color', 'black');
+    }
+  };
+
+  const applyDynamicTextColor = (enabled, userDetails) => {
+    const rootEl = document.documentElement;
+    if (enabled === 1 || enabled === true || String(enabled) === '1') {
+      rootEl.classList.add('dynamic-text-active');
+      localStorage.setItem('last_dynamic_text_color', '1');
+      
+      const lastTheme = userDetails?.theme || theme || 'system';
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const resolvedTheme = lastTheme === 'system' ? (isSystemDark ? 'dark' : 'light') : lastTheme;
+      
+      let shouldBeLight = resolvedTheme === 'dark';
+      const hasAppBg = userDetails?.app_bg || localStorage.getItem('last_app_bg');
+      if (hasAppBg) {
+        shouldBeLight = true;
+      }
+      
+      const activeAccent = userDetails?.primary_color || primaryColor || '#3f51b5';
+      const calculatedColor = getColoredContrastColor(activeAccent, shouldBeLight);
+      
+      rootEl.style.setProperty('--dynamic-text-color', calculatedColor);
+    } else {
+      rootEl.classList.remove('dynamic-text-active');
+      localStorage.setItem('last_dynamic_text_color', '0');
     }
   };
 
@@ -645,10 +860,34 @@ export default function App() {
             applyPrimaryColor(data.user.primary_color);
             localStorage.setItem('last_primary_color', data.user.primary_color);
           }
+          if (data.user?.navbar_bg) {
+            applyNavbarBg(data.user.navbar_bg);
+          } else {
+            applyNavbarBg('');
+          }
+          if (data.user?.navbar_opacity !== undefined) {
+            applyNavbarOpacity(data.user.navbar_opacity);
+          } else {
+            applyNavbarOpacity(0.75);
+          }
+          if (data.user?.app_bg) {
+            applyAppBg(data.user.app_bg);
+          } else {
+            applyAppBg('');
+          }
           if (data.user?.theme) {
             setTheme(data.user.theme);
             applyTheme(data.user.theme);
             localStorage.setItem('last_theme', data.user.theme);
+          }
+          if (data.user?.theme_info_cards !== undefined) {
+            applyThemeInfoCards(data.user.theme_info_cards);
+          }
+          if (data.user?.text_color !== undefined) {
+            applyTextColor(data.user.text_color);
+          }
+          if (data.user?.dynamic_text_color !== undefined) {
+            applyDynamicTextColor(data.user.dynamic_text_color, data.user);
           }
         })
         .catch(err => {
@@ -718,6 +957,50 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Dynamic Organic Background Lines */}
+      {!appBg && (
+        <svg 
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            width: '100%', 
+            height: '100%', 
+            zIndex: -1, 
+            pointerEvents: 'none', 
+            opacity: resolvedTheme === 'dark' ? 0.35 : 0.18 
+          }} 
+          viewBox="0 0 1440 900" 
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="curve-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="var(--primary)" stopOpacity="0.1" />
+              <stop offset="50%" stopColor="var(--primary)" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="var(--primary)" stopOpacity="0.1" />
+            </linearGradient>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          
+          <path d="M -100 200 C 400 -100, 800 700, 1600 300" fill="none" stroke="url(#curve-grad)" strokeWidth="3" filter="url(#glow)" />
+          <path d="M -50 250 C 450 -50, 750 650, 1550 250" fill="none" stroke="url(#curve-grad)" strokeWidth="1.5" filter="url(#glow)" />
+          
+          <path d="M 1500 100 C 1000 800, 600 200, -100 800" fill="none" stroke="url(#curve-grad)" strokeWidth="2.5" filter="url(#glow)" />
+          <path d="M 1450 80 C 950 780, 650 220, -50 780" fill="none" stroke="url(#curve-grad)" strokeWidth="1.2" filter="url(#glow)" />
+
+          <path d="M -100 800 C 500 400, 900 1000, 1600 600" fill="none" stroke="url(#curve-grad)" strokeWidth="2" filter="url(#glow)" />
+          <path d="M 200 -100 C 600 500, 1100 400, 1300 1000" fill="none" stroke="url(#curve-grad)" strokeWidth="1.5" filter="url(#glow)" />
+          <path d="M 220 -120 C 580 480, 1120 420, 1280 1020" fill="none" stroke="url(#curve-grad)" strokeWidth="0.8" filter="url(#glow)" />
+          
+          <path d="M 1200 -50 C 800 400, 400 300, -50 950" fill="none" stroke="url(#curve-grad)" strokeWidth="2" filter="url(#glow)" />
+        </svg>
+      )}
       {/* Mobile Header Bar */}
       <header className="mobile-header">
         <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)} title="Open Menu">
@@ -1091,16 +1374,7 @@ export default function App() {
                   <span>User Management</span>
                 </a>
               )}
-              {canReadCalendar && (
-                <a 
-                  className={`nav-link ${settingsSubTab === 'calendar' ? 'active' : ''}`}
-                  onClick={() => { setSettingsSubTab('calendar'); setIsMobileMenuOpen(false); }}
-                  title="Calendar Settings"
-                >
-                  <Calendar />
-                  <span>Calendar Settings</span>
-                </a>
-              )}
+
               {canReadRoles && (
                 <a 
                   className={`nav-link ${settingsSubTab === 'roles' ? 'active' : ''}`}
@@ -1264,7 +1538,7 @@ export default function App() {
                   )}
                   {!isSidebarCollapsed && (
                     <div style={{ flex: 1, minWidth: 0, textAlign: 'left', lineHeight: 1.2 }}>
-                      <div style={{ fontWeight: '600', fontSize: '0.8125rem', color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.8125rem', color: 'color-mix(in srgb, var(--primary-foreground) 85%, transparent)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {user.display_name || user.username}
                       </div>
                     </div>
@@ -1323,7 +1597,7 @@ export default function App() {
 
                     <a 
                       className="popout-item" 
-                      onClick={() => { setActiveTab('settings'); setSettingsSubTab('branding'); setIsUserMenuOpen(false); }}
+                      onClick={() => { setActiveTab('settings'); setSettingsSubTab('users'); setIsUserMenuOpen(false); }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1551,6 +1825,7 @@ export default function App() {
         {activeTab === 'games' && (
           <GamesView 
             showToast={showToast}
+            currentUser={user}
           />
         )}
 
@@ -1618,10 +1893,32 @@ export default function App() {
                 applyPrimaryColor(updatedUser.primary_color);
                 localStorage.setItem('last_primary_color', updatedUser.primary_color);
               }
+              if (updatedUser.navbar_bg) {
+                applyNavbarBg(updatedUser.navbar_bg);
+              } else {
+                applyNavbarBg('');
+              }
+              if (updatedUser.navbar_opacity !== undefined) {
+                applyNavbarOpacity(updatedUser.navbar_opacity);
+              }
+              if (updatedUser.app_bg) {
+                applyAppBg(updatedUser.app_bg);
+              } else {
+                applyAppBg('');
+              }
               if (updatedUser.theme) {
                 setTheme(updatedUser.theme);
                 applyTheme(updatedUser.theme);
                 localStorage.setItem('last_theme', updatedUser.theme);
+              }
+              if (updatedUser.theme_info_cards !== undefined) {
+                applyThemeInfoCards(updatedUser.theme_info_cards);
+              }
+              if (updatedUser.text_color !== undefined) {
+                applyTextColor(updatedUser.text_color);
+              }
+              if (updatedUser.dynamic_text_color !== undefined) {
+                applyDynamicTextColor(updatedUser.dynamic_text_color, updatedUser);
               }
             }}
           />
@@ -1707,6 +2004,59 @@ function LoginView({ onLoginSuccess }) {
       root.classList.add('theme-light');
     } else if (lastTheme === 'dark') {
       root.classList.add('theme-dark');
+    }
+
+    const lastBg = localStorage.getItem('last_navbar_bg');
+    if (lastBg) {
+      const value = lastBg.startsWith('linear-gradient') || lastBg.startsWith('radial-gradient')
+        ? lastBg
+        : `url(${lastBg})`;
+      document.documentElement.style.setProperty('--navbar-bg', value);
+    } else {
+      document.documentElement.style.setProperty('--navbar-bg', 'none');
+    }
+
+    const lastOpacity = localStorage.getItem('last_navbar_opacity') || '0.75';
+    document.documentElement.style.setProperty('--navbar-opacity', lastOpacity);
+
+    const lastAppBg = localStorage.getItem('last_app_bg');
+    if (lastAppBg) {
+      document.documentElement.style.setProperty('--app-bg', `url(${lastAppBg})`);
+    } else {
+      document.documentElement.style.setProperty('--app-bg', 'none');
+    }
+
+    const lastThemeInfoCards = localStorage.getItem('last_theme_info_cards') || '0';
+    const rootEl = document.documentElement;
+    if (lastThemeInfoCards === '1' || lastThemeInfoCards === 'true') {
+      rootEl.classList.add('cards-themed');
+    } else {
+      rootEl.classList.remove('cards-themed');
+    }
+
+    const lastTextColor = localStorage.getItem('last_text_color') || 'white';
+    if (lastTextColor === 'white') {
+      rootEl.classList.add('force-text-white');
+      rootEl.classList.remove('force-text-black');
+    } else {
+      rootEl.classList.add('force-text-black');
+      rootEl.classList.remove('force-text-white');
+    }
+
+    const lastDynamicTextColor = localStorage.getItem('last_dynamic_text_color') || '0';
+    if (lastDynamicTextColor === '1' || lastDynamicTextColor === 'true') {
+      rootEl.classList.add('dynamic-text-active');
+      const isSystemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const resolvedTheme = lastTheme === 'system' ? (isSystemDark ? 'dark' : 'light') : lastTheme;
+      let shouldBeLight = resolvedTheme === 'dark';
+      if (lastAppBg) {
+        shouldBeLight = true;
+      }
+      const lastColor = localStorage.getItem('last_primary_color') || '#2c3e50';
+      const calculatedColor = getColoredContrastColor(lastColor, shouldBeLight);
+      rootEl.style.setProperty('--dynamic-text-color', calculatedColor);
+    } else {
+      rootEl.classList.remove('dynamic-text-active');
     }
 
     // Fetch public settings for branding

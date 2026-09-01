@@ -131,6 +131,33 @@ export default function CalendarView({ showToast, currentUser }) {
     }
   };
 
+  const handleUpdateColor = async (settingKey, newColor) => {
+    if (currentUser?.role_name !== 'Administrator') {
+      showToast('Only Administrators can change calendar color settings.', 'error');
+      return;
+    }
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [settingKey]: newColor })
+      });
+      if (res.ok) {
+        showToast('Color updated successfully!', 'success');
+        if (settingKey === 'calendar_event_color') setEventColor(newColor);
+        if (settingKey === 'calendar_task_color') setTaskColor(newColor);
+        if (settingKey === 'calendar_bill_color') setBillColor(newColor);
+        if (settingKey === 'calendar_sub_color') setSubColor(newColor);
+        if (settingKey === 'calendar_contact_event_color') setContactEventColor(newColor);
+      } else {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to update color setting');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
   const fetchContacts = async () => {
     try {
       const res = await fetch('/api/contacts');
@@ -408,6 +435,38 @@ export default function CalendarView({ showToast, currentUser }) {
     }
   });
 
+  // Compile Contacts Important Dates (Anniversaries, etc.)
+  contacts.forEach(c => {
+    if (c.important_dates && Array.isArray(c.important_dates)) {
+      c.important_dates.forEach(d => {
+        if (d.date) {
+          const parts = d.date.split('-');
+          if (parts.length === 3) {
+            const startYear = parseInt(parts[0]);
+            const startMonth = parts[1];
+            const startDay = parts[2];
+            
+            // Project to the currently viewed calendar year
+            const projectedDate = `${year}-${startMonth}-${startDay}`;
+            
+            // Calculate years elapsed
+            const years = year - startYear;
+            const titleSuffix = years > 0 ? ` (${years} Years)` : '';
+            
+            if (!eventsByDate[projectedDate]) eventsByDate[projectedDate] = [];
+            eventsByDate[projectedDate].push({
+              id: `contact-important-date-${d.id}`,
+              title: `✨ ${c.name}'s ${d.name}${titleSuffix}`,
+              description: `${c.name}'s ${d.name}. Date: ${d.date}.`,
+              calendar_type: 'contact_event',
+              is_anniversary: true
+            });
+          }
+        }
+      });
+    }
+  });
+
   // Compile User Anniversaries/Important Dates
   importantDates.forEach(d => {
     if (d.date) {
@@ -467,19 +526,89 @@ export default function CalendarView({ showToast, currentUser }) {
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '1rem', fontSize: '0.85rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: eventColor }} /> Events
+              <label style={{ display: 'inline-flex', alignItems: 'center', cursor: currentUser?.role_name === 'Administrator' ? 'pointer' : 'default', margin: 0, position: 'relative' }}>
+                {currentUser?.role_name === 'Administrator' && (
+                  <input 
+                    type="color" 
+                    value={eventColor} 
+                    onChange={(e) => handleUpdateColor('calendar_event_color', e.target.value)}
+                    style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute', pointerEvents: 'none' }}
+                  />
+                )}
+                <span 
+                  style={{ width: '10px', height: '10px', borderRadius: '50%', background: eventColor, display: 'inline-block' }} 
+                  title={currentUser?.role_name === 'Administrator' ? "Click to change Events color" : "Events color"}
+                />
+              </label>
+              Events
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: taskColor }} /> Tasks
+              <label style={{ display: 'inline-flex', alignItems: 'center', cursor: currentUser?.role_name === 'Administrator' ? 'pointer' : 'default', margin: 0, position: 'relative' }}>
+                {currentUser?.role_name === 'Administrator' && (
+                  <input 
+                    type="color" 
+                    value={taskColor} 
+                    onChange={(e) => handleUpdateColor('calendar_task_color', e.target.value)}
+                    style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute', pointerEvents: 'none' }}
+                  />
+                )}
+                <span 
+                  style={{ width: '10px', height: '10px', borderRadius: '50%', background: taskColor, display: 'inline-block' }} 
+                  title={currentUser?.role_name === 'Administrator' ? "Click to change Tasks color" : "Tasks color"}
+                />
+              </label>
+              Tasks
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: billColor }} /> Bills
+              <label style={{ display: 'inline-flex', alignItems: 'center', cursor: currentUser?.role_name === 'Administrator' ? 'pointer' : 'default', margin: 0, position: 'relative' }}>
+                {currentUser?.role_name === 'Administrator' && (
+                  <input 
+                    type="color" 
+                    value={billColor} 
+                    onChange={(e) => handleUpdateColor('calendar_bill_color', e.target.value)}
+                    style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute', pointerEvents: 'none' }}
+                  />
+                )}
+                <span 
+                  style={{ width: '10px', height: '10px', borderRadius: '50%', background: billColor, display: 'inline-block' }} 
+                  title={currentUser?.role_name === 'Administrator' ? "Click to change Bills color" : "Bills color"}
+                />
+              </label>
+              Bills
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: subColor }} /> Subscriptions
+              <label style={{ display: 'inline-flex', alignItems: 'center', cursor: currentUser?.role_name === 'Administrator' ? 'pointer' : 'default', margin: 0, position: 'relative' }}>
+                {currentUser?.role_name === 'Administrator' && (
+                  <input 
+                    type="color" 
+                    value={subColor} 
+                    onChange={(e) => handleUpdateColor('calendar_sub_color', e.target.value)}
+                    style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute', pointerEvents: 'none' }}
+                  />
+                )}
+                <span 
+                  style={{ width: '10px', height: '10px', borderRadius: '50%', background: subColor, display: 'inline-block' }} 
+                  title={currentUser?.role_name === 'Administrator' ? "Click to change Subscriptions color" : "Subscriptions color"}
+                />
+              </label>
+              Subscriptions
             </span>
             <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: contactEventColor }} /> Contact Events
+              <label style={{ display: 'inline-flex', alignItems: 'center', cursor: currentUser?.role_name === 'Administrator' ? 'pointer' : 'default', margin: 0, position: 'relative' }}>
+                {currentUser?.role_name === 'Administrator' && (
+                  <input 
+                    type="color" 
+                    value={contactEventColor} 
+                    onChange={(e) => handleUpdateColor('calendar_contact_event_color', e.target.value)}
+                    style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute', pointerEvents: 'none' }}
+                  />
+                )}
+                <span 
+                  style={{ width: '10px', height: '10px', borderRadius: '50%', background: contactEventColor, display: 'inline-block' }} 
+                  title={currentUser?.role_name === 'Administrator' ? "Click to change Contact Events color" : "Contact Events color"}
+                />
+              </label>
+              Contact Events
             </span>
           </div>
 

@@ -12,7 +12,8 @@ import {
   Coffee,
   Volume2,
   VolumeX,
-  Plus
+  Plus,
+  Clock
 } from 'lucide-react';
 
 export default function FocusView({ showToast, permissions }) {
@@ -24,6 +25,7 @@ export default function FocusView({ showToast, permissions }) {
   const [workDuration, setWorkDuration] = useState(1500); // 25 mins
   const [shortBreak, setShortBreak] = useState(300); // 5 mins
   const [longBreak, setLongBreak] = useState(900); // 15 mins
+  const [customDuration, setCustomDuration] = useState(1500); // 25 mins
   
   const [timeLeft, setTimeLeft] = useState(1500);
   const [timerRunning, setTimerRunning] = useState(false);
@@ -194,8 +196,7 @@ export default function FocusView({ showToast, permissions }) {
     playCompleteChime();
     triggerConfetti(70);
 
-    const activeTask = todayTasks.find(t => String(t.id) === selectedTaskId);
-    const durationCompleted = sessionType === 'pomodoro' ? workDuration : sessionType === 'short_break' ? shortBreak : longBreak;
+    const durationCompleted = getActiveDuration();
 
     try {
       if (!isReadOnly) {
@@ -212,7 +213,7 @@ export default function FocusView({ showToast, permissions }) {
         });
       }
 
-      if (sessionType === 'pomodoro') {
+      if (sessionType === 'pomodoro' || sessionType === 'custom') {
         showToast(`Focus session completed! Time for a break. 🎯`, 'success');
         // Switch to short break
         setSessionType('short_break');
@@ -229,7 +230,8 @@ export default function FocusView({ showToast, permissions }) {
 
   const handleTimerReset = () => {
     setTimerRunning(false);
-    const dur = sessionType === 'pomodoro' ? workDuration : sessionType === 'short_break' ? shortBreak : longBreak;
+    // We want to reset to the active type's duration
+    const dur = sessionType === 'pomodoro' ? workDuration : sessionType === 'short_break' ? shortBreak : sessionType === 'long_break' ? longBreak : customDuration;
     setTimeLeft(dur);
   };
 
@@ -240,7 +242,7 @@ export default function FocusView({ showToast, permissions }) {
   const selectSessionType = (type) => {
     setSessionType(type);
     setTimerRunning(false);
-    const dur = type === 'pomodoro' ? workDuration : type === 'short_break' ? shortBreak : longBreak;
+    const dur = type === 'pomodoro' ? workDuration : type === 'short_break' ? shortBreak : type === 'long_break' ? longBreak : customDuration;
     setTimeLeft(dur);
   };
 
@@ -271,7 +273,8 @@ export default function FocusView({ showToast, permissions }) {
   const getActiveDuration = () => {
     if (sessionType === 'pomodoro') return workDuration;
     if (sessionType === 'short_break') return shortBreak;
-    return longBreak;
+    if (sessionType === 'long_break') return longBreak;
+    return customDuration;
   };
 
   // --- Procrastination Buster Logic ---
@@ -462,7 +465,60 @@ export default function FocusView({ showToast, permissions }) {
             >
               Long Break
             </button>
+            <button 
+              className="btn" 
+              style={{ 
+                height: '2rem', 
+                fontSize: '0.8rem', 
+                padding: '0 1rem', 
+                backgroundColor: sessionType === 'custom' ? 'var(--card)' : 'transparent',
+                color: sessionType === 'custom' ? 'var(--foreground)' : 'var(--muted-foreground)',
+                border: 'none',
+                boxShadow: sessionType === 'custom' ? 'var(--shadow-sm)' : 'none'
+              }}
+              onClick={() => selectSessionType('custom')}
+            >
+              Custom
+            </button>
           </div>
+
+          {sessionType === 'custom' && !timerRunning && (
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              marginBottom: '1rem', 
+              background: 'var(--muted)', 
+              padding: '0.35rem 0.75rem', 
+              borderRadius: 'var(--radius)', 
+              border: '1px solid var(--border)',
+              fontSize: '0.8rem'
+            }}>
+              <span style={{ fontWeight: '600' }}>Custom Time (mins):</span>
+              <input 
+                type="number" 
+                min="1" 
+                max="720"
+                value={Math.round(customDuration / 60)} 
+                onChange={(e) => {
+                  const mins = Math.max(1, parseInt(e.target.value) || 1);
+                  setCustomDuration(mins * 60);
+                  setTimeLeft(mins * 60);
+                }}
+                style={{ 
+                  width: '60px', 
+                  padding: '0.15rem 0.35rem', 
+                  borderRadius: '4px', 
+                  border: '1px solid var(--border)', 
+                  background: 'var(--background)', 
+                  color: 'var(--foreground)',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  textAlign: 'center'
+                }}
+              />
+            </div>
+          )}
 
           {/* SVG Animated Circular Ring & Digital Clock */}
           <div style={{ position: 'relative', width: '250px', height: '250px', marginBottom: '2.5rem' }}>
@@ -473,7 +529,7 @@ export default function FocusView({ showToast, permissions }) {
                 cx="125" 
                 cy="125" 
                 r="100" 
-                stroke={sessionType === 'pomodoro' ? 'var(--primary)' : '#10b981'} 
+                stroke={sessionType === 'pomodoro' ? 'var(--primary)' : sessionType === 'custom' ? '#f59e0b' : '#10b981'} 
                 strokeWidth="8" 
                 fill="transparent"
                 strokeDasharray={strokeDash}
@@ -496,6 +552,8 @@ export default function FocusView({ showToast, permissions }) {
             }}>
               {sessionType === 'pomodoro' ? (
                 <Zap size={22} style={{ color: 'var(--primary)', marginBottom: '0.25rem' }} />
+              ) : sessionType === 'custom' ? (
+                <Clock size={22} style={{ color: '#f59e0b', marginBottom: '0.25rem' }} />
               ) : (
                 <Coffee size={22} style={{ color: '#10b981', marginBottom: '0.25rem' }} />
               )}
@@ -503,7 +561,7 @@ export default function FocusView({ showToast, permissions }) {
                 {formatTimer(timeLeft)}
               </span>
               <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', marginTop: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                {sessionType === 'pomodoro' ? 'Work Interval' : 'Rest Break'}
+                {sessionType === 'pomodoro' ? 'Work Interval' : sessionType === 'custom' ? 'Custom Session' : 'Rest Break'}
               </span>
             </div>
 

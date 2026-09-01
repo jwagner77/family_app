@@ -21,6 +21,8 @@ export default function HousekeepingView({ showToast, currentUser }) {
   const [dueDate, setDueDate] = useState('');
   const [reoccurrence, setReoccurrence] = useState('none');
   const [assignedToUserId, setAssignedToUserId] = useState('');
+  const [reoccurrenceDays, setReoccurrenceDays] = useState([]);
+  const [reoccurrenceMonths, setReoccurrenceMonths] = useState([]);
 
   useEffect(() => {
     fetchTasks();
@@ -87,6 +89,8 @@ export default function HousekeepingView({ showToast, currentUser }) {
     setDueDate(new Date().toISOString().split('T')[0]);
     setReoccurrence('none');
     setAssignedToUserId('');
+    setReoccurrenceDays([]);
+    setReoccurrenceMonths([]);
     setIsModalOpen(true);
   };
 
@@ -97,6 +101,8 @@ export default function HousekeepingView({ showToast, currentUser }) {
     setDueDate(task.due_date);
     setReoccurrence(task.reoccurrence);
     setAssignedToUserId(task.assigned_to_user_id || '');
+    setReoccurrenceDays(task.reoccurrence_days ? task.reoccurrence_days.split(',').map(Number) : []);
+    setReoccurrenceMonths(task.reoccurrence_months ? task.reoccurrence_months.split(',').map(Number) : []);
     setIsModalOpen(true);
   };
 
@@ -112,6 +118,8 @@ export default function HousekeepingView({ showToast, currentUser }) {
       description: description.trim(),
       due_date: dueDate,
       reoccurrence,
+      reoccurrence_days: reoccurrence === 'weekly' && reoccurrenceDays.length > 0 ? reoccurrenceDays.join(',') : null,
+      reoccurrence_months: reoccurrence === 'yearly' && reoccurrenceMonths.length > 0 ? reoccurrenceMonths.join(',') : null,
       assigned_to_user_id: assignedToUserId ? parseInt(assignedToUserId, 10) : null
     };
 
@@ -516,11 +524,109 @@ export default function HousekeepingView({ showToast, currentUser }) {
                       <option value="none">One-off Chore</option>
                       <option value="daily">Daily</option>
                       <option value="weekly">Weekly</option>
+                      <option value="bi-weekly">Bi-Weekly</option>
                       <option value="monthly">Monthly</option>
                       <option value="yearly">Yearly</option>
                     </select>
                   </div>
                 </div>
+
+                {reoccurrence === 'weekly' && (
+                  <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600', display: 'block', marginBottom: '0.35rem' }}>Days of the Week</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '0.25rem' }}>
+                      {[
+                        { val: 0, label: 'Su' },
+                        { val: 1, label: 'Mo' },
+                        { val: 2, label: 'Tu' },
+                        { val: 3, label: 'We' },
+                        { val: 4, label: 'Th' },
+                        { val: 5, label: 'Fr' },
+                        { val: 6, label: 'Sa' }
+                      ].map(day => {
+                        const isSelected = reoccurrenceDays.includes(day.val);
+                        return (
+                          <button
+                            key={day.val}
+                            type="button"
+                            onClick={() => {
+                              setReoccurrenceDays(prev => 
+                                prev.includes(day.val)
+                                  ? prev.filter(d => d !== day.val)
+                                  : [...prev, day.val]
+                              );
+                            }}
+                            className="btn"
+                            style={{
+                              padding: '0.35rem 0',
+                              fontSize: '0.75rem',
+                              border: '1px solid var(--border)',
+                              background: isSelected ? 'var(--primary)' : 'var(--background)',
+                              color: isSelected ? 'var(--primary-foreground)' : 'var(--foreground)',
+                              borderRadius: 'var(--radius)',
+                              minWidth: 'auto',
+                              fontWeight: '600',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {day.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {reoccurrence === 'yearly' && (
+                  <div className="form-group" style={{ marginTop: '0.75rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600', display: 'block', marginBottom: '0.35rem' }}>Months of the Year</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.25rem' }}>
+                      {[
+                        { val: 0, label: 'Jan' },
+                        { val: 1, label: 'Feb' },
+                        { val: 2, label: 'Mar' },
+                        { val: 3, label: 'Apr' },
+                        { val: 4, label: 'May' },
+                        { val: 5, label: 'Jun' },
+                        { val: 6, label: 'Jul' },
+                        { val: 7, label: 'Aug' },
+                        { val: 8, label: 'Sep' },
+                        { val: 9, label: 'Oct' },
+                        { val: 10, label: 'Nov' },
+                        { val: 11, label: 'Dec' }
+                      ].map(month => {
+                        const isSelected = reoccurrenceMonths.includes(month.val);
+                        return (
+                          <button
+                            key={month.val}
+                            type="button"
+                            onClick={() => {
+                              setReoccurrenceMonths(prev => 
+                                prev.includes(month.val)
+                                  ? prev.filter(m => m !== month.val)
+                                  : [...prev, month.val]
+                              );
+                            }}
+                            className="btn"
+                            style={{
+                              padding: '0.35rem 0',
+                              fontSize: '0.75rem',
+                              border: '1px solid var(--border)',
+                              background: isSelected ? 'var(--primary)' : 'var(--background)',
+                              color: isSelected ? 'var(--primary-foreground)' : 'var(--foreground)',
+                              borderRadius: 'var(--radius)',
+                              minWidth: 'auto',
+                              fontWeight: '600',
+                              transition: 'all 0.15s ease'
+                            }}
+                          >
+                            {month.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>Assign To</label>

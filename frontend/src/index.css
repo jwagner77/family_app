@@ -157,11 +157,21 @@
 body {
   font-family: var(--font-sans);
   background-color: var(--background);
+  background-image: var(--app-bg, none);
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
   color: var(--foreground);
   min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.has-app-bg .app-container > svg,
+html.has-app-bg .app-container > svg,
+body.has-app-bg .app-container > svg {
+  display: none !important;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -200,13 +210,14 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   min-height: 100vh;
   position: relative;
-  background-color: var(--background);
+  background-color: transparent;
 }
 
 /* Sidebar Styling (Shadcn style) */
 .sidebar {
   width: 260px;
-  background-color: var(--primary);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   border: 1px solid color-mix(in srgb, var(--primary-foreground) 15%, transparent);
   border-radius: calc(var(--radius) * 2);
   padding: 1.5rem 1rem;
@@ -219,6 +230,22 @@ h1, h2, h3, h4, h5, h6 {
   z-index: 100;
   box-shadow: var(--shadow-lg);
   transition: width var(--transition-normal), padding var(--transition-normal), transform var(--transition-normal);
+  overflow: hidden;
+}
+
+.sidebar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--primary);
+  background-image: var(--navbar-bg, none);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--navbar-opacity, 0.75);
+  z-index: -1;
 }
 
 .sidebar-brand {
@@ -343,14 +370,14 @@ h1, h2, h3, h4, h5, h6 {
   --sidebar-offset: 280px;
   flex: 1;
   margin-left: var(--sidebar-offset);
-  padding: 2.5rem 3rem;
+  padding: 1rem 3rem 2.5rem 3rem;
   min-height: 100vh;
   width: calc(100% - var(--sidebar-offset));
   transition: margin-left var(--transition-normal), width var(--transition-normal);
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  background-color: var(--background);
+  background-color: transparent;
 }
 
 .main-content > * {
@@ -384,7 +411,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Cards (Shadcn Card layout style) */
 .card {
-  background-color: color-mix(in srgb, var(--card) 75%, transparent);
+  background-color: color-mix(in srgb, var(--card) calc(var(--navbar-opacity, 0.75) * 100%), transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   color: var(--card-foreground);
@@ -392,7 +419,32 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: var(--radius);
   padding: 1.5rem;
   box-shadow: var(--shadow-sm);
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+/* Overview 12-Column Grid & Resizing */
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1.5rem;
+}
+
+.overview-card {
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.overview-card.card-editing {
+  user-select: none;
+}
+
+@media (max-width: 900px) {
+  .overview-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .overview-grid > .overview-card {
+    grid-column: span 1 !important;
+  }
 }
 
 .card:hover {
@@ -660,7 +712,7 @@ select.input-control {
 }
 
 .modal-content {
-  background-color: var(--card);
+  background-color: color-mix(in srgb, var(--card) calc(var(--navbar-opacity, 0.75) * 100%), transparent);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   border: 1px solid var(--border);
@@ -1094,7 +1146,7 @@ select.input-control {
     --sidebar-offset: 84px;
     margin-left: var(--sidebar-offset);
     width: calc(100% - var(--sidebar-offset));
-    padding: 2rem;
+    padding: 1rem 1.5rem 2.5rem 1.5rem;
   }
 }
 
@@ -1198,7 +1250,8 @@ select.input-control {
     justify-content: flex-start;
     gap: 1rem;
     padding: 0.5rem 1rem;
-    background-color: var(--primary);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid color-mix(in srgb, var(--primary-foreground) 15%, transparent);
     border-radius: calc(var(--radius) * 1.5);
     position: fixed;
@@ -1210,6 +1263,22 @@ select.input-control {
     height: 3.25rem;
     box-shadow: var(--shadow-md);
     box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .mobile-header::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--primary);
+    background-image: var(--navbar-bg, none);
+    background-size: cover;
+    background-position: center;
+    opacity: var(--navbar-opacity, 0.75);
+    z-index: -1;
   }
 
   .mobile-menu-btn {
@@ -1821,75 +1890,242 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   padding: 2.5rem;
 }
 
-/* Card theme styling with 75% opacity */
-.widget-card.theme-light {
-  background: rgba(255, 255, 255, 0.75) !important;
-  color: #1e293b !important;
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  backdrop-filter: blur(8px);
-}
-.widget-card.theme-light .widget-header {
-  background: rgba(241, 245, 249, 0.85) !important;
-  color: #0f172a !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
-}
-.widget-card.theme-light .widget-body {
-  color: #334155 !important;
-}
-.widget-card.theme-light h3, 
-.widget-card.theme-light h4, 
-.widget-card.theme-light .widget-title {
-  color: #0f172a !important;
-}
-.widget-card.theme-light p, 
-.widget-card.theme-light .text-muted,
-.widget-card.theme-light span,
-.widget-card.theme-light label {
-  color: #475569 !important;
-}
-.widget-card.theme-light a {
-  color: #2563eb !important;
-}
-.widget-card.theme-light .btn-outline {
-  border-color: rgba(0, 0, 0, 0.15) !important;
-  color: #1e293b !important;
-}
-.widget-card.theme-light .btn-outline:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
+/* Card theme styling matched to overview cards design system */
+.widget-card {
+  background-color: color-mix(in srgb, var(--card) calc(var(--navbar-opacity, 0.75) * 100%), transparent) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
 }
 
-.widget-card.theme-dark {
-  background: rgba(15, 23, 42, 0.75) !important;
-  color: #f8fafc !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  backdrop-filter: blur(8px);
+.widget-card .widget-header {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--foreground) !important;
+  padding: 1rem 1.25rem !important;
 }
-.widget-card.theme-dark .widget-header {
-  background: rgba(30, 41, 59, 0.85) !important;
+
+.widget-card .widget-body {
+  color: var(--muted-foreground) !important;
+  padding: 1.25rem !important;
+}
+
+.widget-card h3, 
+.widget-card h4, 
+.widget-card .widget-title {
+  color: var(--foreground) !important;
+}
+
+.widget-card p, 
+.widget-card .text-muted,
+.widget-card span,
+.widget-card label {
+  color: var(--muted-foreground) !important;
+}
+
+.widget-card a {
+  color: var(--primary) !important;
+}
+
+.widget-card .btn-outline {
+  border-color: var(--border) !important;
+  color: var(--foreground) !important;
+}
+
+.widget-card .btn-outline:hover {
+  background: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Apply Theme to Info Cards Scoped Styling */
+.cards-themed .card,
+.cards-themed .widget-card,
+.cards-themed .modal-content {
+  position: relative;
+  background: transparent !important;
+  overflow: hidden;
+  color: var(--primary-foreground) !important;
+  --foreground: var(--primary-foreground) !important;
+  --text-main: var(--primary-foreground) !important;
+  --text-muted: color-mix(in srgb, var(--primary-foreground) 70%, transparent) !important;
+  --muted-foreground: color-mix(in srgb, var(--primary-foreground) 70%, transparent) !important;
+  --border: color-mix(in srgb, var(--primary-foreground) 15%, transparent) !important;
+  --border-color: color-mix(in srgb, var(--primary-foreground) 15%, transparent) !important;
+  border-color: color-mix(in srgb, var(--primary-foreground) 15%, transparent) !important;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2) !important;
+}
+
+.cards-themed .card::before,
+.cards-themed .widget-card::before,
+.cards-themed .modal-content::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--primary);
+  background-image: var(--navbar-bg, none);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--navbar-opacity, 0.75);
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.cards-themed .card a,
+.cards-themed .widget-card a,
+.cards-themed .modal-content a {
+  color: var(--primary-foreground) !important;
+}
+
+.cards-themed .widget-card a:hover {
+  opacity: 0.8;
+}
+
+.cards-themed .btn-outline {
+  border-color: color-mix(in srgb, var(--primary-foreground) 25%, transparent) !important;
+  color: var(--primary-foreground) !important;
+}
+
+.cards-themed .btn-outline:hover {
+  background: color-mix(in srgb, var(--primary-foreground) 10%, transparent) !important;
+}
+
+/* Force White Text Theme overrides */
+.force-text-white,
+.force-text-white .sidebar,
+.force-text-white .sidebar a,
+.force-text-white .sidebar a.nav-link,
+.force-text-white .mobile-header,
+.force-text-white .mobile-header button,
+.force-text-white .mobile-header div {
   color: #ffffff !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  --foreground: #ffffff !important;
+  --text-main: #ffffff !important;
+  --text-muted: rgba(255, 255, 255, 0.7) !important;
+  --muted-foreground: rgba(255, 255, 255, 0.7) !important;
+  --border: rgba(255, 255, 255, 0.2) !important;
+  --border-color: rgba(255, 255, 255, 0.2) !important;
 }
-.widget-card.theme-dark .widget-body {
-  color: #cbd5e1 !important;
-}
-.widget-card.theme-dark h3, 
-.widget-card.theme-dark h4, 
-.widget-card.theme-dark .widget-title {
+
+.force-text-white .card,
+.force-text-white .widget-card,
+.force-text-white .modal-content {
   color: #ffffff !important;
-}
-.widget-card.theme-dark p, 
-.widget-card.theme-dark .text-muted,
-.widget-card.theme-dark span,
-.widget-card.theme-dark label {
-  color: #cbd5e1 !important;
-}
-.widget-card.theme-dark a {
-  color: #60a5fa !important;
-}
-.widget-card.theme-dark .btn-outline {
+  --foreground: #ffffff !important;
+  --text-main: #ffffff !important;
+  --text-muted: rgba(255, 255, 255, 0.7) !important;
+  --muted-foreground: rgba(255, 255, 255, 0.7) !important;
   border-color: rgba(255, 255, 255, 0.2) !important;
-  color: #f8fafc !important;
 }
-.widget-card.theme-dark .btn-outline:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
+
+.force-text-white p,
+.force-text-white span,
+.force-text-white h1,
+.force-text-white h2,
+.force-text-white h3,
+.force-text-white h4,
+.force-text-white div,
+.force-text-white li,
+.force-text-white label {
+  color: #ffffff !important;
 }
+
+.force-text-white svg,
+.force-text-white svg * {
+  stroke: currentColor !important;
+}
+
+/* Force Black Text Theme overrides */
+.force-text-black,
+.force-text-black .sidebar,
+.force-text-black .sidebar a,
+.force-text-black .sidebar a.nav-link,
+.force-text-black .mobile-header,
+.force-text-black .mobile-header button,
+.force-text-black .mobile-header div {
+  color: #09090b !important;
+  --foreground: #09090b !important;
+  --text-main: #09090b !important;
+  --text-muted: rgba(9, 9, 11, 0.7) !important;
+  --muted-foreground: rgba(9, 9, 11, 0.7) !important;
+  --border: rgba(0, 0, 0, 0.15) !important;
+  --border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+.force-text-black .card,
+.force-text-black .widget-card,
+.force-text-black .modal-content {
+  color: #09090b !important;
+  --foreground: #09090b !important;
+  --text-main: #09090b !important;
+  --text-muted: rgba(9, 9, 11, 0.7) !important;
+  --muted-foreground: rgba(9, 9, 11, 0.7) !important;
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+
+.force-text-black p,
+.force-text-black span,
+.force-text-black h1,
+.force-text-black h2,
+.force-text-black h3,
+.force-text-black h4,
+.force-text-black div,
+.force-text-black li,
+.force-text-black label {
+  color: #09090b !important;
+}
+
+.force-text-black svg,
+.force-text-black svg * {
+  stroke: currentColor !important;
+}
+
+/* Dynamic Text Color overrides */
+.dynamic-text-active,
+.dynamic-text-active .sidebar,
+.dynamic-text-active .sidebar a,
+.dynamic-text-active .sidebar a.nav-link,
+.dynamic-text-active .mobile-header,
+.dynamic-text-active .mobile-header button,
+.dynamic-text-active .mobile-header div {
+  color: var(--dynamic-text-color) !important;
+  --foreground: var(--dynamic-text-color) !important;
+  --text-main: var(--dynamic-text-color) !important;
+  --text-muted: color-mix(in srgb, var(--dynamic-text-color) 70%, transparent) !important;
+  --muted-foreground: color-mix(in srgb, var(--dynamic-text-color) 70%, transparent) !important;
+  --border: color-mix(in srgb, var(--dynamic-text-color) 15%, transparent) !important;
+  --border-color: color-mix(in srgb, var(--dynamic-text-color) 15%, transparent) !important;
+}
+
+.dynamic-text-active .card,
+.dynamic-text-active .widget-card,
+.dynamic-text-active .modal-content {
+  color: var(--dynamic-text-color) !important;
+  --foreground: var(--dynamic-text-color) !important;
+  --text-main: var(--dynamic-text-color) !important;
+  --text-muted: color-mix(in srgb, var(--dynamic-text-color) 70%, transparent) !important;
+  --muted-foreground: color-mix(in srgb, var(--dynamic-text-color) 70%, transparent) !important;
+  border-color: color-mix(in srgb, var(--dynamic-text-color) 15%, transparent) !important;
+}
+
+.dynamic-text-active p,
+.dynamic-text-active span,
+.dynamic-text-active h1,
+.dynamic-text-active h2,
+.dynamic-text-active h3,
+.dynamic-text-active h4,
+.dynamic-text-active div,
+.dynamic-text-active li,
+.dynamic-text-active label {
+  color: var(--dynamic-text-color) !important;
+}
+
+.dynamic-text-active svg,
+.dynamic-text-active svg * {
+  stroke: currentColor !important;
+}
+
+

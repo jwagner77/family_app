@@ -90,9 +90,7 @@ graph TD
   - **Dose Admin Logging**: Click a "Log Given" button to save an administration timestamp. Displays precisely when medications were "Last Given" (e.g. `Oct 15, 2026 @ 10:15 PM`).
 
 ### Local Library Catalog
-- **Fully Local Integration**: Removed all outside integrations and API proxies to the external port `8890` library service. All book additions, edits, list updates, tag updates, comments, and DNF parameters are persisted directly in the local SQLite container database.
-- **Shared Access (Library Catalog)**: Removed the previous permissions checks from the Library and Reading List views, allowing any logged-in user in the household to view, add, search, and manage books.
-- **User-Specific Reading Logs**: Kept Reading Logs strictly private so that only the logged-in user can view or manage their own reading entries.
+- **Fully Local Integration**: Unified card transparency, border layout, and blur properties throughout the entire application. Overview drag-and-drop cards, custom builder widgets, sliding modal panels, and the top Welcome banner card now cohesively scale with theme variable color mixes synced dynamically to the Navbar Transparency Control Slider (`--navbar-opacity`) and the user's active theme accent color (`var(--primary-light)`) in both light and dark modes. Moved the Edit Layout button to the top welcome header next to notifications, reducing parent spacing gap layout padding for a tighter, cleaner presentation. Configured premium right-justified toggle switches inside the profile page for theme card options, manual text overrides (White/Black), and dynamic text contrast auto-solvers. Added reactive dynamic text color update triggers listening directly to navbar theme mode toggle states. Redefined card-specific variables inside theme text overrides to fix nested container text inheritances.
 - **Cleaned Settings**: Removed the external Library App Integration card from the Settings/Integrations tab.
 - **Dashboard Widgets Integration**: Rewired the `library_recent`, `library_summary`, and `library_reading_list` widgets inside `getWidgetData` to query local helper functions instead of calling external integration APIs, supporting user stats correctly.
 
@@ -102,6 +100,18 @@ graph TD
 - **Universal Settings & Custom Colors**:
   - Configures `calendar_event_color`, `calendar_task_color`, `calendar_bill_color`, and `calendar_sub_color` settings keys.
   - Microsoft Sync settings are universally rendered but gracefully disabled/grayed out for non-SSO accounts.
+
+### Games Section & Play Session Logger
+- **Current Game Session Info Card**: Added a dedicated card to manage active plays. Selecting a game from the library loads it directly, auto-selecting player capacities and the current logged-in session user.
+- **Dynamic Player Rostering**: Choose active players from household accounts, stored contacts, or input custom guest player names. Checkbox controls beside each player designate game winners.
+- **Notion-Style Markdown Editor**: Built a scorecard and play logger text area supporting quick templates:
+  - `/score` inserts active player grids with table points.
+  - `/table` inserts standard Markdown tables.
+  - `/notes` and `/round` dump bulleted notes structure.
+  - `/clear` clears notes immediately.
+  - **Live Preview Mode Toggle**: Added a visual `Preview / Edit` toggle button directly above the scorecard. Enables viewing formatted tables, headers, and lists in real-time as notes are compiled.
+- **Played History Dashboard Storage**: Clicking **Game Over** saves the game logs and packages markdown notes as a physical file on the server.
+- **Markdown Notes Viewer**: Game entries in the Played History log that possess files display an interactive document viewer button, parsing saved Markdown logs into fully formatted preview elements (headers, bolding, lists, and tables) directly in a dialog overlay, completely hiding raw plaintext notes for a clean display.
 
 ---
 

@@ -206,6 +206,12 @@ async function authenticate(req, res, next) {
           phone: user.phone || '',
           email: user.email || '',
           picture_url: user.picture_url || '',
+          navbar_bg: user.navbar_bg || '',
+          navbar_opacity: user.navbar_opacity !== null && user.navbar_opacity !== undefined ? user.navbar_opacity : 0.75,
+          app_bg: user.app_bg || '',
+          theme_info_cards: user.theme_info_cards !== null && user.theme_info_cards !== undefined ? user.theme_info_cards : 0,
+          text_color: user.text_color || 'white',
+          dynamic_text_color: user.dynamic_text_color !== null && user.dynamic_text_color !== undefined ? user.dynamic_text_color : 0,
           permissions
         };
         return next();
@@ -258,6 +264,12 @@ async function authenticate(req, res, next) {
       phone: user.phone || '',
       email: user.email || '',
       picture_url: user.picture_url || '',
+      navbar_bg: user.navbar_bg || '',
+      navbar_opacity: user.navbar_opacity !== null && user.navbar_opacity !== undefined ? user.navbar_opacity : 0.75,
+      app_bg: user.app_bg || '',
+      theme_info_cards: user.theme_info_cards !== null && user.theme_info_cards !== undefined ? user.theme_info_cards : 0,
+      text_color: user.text_color || 'white',
+      dynamic_text_color: user.dynamic_text_color !== null && user.dynamic_text_color !== undefined ? user.dynamic_text_color : 0,
       permissions
     };
     next();
@@ -650,7 +662,8 @@ async function checkExpiringItems() {
 
 // Enable CORS and JSON body parser
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Set up storage folders
 const DATA_DIR = process.env.DATA_DIR || './data';
@@ -776,6 +789,16 @@ app.post('/api/auth/login', async (req, res) => {
         auth_provider: user.auth_provider || 'local',
         calendar_guid: user.calendar_guid || '',
         timezone: user.timezone || 'US/New_York',
+        birthday: user.birthday || '',
+        phone: user.phone || '',
+        email: user.email || '',
+        picture_url: user.picture_url || '',
+        navbar_bg: user.navbar_bg || '',
+        navbar_opacity: user.navbar_opacity !== null && user.navbar_opacity !== undefined ? user.navbar_opacity : 0.75,
+        app_bg: user.app_bg || '',
+        theme_info_cards: user.theme_info_cards || 0,
+        text_color: user.text_color || 'white',
+        dynamic_text_color: user.dynamic_text_color || 0,
         permissions
       }
     });
@@ -808,7 +831,7 @@ async function syncUserAsContact(user) {
 
 app.post('/api/users/profile', authenticate, async (req, res) => {
   try {
-    const { primary_color, theme, display_name, timezone, calendar_guid, birthday, phone, email, picture_url } = req.body;
+    const { primary_color, theme, display_name, timezone, calendar_guid, birthday, phone, email, picture_url, navbar_bg, navbar_opacity, app_bg, theme_info_cards, text_color, dynamic_text_color } = req.body;
     const db = await getDb();
     
     const updates = [];
@@ -850,6 +873,30 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
       updates.push('picture_url = ?');
       values.push(picture_url === '' ? null : picture_url);
     }
+    if (navbar_bg !== undefined) {
+      updates.push('navbar_bg = ?');
+      values.push(navbar_bg === '' ? null : navbar_bg);
+    }
+    if (navbar_opacity !== undefined) {
+      updates.push('navbar_opacity = ?');
+      values.push(navbar_opacity === '' ? null : navbar_opacity);
+    }
+    if (app_bg !== undefined) {
+      updates.push('app_bg = ?');
+      values.push(app_bg === '' ? null : app_bg);
+    }
+    if (theme_info_cards !== undefined) {
+      updates.push('theme_info_cards = ?');
+      values.push(theme_info_cards ? 1 : 0);
+    }
+    if (text_color !== undefined) {
+      updates.push('text_color = ?');
+      values.push(text_color);
+    }
+    if (dynamic_text_color !== undefined) {
+      updates.push('dynamic_text_color = ?');
+      values.push(dynamic_text_color ? 1 : 0);
+    }
     
     if (updates.length === 0) {
       return res.status(400).json({ error: 'No fields to update' });
@@ -889,6 +936,12 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
       phone: updatedUserRaw.phone || '',
       email: updatedUserRaw.email || '',
       picture_url: updatedUserRaw.picture_url || '',
+      navbar_bg: updatedUserRaw.navbar_bg || '',
+      navbar_opacity: updatedUserRaw.navbar_opacity !== null && updatedUserRaw.navbar_opacity !== undefined ? updatedUserRaw.navbar_opacity : 0.75,
+      app_bg: updatedUserRaw.app_bg || '',
+      theme_info_cards: updatedUserRaw.theme_info_cards || 0,
+      text_color: updatedUserRaw.text_color || 'white',
+      dynamic_text_color: updatedUserRaw.dynamic_text_color || 0,
       permissions
     };
 
@@ -896,6 +949,36 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
     await syncUserAsContact(updatedUser);
     
     res.json({ message: 'Profile updated successfully', user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/users/profile/wallpaper', authenticate, upload.single('wallpaper'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No wallpaper file provided' });
+    }
+    const wallpaperUrl = `/uploads/${req.file.filename}`;
+    const db = await getDb();
+    await db.run('UPDATE users SET app_bg = ? WHERE id = ?', [wallpaperUrl, req.user.id]);
+    const updatedUser = await getUserById(req.user.id);
+    res.json({ url: wallpaperUrl, user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/users/profile/navbar-bg', authenticate, upload.single('navbar_bg'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No navbar background file provided' });
+    }
+    const navbarBgUrl = `/uploads/${req.file.filename}`;
+    const db = await getDb();
+    await db.run('UPDATE users SET navbar_bg = ? WHERE id = ?', [navbarBgUrl, req.user.id]);
+    const updatedUser = await getUserById(req.user.id);
+    res.json({ url: navbarBgUrl, user: updatedUser });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1141,11 +1224,15 @@ app.get('/api/settings/public', async (req, res) => {
       dashboard_bg_type: settings.dashboard_bg_type || 'theme',
       dashboard_bg_value: settings.dashboard_bg_value || '',
       dashboard_bg_unsplash_keywords: settings.dashboard_bg_unsplash_keywords || '',
+      dashboard_rotation_enabled: settings.dashboard_rotation_enabled || 'false',
+      dashboard_rotation_interval: settings.dashboard_rotation_interval || '30',
+      dashboard_rotation_dashboards: settings.dashboard_rotation_dashboards || '["default"]',
       calendar_event_color: settings.calendar_event_color || '#3b82f6',
       calendar_task_color: settings.calendar_task_color || '#10b981',
       calendar_bill_color: settings.calendar_bill_color || '#ef4444',
       calendar_sub_color: settings.calendar_sub_color || '#8b5cf6',
-      calendar_contact_event_color: settings.calendar_contact_event_color || '#ec4899'
+      calendar_contact_event_color: settings.calendar_contact_event_color || '#ec4899',
+      mtg_url: settings.mtg_url || ''
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -1159,9 +1246,8 @@ app.get('/api/settings', authenticate, requirePermission('settings_general', 're
       delete settings.notify_smtp_pass;
       delete settings.oidc_client_secret;
       delete settings.notify_webhook_secret;
-      delete settings.cookbook_key;
+      delete settings.mtg_key;
       delete settings.library_key;
-      delete settings.home_key;
       delete settings.task_key;
       delete settings.unsplash_key;
       delete settings.unsplash_app_id;
@@ -1187,14 +1273,11 @@ app.post('/api/settings', authenticate, requirePermission('settings_general', 'f
     if (settings.notify_webhook_secret === '••••••••' || settings.notify_webhook_secret === '') {
       delete settings.notify_webhook_secret;
     }
-    if (settings.cookbook_key === '••••••••' || settings.cookbook_key === '') {
-      delete settings.cookbook_key;
+    if (settings.mtg_key === '••••••••' || settings.mtg_key === '') {
+      delete settings.mtg_key;
     }
     if (settings.library_key === '••••••••' || settings.library_key === '') {
       delete settings.library_key;
-    }
-    if (settings.home_key === '••••••••' || settings.home_key === '') {
-      delete settings.home_key;
     }
     if (settings.task_key === '••••••••' || settings.task_key === '') {
       delete settings.task_key;
@@ -1402,6 +1485,26 @@ app.get('/api/notifications/active', authenticate, async (req, res) => {
     const db = await getDb();
     const logs = await db.all('SELECT * FROM notification_logs ORDER BY created_at DESC LIMIT 100');
     res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/notifications/unread', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const logs = await db.all('SELECT * FROM notification_logs WHERE is_read = 0 OR is_read IS NULL ORDER BY created_at DESC LIMIT 50');
+    res.json(logs);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/notifications/:id/read', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run('UPDATE notification_logs SET is_read = 1 WHERE id = ?', req.params.id);
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2460,6 +2563,242 @@ app.get('/api/calendar/events', authenticate, async (req, res) => {
   }
 });
 
+async function getUnifiedUpcomingEventsList(userId) {
+  const db = await getDb();
+  
+  // 1. Fetch standard events from calendar_events
+  const calendarEvents = await db.all("SELECT * FROM calendar_events");
+  
+  // 2. Fetch contacts (for birthdays)
+  const contacts = await db.all("SELECT id, name, birthday FROM contacts WHERE birthday IS NOT NULL AND birthday != ''");
+  
+  // 3. Fetch contact important dates
+  const contactDates = await db.all(`
+    SELECT cid.id, cid.contact_id, cid.name, cid.date, c.name as contact_name 
+    FROM contact_important_dates cid
+    JOIN contacts c ON cid.contact_id = c.id
+    WHERE cid.date IS NOT NULL AND cid.date != ''
+  `);
+  
+  // 4. Fetch user important dates
+  const userDates = await db.all("SELECT * FROM user_important_dates WHERE user_id = ? AND date IS NOT NULL AND date != ''", [userId]);
+  
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  const unifiedEvents = [];
+  
+  // Process standard calendar events
+  calendarEvents.forEach(e => {
+    if (e.start_time) {
+      unifiedEvents.push({
+        id: `calendar-${e.id}`,
+        title: e.title,
+        start_time: e.start_time,
+        end_time: e.end_time || e.start_time,
+        all_day: e.all_day || 0,
+        location: e.location || '',
+        description: e.description || '',
+        calendar_type: 'event'
+      });
+    }
+  });
+  
+  // Process birthdays
+  contacts.forEach(c => {
+    const parts = c.birthday.split('-');
+    if (parts.length === 3) {
+      const birthYear = parseInt(parts[0], 10);
+      const birthMonth = parts[1];
+      const birthDay = parts[2];
+      
+      // Project to current year and next year
+      [currentYear, currentYear + 1].forEach(year => {
+        const projectedDate = `${year}-${birthMonth}-${birthDay}`;
+        const age = year - birthYear;
+        const titleSuffix = age > 0 ? ` (${age} Birthday)` : ' Birthday';
+        
+        unifiedEvents.push({
+          id: `contact-birthday-${c.id}-${year}`,
+          title: `🎂 ${c.name}${titleSuffix}`,
+          start_time: `${projectedDate}T00:00:00`,
+          end_time: `${projectedDate}T23:59:59`,
+          all_day: 1,
+          location: '',
+          description: `${c.name}'s Birthday. Born ${c.birthday}.`,
+          calendar_type: 'contact_event'
+        });
+      });
+    }
+  });
+  
+  // Process contact important dates
+  contactDates.forEach(d => {
+    const parts = d.date.split('-');
+    if (parts.length === 3) {
+      const startYear = parseInt(parts[0], 10);
+      const startMonth = parts[1];
+      const startDay = parts[2];
+      
+      [currentYear, currentYear + 1].forEach(year => {
+        const projectedDate = `${year}-${startMonth}-${startDay}`;
+        const years = year - startYear;
+        const titleSuffix = years > 0 ? ` (${years} Years)` : '';
+        
+        unifiedEvents.push({
+          id: `contact-date-${d.id}-${year}`,
+          title: `✨ ${d.contact_name}'s ${d.name}${titleSuffix}`,
+          start_time: `${projectedDate}T00:00:00`,
+          end_time: `${projectedDate}T23:59:59`,
+          all_day: 1,
+          location: '',
+          description: `${d.contact_name}'s ${d.name}. Date: ${d.date}.`,
+          calendar_type: 'contact_event'
+        });
+      });
+    }
+  });
+  
+  // Process user important dates
+  userDates.forEach(d => {
+    const parts = d.date.split('-');
+    if (parts.length === 3) {
+      const startYear = parseInt(parts[0], 10);
+      const startMonth = parts[1];
+      const startDay = parts[2];
+      
+      [currentYear, currentYear + 1].forEach(year => {
+        const projectedDate = `${year}-${startMonth}-${startDay}`;
+        const years = year - startYear;
+        const titleSuffix = years > 0 ? ` (${years} Years)` : '';
+        
+        unifiedEvents.push({
+          id: `user-date-${d.id}-${year}`,
+          title: `✨ ${d.name}${titleSuffix}`,
+          start_time: `${projectedDate}T00:00:00`,
+          end_time: `${projectedDate}T23:59:59`,
+          all_day: 1,
+          location: '',
+          description: `${d.name}. Date: ${d.date}.`,
+          calendar_type: 'user_event'
+        });
+      });
+    }
+  });
+  
+  // Filter to only future events (start_time or end_time >= today) and sort ASC
+  return unifiedEvents
+    .filter(e => {
+      const eventDay = e.start_time.split('T')[0];
+      return eventDay >= todayStr;
+    })
+    .sort((a, b) => a.start_time.localeCompare(b.start_time));
+}
+
+async function getCalendarFullData(userId) {
+  const db = await getDb();
+  const settings = await getSettings();
+  
+  const user = userId ? await getUserById(userId) : null;
+  const userTz = user?.timezone || 'America/New_York';
+  const todayStr = getTzTodayStr(userTz);
+
+  // 1. Calendar Events
+  const calendarEvents = await db.all("SELECT * FROM calendar_events ORDER BY start_time ASC");
+
+  // 2. FocusFlow Tasks (with due_date)
+  const tasksRaw = await getAllTasks(userId, {}, todayStr);
+  const tasks = (tasksRaw || []).filter(t => t.due_date);
+
+  // 3. Recurring Bills
+  const billsRaw = await db.all("SELECT * FROM recurring_bills WHERE active = 1 ORDER BY next_billing_date ASC");
+  const bills = [];
+  for (let bill of billsRaw) {
+    let newDate = bill.next_billing_date;
+    if (newDate && newDate < todayStr) {
+      while (newDate < todayStr) {
+        newDate = getNextBillingDate(newDate, bill.billing_cycle);
+      }
+      await db.run("UPDATE recurring_bills SET next_billing_date = ? WHERE id = ?", [newDate, bill.id]);
+    }
+    bills.push({
+      ...bill,
+      due_date: newDate || bill.next_billing_date,
+      calendar_type: 'bill'
+    });
+  }
+
+  // 4. Subscriptions
+  const subsRaw = await db.all("SELECT * FROM subscriptions WHERE active = 1 ORDER BY next_billing_date ASC");
+  const subscriptions = [];
+  for (let sub of subsRaw) {
+    let newDate = sub.next_billing_date;
+    if (newDate && newDate < todayStr) {
+      while (newDate < todayStr) {
+        newDate = getNextBillingDate(newDate, sub.billing_cycle);
+      }
+      await db.run("UPDATE subscriptions SET next_billing_date = ? WHERE id = ?", [newDate, sub.id]);
+    }
+    subscriptions.push({
+      ...sub,
+      next_billing_date: newDate || sub.next_billing_date,
+      due_date: newDate || sub.next_billing_date,
+      calendar_type: 'subscription'
+    });
+  }
+
+  // 5. Contacts (Birthdays & Important dates)
+  const contacts = await db.all("SELECT id, name, birthday FROM contacts");
+  const contactImportantDates = await db.all(`
+    SELECT cid.id, cid.contact_id, cid.name, cid.date, c.name as contact_name 
+    FROM contact_important_dates cid
+    JOIN contacts c ON cid.contact_id = c.id
+    WHERE cid.date IS NOT NULL AND cid.date != ''
+  `);
+  const userImportantDates = userId ? await db.all("SELECT * FROM user_important_dates WHERE user_id = ? AND date IS NOT NULL AND date != ''", [userId]) : [];
+
+  const colors = {
+    event: settings.calendar_event_color || '#3b82f6',
+    task: settings.calendar_task_color || '#10b981',
+    bill: settings.calendar_bill_color || '#ef4444',
+    subscription: settings.calendar_sub_color || '#8b5cf6',
+    contact_event: settings.calendar_contact_event_color || '#ec4899'
+  };
+
+  return {
+    todayStr,
+    timezone: userTz,
+    events: calendarEvents,
+    tasks,
+    bills,
+    subscriptions,
+    contacts,
+    contactImportantDates,
+    userImportantDates,
+    colors
+  };
+}
+
+app.get('/api/calendar/overview-data', authenticate, async (req, res) => {
+  try {
+    const data = await getCalendarFullData(req.user.id);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/calendar/events/upcoming', authenticate, async (req, res) => {
+  try {
+    const list = await getUnifiedUpcomingEventsList(req.user.id);
+    res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 app.post('/api/calendar/events', authenticate, async (req, res) => {
   try {
     const { title, description, start_time, end_time, location } = req.body;
@@ -2622,8 +2961,51 @@ app.get('/api/contacts', authenticate, async (req, res) => {
       await syncUserAsContact(u);
     }
     
-    const contacts = await db.all('SELECT * FROM contacts ORDER BY name ASC');
+    const contacts = await db.all(`
+      SELECT c.*, 
+             (SELECT COUNT(*) FROM game_play_history h WHERE h.winner = c.name) as game_wins 
+      FROM contacts c 
+      ORDER BY c.name ASC
+    `);
+
+    const allDates = await db.all('SELECT * FROM contact_important_dates');
+    for (const c of contacts) {
+      c.important_dates = allDates.filter(d => d.contact_id === c.id);
+    }
+
     res.json(contacts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST contact important date
+app.post('/api/contacts/:contactId/important-dates', authenticate, async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const { name, date } = req.body;
+    if (!name || !date) {
+      return res.status(400).json({ error: 'Name and Date are required' });
+    }
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO contact_important_dates (contact_id, name, date) VALUES (?, ?, ?)',
+      [parseInt(contactId, 10), name, date]
+    );
+    const newDate = await db.get('SELECT * FROM contact_important_dates WHERE id = ?', [result.lastID]);
+    res.status(201).json(newDate);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE contact important date
+app.delete('/api/contacts/important-dates/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await getDb();
+    await db.run('DELETE FROM contact_important_dates WHERE id = ?', [id]);
+    res.json({ message: 'Important date deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3195,8 +3577,65 @@ app.get('/api/bills/tags', authenticate, async (req, res) => {
 // --- GAMES API ---
 
 // 1. List games
+// Sync Magic: The Gathering game info from MTG App if configured
+async function syncMtgGame() {
+  try {
+    const db = await getDb();
+    const settings = await getSettings();
+    if (!settings.mtg_url || !settings.mtg_url.trim()) return;
+
+    // Check if game entry already exists
+    const existing = await db.get("SELECT * FROM games WHERE title = 'Magic: The Gathering'");
+    if (existing) {
+      if (existing.min_players !== 2 || existing.max_players !== 2 || existing.recommended_ages !== '13+') {
+        await db.run(
+          "UPDATE games SET min_players = 2, max_players = 2, recommended_ages = '13+' WHERE id = ?",
+          [existing.id]
+        );
+      }
+      return;
+    }
+
+    const baseUrl = settings.mtg_url.trim().replace(/\/$/, '');
+    const url = `${baseUrl}/api/game`;
+    const headers = { 'Accept': 'application/json' };
+    if (settings.mtg_key) {
+      headers['x-api-key'] = settings.mtg_key;
+    }
+
+    let gameData = {
+      title: 'Magic: The Gathering',
+      game_type: 'Card Game',
+      min_players: 2,
+      max_players: 2,
+      recommended_ages: '13+',
+      rating: 5
+    };
+
+    try {
+      const response = await fetch(url, { headers, timeout: 5000 });
+      if (response.ok) {
+        const remoteData = await response.json();
+        gameData = { ...gameData, ...remoteData, min_players: 2, max_players: 2, recommended_ages: '13+' };
+      }
+    } catch (e) {
+      console.log(`[MTG Sync] API fetch failed, using default info: ${e.message}`);
+    }
+
+    await db.run(
+      `INSERT INTO games (title, game_type, min_players, max_players, recommended_ages, rating) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [gameData.title, gameData.game_type, gameData.min_players, gameData.max_players, gameData.recommended_ages, gameData.rating]
+    );
+    console.log(`[MTG Sync] Auto-populated "Magic: The Gathering" in games database.`);
+  } catch (err) {
+    console.error(`[MTG Sync] Failed:`, err);
+  }
+}
+
 app.get('/api/games', authenticate, async (req, res) => {
   try {
+    await syncMtgGame();
     const db = await getDb();
     const games = await db.all("SELECT * FROM games ORDER BY title ASC");
     res.json(games);
@@ -3260,24 +3699,37 @@ app.get('/api/games/history', authenticate, async (req, res) => {
 
 // 5. Add a play history entry
 app.post('/api/games/history', authenticate, async (req, res) => {
-  const { game_id, players_count, winner, played_at } = req.body;
+  const { game_id, players_count, winner, played_at, notes_content } = req.body;
   if (!game_id) {
     return res.status(400).json({ error: 'game_id is required' });
   }
   try {
     const db = await getDb();
     const logDate = played_at || new Date().toISOString();
+    
+    let notes_file = null;
+    if (notes_content !== undefined && notes_content !== null) {
+      const notesDir = path.join(__dirname, 'public', 'game_notes');
+      if (!fs.existsSync(notesDir)) {
+        fs.mkdirSync(notesDir, { recursive: true });
+      }
+      const filename = `game_play_${Date.now()}_${Math.floor(Math.random() * 1000)}.md`;
+      fs.writeFileSync(path.join(notesDir, filename), notes_content, 'utf8');
+      notes_file = `/game_notes/${filename}`;
+    }
+
     const result = await db.run(
-      `INSERT INTO game_play_history (game_id, players_count, winner, played_at)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO game_play_history (game_id, players_count, winner, played_at, notes_file)
+       VALUES (?, ?, ?, ?, ?)`,
       [
         parseInt(game_id, 10),
         players_count ? parseInt(players_count, 10) : null,
         winner || 'Pending',
-        logDate
+        logDate,
+        notes_file
       ]
     );
-    res.json({ id: result.lastID, game_id, players_count, winner: winner || 'Pending', played_at: logDate });
+    res.json({ id: result.lastID, game_id, players_count, winner: winner || 'Pending', played_at: logDate, notes_file });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3285,7 +3737,7 @@ app.post('/api/games/history', authenticate, async (req, res) => {
 
 // 6. Update a play history entry
 app.put('/api/games/history/:id', authenticate, async (req, res) => {
-  const { winner, players_count, played_at } = req.body;
+  const { winner, players_count, played_at, notes_content } = req.body;
   try {
     const db = await getDb();
     const existing = await db.get("SELECT * FROM game_play_history WHERE id = ?", [req.params.id]);
@@ -3296,13 +3748,53 @@ app.put('/api/games/history/:id', authenticate, async (req, res) => {
     const updatedPlayers = players_count !== undefined ? (players_count ? parseInt(players_count, 10) : null) : existing.players_count;
     const updatedDate = played_at !== undefined ? played_at : existing.played_at;
 
+    let notes_file = existing.notes_file;
+    if (notes_content !== undefined) {
+      const notesDir = path.join(__dirname, 'public', 'game_notes');
+      if (!fs.existsSync(notesDir)) {
+        fs.mkdirSync(notesDir, { recursive: true });
+      }
+      let filename;
+      if (notes_file && notes_file.startsWith('/game_notes/')) {
+        filename = notes_file.replace('/game_notes/', '');
+      } else {
+        filename = `game_play_${Date.now()}_${Math.floor(Math.random() * 1000)}.md`;
+        notes_file = `/game_notes/${filename}`;
+      }
+      fs.writeFileSync(path.join(notesDir, filename), notes_content || '', 'utf8');
+    }
+
     await db.run(
       `UPDATE game_play_history 
-       SET winner = ?, players_count = ?, played_at = ? 
+       SET winner = ?, players_count = ?, played_at = ?, notes_file = ? 
        WHERE id = ?`,
-      [updatedWinner, updatedPlayers, updatedDate, req.params.id]
+      [updatedWinner, updatedPlayers, updatedDate, notes_file, req.params.id]
     );
-    res.json({ id: req.params.id, winner: updatedWinner, players_count: updatedPlayers, played_at: updatedDate });
+    res.json({ id: req.params.id, winner: updatedWinner, players_count: updatedPlayers, played_at: updatedDate, notes_file });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6.5. Get markdown notes content for a play history entry
+app.get('/api/games/history/:id/notes', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const log = await db.get("SELECT notes_file FROM game_play_history WHERE id = ?", [req.params.id]);
+    if (!log || !log.notes_file) {
+      return res.status(404).json({ error: 'Notes file not found' });
+    }
+    
+    const filename = log.notes_file.replace('/game_notes/', '');
+    const notesPath = path.join(__dirname, 'public', 'game_notes', filename);
+    
+    if (!fs.existsSync(notesPath)) {
+      return res.status(404).json({ error: 'Notes file does not exist on disk' });
+    }
+    
+    const content = fs.readFileSync(notesPath, 'utf8');
+    res.setHeader('Content-Type', 'text/plain');
+    res.send(content);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3310,6 +3802,9 @@ app.put('/api/games/history/:id', authenticate, async (req, res) => {
 
 // 7. Delete a play history entry
 app.delete('/api/games/history/:id', authenticate, async (req, res) => {
+  if (req.user.role_name !== 'Administrator') {
+    return res.status(403).json({ error: 'Only administrators can delete game play logs.' });
+  }
   try {
     const db = await getDb();
     await db.run("DELETE FROM game_play_history WHERE id = ?", [req.params.id]);
@@ -5644,20 +6139,17 @@ async function fetchFromIntegration(appType, endpoint) {
   let baseUrl = '';
   let apiKey = '';
 
-  if (appType === 'cookbook') {
-    baseUrl = settings.cookbook_url;
-    apiKey = settings.cookbook_key;
+  if (appType === 'mtg') {
+    baseUrl = settings.mtg_url;
+    apiKey = settings.mtg_key;
   } else if (appType === 'library') {
     baseUrl = settings.library_url;
     apiKey = settings.library_key;
-  } else if (appType === 'home') {
-    baseUrl = settings.home_url;
-    apiKey = settings.home_key;
   }
 
   // Self-reference defaults for consolidated app
   if (!baseUrl || !baseUrl.trim()) {
-    baseUrl = `http://localhost:${process.env.PORT || 8282}`;
+    baseUrl = `http://127.0.0.1:${process.env.PORT || 8282}`;
   }
   if (!apiKey || !apiKey.trim()) {
     const keyRow = await db.get("SELECT value FROM settings WHERE key = 'api_key'");
@@ -5771,15 +6263,15 @@ async function getWidgetData(widget, userId) {
 
   switch (widget.type) {
     case 'cookbook_leftovers':
-      return await fetchFromIntegration('cookbook', '/api/leftovers');
+      return await getAllLeftovers();
     case 'cookbook_menu':
     case 'cookbook_menu_3day':
     case 'cookbook_menu_5day':
-      return await fetchFromIntegration('cookbook', '/api/menu');
+      return await getWeeklyMenu();
     case 'cookbook_recent':
-      return await fetchFromIntegration('cookbook', '/api/recipes/recent');
+      return await getRecentRecipes(limit);
     case 'cookbook_shopping':
-      return await fetchFromIntegration('cookbook', '/api/shopping-lists');
+      return await getShoppingListsForUser(userId);
       
     case 'library_recent':
       return await getRecentBooks(limit);
@@ -5788,15 +6280,61 @@ async function getWidgetData(widget, userId) {
     case 'library_reading_list':
       return userId ? await getReadingListForUser(userId) : [];
       
-    case 'home_tasks':
-      return await fetchFromIntegration('home', '/api/focusflow/tasks');
+    case 'home_tasks': {
+      const todayStr = new Date().toISOString().split('T')[0];
+      return await getAllTasks(userId, {}, todayStr);
+    }
     case 'home_calendar':
-      return await fetchFromIntegration('home', '/api/calendar/events');
-    case 'home_subscriptions':
-      return await fetchFromIntegration('home', '/api/subscriptions');
+      return await getUnifiedUpcomingEventsList(userId);
+    case 'calendar_daily':
+    case 'calendar_weekly':
+    case 'calendar_monthly':
+    case 'calendar_month_grid':
+    case 'calendar_agenda':
+      return await getCalendarFullData(userId);
+    case 'home_subscriptions': {
+      const db = await getDb();
+      const subs = await db.all("SELECT * FROM subscriptions ORDER BY next_billing_date ASC");
+      const user = userId ? await getUserById(userId) : null;
+      const userTz = user?.timezone || 'America/New_York';
+      const todayStr = getTzTodayStr(userTz);
+      for (let sub of subs) {
+        if (sub.next_billing_date < todayStr && sub.active === 1) {
+          let newDate = sub.next_billing_date;
+          while (newDate < todayStr) {
+            newDate = getNextBillingDate(newDate, sub.billing_cycle);
+          }
+          await db.run("UPDATE subscriptions SET next_billing_date = ? WHERE id = ?", [newDate, sub.id]);
+          sub.next_billing_date = newDate;
+        }
+      }
+      return subs.map(sub => ({
+        ...sub,
+        due_in_days: getDaysRemaining(sub.next_billing_date, userTz)
+      }));
+    }
     case 'home_bills':
-    case 'home_recurring_bills':
-      return await fetchFromIntegration('home', '/api/bills');
+    case 'home_recurring_bills': {
+      const db = await getDb();
+      const bills = await db.all("SELECT * FROM recurring_bills ORDER BY next_billing_date ASC");
+      const user = userId ? await getUserById(userId) : null;
+      const userTz = user?.timezone || 'America/New_York';
+      const todayStr = getTzTodayStr(userTz);
+      for (let bill of bills) {
+        if (bill.next_billing_date < todayStr && bill.active === 1) {
+          let newDate = bill.next_billing_date;
+          while (newDate < todayStr) {
+            newDate = getNextBillingDate(newDate, bill.billing_cycle);
+          }
+          await db.run("UPDATE recurring_bills SET next_billing_date = ? WHERE id = ?", [newDate, bill.id]);
+          bill.next_billing_date = newDate;
+        }
+      }
+      return bills.map(bill => ({
+        ...bill,
+        due_in_days: getDaysRemaining(bill.next_billing_date, userTz)
+      }));
+    }
       
     case 'clock':
       return { serverTime: new Date().toISOString() };
@@ -5816,12 +6354,117 @@ async function getWidgetData(widget, userId) {
   }
 }
 
+// --- DASHBOARDS MANAGEMENT ENDPOINTS ---
+
+app.get('/api/dashboards', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const dashboards = await db.all(`
+      SELECT d.*, COUNT(w.id) as widget_count 
+      FROM dashboards d 
+      LEFT JOIN dashboard_widgets w ON d.id = w.dashboard_id 
+      GROUP BY d.id 
+      ORDER BY d.is_default DESC, d.name ASC
+    `);
+    res.json(dashboards);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/dashboards', authenticate, async (req, res) => {
+  try {
+    const { name, clone_from_id } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Dashboard name is required' });
+    }
+    const db = await getDb();
+    const id = 'dash_' + Date.now();
+    await db.run(
+      'INSERT INTO dashboards (id, name, is_default) VALUES (?, ?, 0)',
+      [id, name.trim()]
+    );
+
+    // If cloning from an existing dashboard, duplicate its widgets
+    if (clone_from_id) {
+      const sourceWidgets = await db.all('SELECT * FROM dashboard_widgets WHERE dashboard_id = ?', [clone_from_id]);
+      for (const w of sourceWidgets) {
+        const newWidgetId = 'w_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+        await db.run(
+          'INSERT INTO dashboard_widgets (id, dashboard_id, type, x, y, w, h, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [newWidgetId, id, w.type, w.x, w.y, w.w, w.h, w.config]
+        );
+      }
+    }
+
+    res.status(201).json({ id, name: name.trim(), message: 'Dashboard created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/dashboards/:id', authenticate, async (req, res) => {
+  try {
+    const { name, is_default } = req.body;
+    const db = await getDb();
+    const dashboard = await db.get('SELECT * FROM dashboards WHERE id = ?', [req.params.id]);
+    if (!dashboard) {
+      return res.status(404).json({ error: 'Dashboard not found' });
+    }
+
+    if (name !== undefined) {
+      await db.run('UPDATE dashboards SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [name.trim(), req.params.id]);
+    }
+
+    if (is_default === 1 || is_default === true) {
+      await db.run('UPDATE dashboards SET is_default = 0');
+      await db.run('UPDATE dashboards SET is_default = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id]);
+    }
+
+    res.json({ message: 'Dashboard updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/dashboards/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const totalCount = await db.get('SELECT COUNT(*) as count FROM dashboards');
+    if (totalCount.count <= 1) {
+      return res.status(400).json({ error: 'Cannot delete the only remaining dashboard' });
+    }
+
+    const dashboard = await db.get('SELECT * FROM dashboards WHERE id = ?', [req.params.id]);
+    if (!dashboard) {
+      return res.status(404).json({ error: 'Dashboard not found' });
+    }
+
+    // If deleting default, assign default to another dashboard
+    if (dashboard.is_default) {
+      const nextDash = await db.get('SELECT id FROM dashboards WHERE id != ? LIMIT 1', [req.params.id]);
+      if (nextDash) {
+        await db.run('UPDATE dashboards SET is_default = 1 WHERE id = ?', [nextDash.id]);
+      }
+    }
+
+    await db.run('DELETE FROM dashboard_widgets WHERE dashboard_id = ?', [req.params.id]);
+    await db.run('DELETE FROM dashboard_shares WHERE dashboard_id = ?', [req.params.id]);
+    await db.run('DELETE FROM dashboards WHERE id = ?', [req.params.id]);
+
+    res.json({ message: 'Dashboard deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- DASHBOARD WIDGETS ENDPOINTS ---
 
 app.get('/api/dashboard/widgets', authenticate, async (req, res) => {
   try {
     const db = await getDb();
-    const rows = await db.all('SELECT * FROM dashboard_widgets');
+    const dashboardId = req.query.dashboard_id || 'default';
+    const rows = await db.all('SELECT * FROM dashboard_widgets WHERE dashboard_id = ?', [dashboardId]);
     const widgets = rows.map(r => ({
       ...r,
       config: r.config ? JSON.parse(r.config) : {}
@@ -5834,14 +6477,15 @@ app.get('/api/dashboard/widgets', authenticate, async (req, res) => {
 
 app.post('/api/dashboard/widgets', authenticate, async (req, res) => {
   try {
-    const { id, type, x, y, w, h, config } = req.body;
+    const { id, dashboard_id, type, x, y, w, h, config } = req.body;
     if (!id || !type) {
       return res.status(400).json({ error: 'Missing widget ID or type' });
     }
+    const targetDashboardId = dashboard_id || 'default';
     const db = await getDb();
     await db.run(
-      'INSERT INTO dashboard_widgets (id, type, x, y, w, h, config) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, type, Number(x || 0), Number(y || 0), Number(w || 2), Number(h || 2), JSON.stringify(config || {})]
+      'INSERT INTO dashboard_widgets (id, dashboard_id, type, x, y, w, h, config) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, targetDashboardId, type, Number(x || 0), Number(y || 0), Number(w || 2), Number(h || 2), JSON.stringify(config || {})]
     );
     res.status(201).json({ id, message: 'Widget added successfully' });
   } catch (error) {
@@ -5851,13 +6495,13 @@ app.post('/api/dashboard/widgets', authenticate, async (req, res) => {
 
 app.put('/api/dashboard/widgets/layout', authenticate, async (req, res) => {
   try {
-    const layout = req.body;
-    if (!Array.isArray(layout)) {
+    const items = Array.isArray(req.body) ? req.body : (Array.isArray(req.body.layout) ? req.body.layout : []);
+    if (!Array.isArray(items)) {
       return res.status(400).json({ error: 'Layout data must be an array' });
     }
     const db = await getDb();
     await db.run('BEGIN TRANSACTION');
-    for (const w of layout) {
+    for (const w of items) {
       await db.run(
         'UPDATE dashboard_widgets SET x = ?, y = ?, w = ?, h = ? WHERE id = ?',
         [Number(w.x), Number(w.y), Number(w.w), Number(w.h), w.id]
@@ -5931,8 +6575,225 @@ app.get('/api/dashboard/widget-data/:id', authenticate, async (req, res) => {
   }
 });
 
+// --- DASHBOARD PUBLIC SHARES MANAGEMENT ---
+
+app.get('/api/dashboard/shares', authenticate, requirePermission('settings_general', 'read'), async (req, res) => {
+  try {
+    const db = await getDb();
+    const rows = await db.all(`
+      SELECT s.*, d.name as dashboard_name 
+      FROM dashboard_shares s 
+      LEFT JOIN dashboards d ON s.dashboard_id = d.id 
+      ORDER BY s.created_at DESC
+    `);
+    const shares = rows.map(r => ({
+      ...r,
+      rotation_dashboards: r.rotation_dashboards ? JSON.parse(r.rotation_dashboards) : []
+    }));
+    res.json(shares);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/dashboard/shares', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  try {
+    const { name, target_type, dashboard_id, rotation_interval, rotation_dashboards } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Share link name is required' });
+    }
+    const token = 'dash_' + crypto.randomBytes(24).toString('hex');
+    const id = 'share_' + Date.now();
+    const db = await getDb();
+    
+    await db.run(
+      `INSERT INTO dashboard_shares (id, name, token, target_type, dashboard_id, rotation_interval, rotation_dashboards, active) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      [
+        id,
+        name.trim(),
+        token,
+        target_type === 'rotation' ? 'rotation' : 'single',
+        target_type === 'rotation' ? null : (dashboard_id || 'default'),
+        Number(rotation_interval || 30),
+        rotation_dashboards ? JSON.stringify(rotation_dashboards) : null
+      ]
+    );
+
+    res.status(201).json({ id, token, message: 'Share link created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/dashboard/shares/:id', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  try {
+    const { name, target_type, dashboard_id, rotation_interval, rotation_dashboards, active } = req.body;
+    const db = await getDb();
+    const share = await db.get('SELECT * FROM dashboard_shares WHERE id = ?', [req.params.id]);
+    if (!share) {
+      return res.status(404).json({ error: 'Share link not found' });
+    }
+
+    const updates = [];
+    const values = [];
+
+    if (name !== undefined) { updates.push('name = ?'); values.push(name.trim()); }
+    if (target_type !== undefined) { updates.push('target_type = ?'); values.push(target_type); }
+    if (dashboard_id !== undefined) { updates.push('dashboard_id = ?'); values.push(dashboard_id); }
+    if (rotation_interval !== undefined) { updates.push('rotation_interval = ?'); values.push(Number(rotation_interval)); }
+    if (rotation_dashboards !== undefined) { updates.push('rotation_dashboards = ?'); values.push(JSON.stringify(rotation_dashboards)); }
+    if (active !== undefined) { updates.push('active = ?'); values.push(active ? 1 : 0); }
+
+    if (updates.length > 0) {
+      values.push(req.params.id);
+      await db.run(`UPDATE dashboard_shares SET ${updates.join(', ')} WHERE id = ?`, values);
+    }
+
+    res.json({ message: 'Share link updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/dashboard/shares/:id', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  try {
+    const db = await getDb();
+    const result = await db.run('DELETE FROM dashboard_shares WHERE id = ?', [req.params.id]);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Share link not found' });
+    }
+    res.json({ message: 'Share link deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/dashboard/shared/:token', async (req, res) => {
+  try {
+    const db = await getDb();
+    const settings = await getSettings();
+
+    // Check in dashboard_shares table
+    let share = await db.get('SELECT * FROM dashboard_shares WHERE token = ? AND active = 1', [req.params.token]);
+    
+    // Fallback to legacy single settings token if matching
+    if (!share && settings.dashboard_share_token && settings.dashboard_share_token === req.params.token) {
+      share = {
+        name: 'Main Dashboard',
+        target_type: 'single',
+        dashboard_id: 'default'
+      };
+    }
+
+    if (!share) {
+      return res.status(401).json({ error: 'Invalid or expired dashboard share token' });
+    }
+
+    const adminUser = await db.get("SELECT timezone FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'Administrator' LIMIT 1) LIMIT 1");
+    const timezone = adminUser?.timezone || 'America/New_York';
+
+    const baseResponse = {
+      appName: settings.app_name || 'Dashboard App',
+      brandingIcon: settings.branding_icon || '📊',
+      brandingLogo: settings.branding_logo || '',
+      dashboard_refresh_interval: settings.dashboard_refresh_interval || 'disabled',
+      dashboard_bg_type: settings.dashboard_bg_type || 'theme',
+      dashboard_bg_value: settings.dashboard_bg_value || '',
+      dashboard_bg_unsplash_keywords: settings.dashboard_bg_unsplash_keywords || '',
+      weather_location: settings.weather_location || '10001',
+      weather_unit: settings.weather_unit || 'fahrenheit',
+      timezone,
+      share_name: share.name,
+      target_type: share.target_type
+    };
+
+    if (share.target_type === 'rotation') {
+      let dashIds = [];
+      if (share.rotation_dashboards) {
+        try {
+          dashIds = JSON.parse(share.rotation_dashboards);
+        } catch (e) {}
+      }
+      
+      if (!dashIds || dashIds.length === 0) {
+        try {
+          dashIds = JSON.parse(settings.dashboard_rotation_dashboards || '["default"]');
+        } catch (e) {
+          dashIds = ['default'];
+        }
+      }
+
+      const allDashboards = await db.all('SELECT * FROM dashboards');
+      const filteredDashboards = allDashboards.filter(d => dashIds.includes(d.id));
+      const rotationList = (filteredDashboards.length > 0 ? filteredDashboards : allDashboards);
+
+      const rotationData = [];
+      for (const d of rotationList) {
+        const rows = await db.all('SELECT * FROM dashboard_widgets WHERE dashboard_id = ?', [d.id]);
+        rotationData.push({
+          id: d.id,
+          name: d.name,
+          widgets: rows.map(r => ({
+            ...r,
+            config: r.config ? JSON.parse(r.config) : {}
+          }))
+        });
+      }
+
+      return res.json({
+        ...baseResponse,
+        rotation_interval: share.rotation_interval || parseInt(settings.dashboard_rotation_interval, 10) || 30,
+        dashboards: rotationData
+      });
+    } else {
+      const targetDashId = share.dashboard_id || 'default';
+      const targetDash = await db.get('SELECT * FROM dashboards WHERE id = ?', [targetDashId]) || { id: 'default', name: 'Main Dashboard' };
+      const rows = await db.all('SELECT * FROM dashboard_widgets WHERE dashboard_id = ?', [targetDash.id]);
+      const widgets = rows.map(r => ({
+        ...r,
+        config: r.config ? JSON.parse(r.config) : {}
+      }));
+
+      return res.json({
+        ...baseResponse,
+        dashboard_id: targetDash.id,
+        dashboard_name: targetDash.name,
+        widgets
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/dashboard/shared-widget-data/:token/:id', async (req, res) => {
+  try {
+    const db = await getDb();
+    const settings = await getSettings();
+
+    let share = await db.get('SELECT * FROM dashboard_shares WHERE token = ? AND active = 1', [req.params.token]);
+    if (!share && settings.dashboard_share_token && settings.dashboard_share_token === req.params.token) {
+      share = { target_type: 'single', dashboard_id: 'default' };
+    }
+
+    if (!share) {
+      return res.status(401).json({ error: 'Invalid or expired dashboard share token' });
+    }
+
+    const widget = await db.get('SELECT * FROM dashboard_widgets WHERE id = ?', [req.params.id]);
+    if (!widget) {
+      return res.status(404).json({ error: 'Widget not found' });
+    }
+    const data = await getWidgetData(widget, null);
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /api/weather - Get today's weather forecast
-app.get('/api/weather', async (req, res) => {
+app.get('/api/weather', authenticate, async (req, res) => {
   try {
     const settings = await getSettings();
     const weatherLoc = settings.weather_location || '10001';
@@ -6027,6 +6888,49 @@ app.get('/api/dashboard/background/unsplash', async (req, res) => {
   }
 });
 
+app.get('/api/unsplash/search', authenticate, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const unsplashKey = settings.unsplash_key;
+    const query = req.query.query || 'nature';
+
+    if (!unsplashKey || !unsplashKey.trim()) {
+      const mockImages = Array.from({ length: 9 }).map((_, i) => ({
+        id: `mock-${i}`,
+        urls: {
+          regular: `https://images.unsplash.com/featured/800x600?sig=${i}&q=${encodeURIComponent(query)}`,
+          thumb: `https://images.unsplash.com/featured/200x150?sig=${i}&q=${encodeURIComponent(query)}`
+        },
+        user: {
+          name: 'Unsplash Community',
+          links: { html: 'https://unsplash.com' }
+        },
+        links: { html: 'https://unsplash.com' }
+      }));
+      return res.json({ results: mockImages });
+    }
+
+    const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=12`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Client-ID ${unsplashKey.trim()}`,
+        'Accept-Version': 'v1'
+      }
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return res.status(response.status).json({ error: `Unsplash API error: ${text}` });
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/dashboard/shared/:token', async (req, res) => {
   try {
     const settings = await getSettings();
@@ -6078,7 +6982,45 @@ app.get('/api/dashboard/shared-widget-data/:token/:id', async (req, res) => {
 });
 // --- HOUSEKEEPING ENDPOINTS ---
 
-function calculateNextDueDate(currentDueDateStr, interval) {
+function getNextWeeklyOccurrence(currentDate, daysStr) {
+  const targetDays = daysStr.split(',').map(Number).filter(n => !isNaN(n));
+  if (targetDays.length === 0) {
+    const d = new Date(currentDate);
+    d.setDate(d.getDate() + 7);
+    return d;
+  }
+  let bestDate = null;
+  for (let i = 1; i <= 7; i++) {
+    const nextDate = new Date(currentDate);
+    nextDate.setDate(nextDate.getDate() + i);
+    if (targetDays.includes(nextDate.getDay())) {
+      bestDate = nextDate;
+      break;
+    }
+  }
+  return bestDate || new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+}
+
+function getNextYearlyOccurrence(currentDate, monthsStr) {
+  const targetMonths = monthsStr.split(',').map(Number).filter(n => !isNaN(n));
+  if (targetMonths.length === 0) {
+    const d = new Date(currentDate);
+    d.setFullYear(d.getFullYear() + 1);
+    return d;
+  }
+  let bestDate = null;
+  for (let i = 1; i <= 12; i++) {
+    const nextDate = new Date(currentDate);
+    nextDate.setMonth(nextDate.getMonth() + i);
+    if (targetMonths.includes(nextDate.getMonth())) {
+      bestDate = nextDate;
+      break;
+    }
+  }
+  return bestDate || new Date(currentDate.getFullYear() + 1, currentDate.getMonth(), currentDate.getDate());
+}
+
+function calculateNextDueDate(currentDueDateStr, interval, reoccurrenceDays, reoccurrenceMonths) {
   if (!currentDueDateStr) return new Date().toISOString().split('T')[0];
   const date = new Date(currentDueDateStr + 'T12:00:00');
   switch (interval.toLowerCase()) {
@@ -6086,12 +7028,21 @@ function calculateNextDueDate(currentDueDateStr, interval) {
       date.setDate(date.getDate() + 1);
       break;
     case 'weekly':
+      if (reoccurrenceDays) {
+        return getNextWeeklyOccurrence(date, reoccurrenceDays).toISOString().split('T')[0];
+      }
       date.setDate(date.getDate() + 7);
+      break;
+    case 'bi-weekly':
+      date.setDate(date.getDate() + 14);
       break;
     case 'monthly':
       date.setMonth(date.getMonth() + 1);
       break;
     case 'yearly':
+      if (reoccurrenceMonths) {
+        return getNextYearlyOccurrence(date, reoccurrenceMonths).toISOString().split('T')[0];
+      }
       date.setFullYear(date.getFullYear() + 1);
       break;
     default:
@@ -6119,15 +7070,15 @@ app.get('/api/housekeeping/tasks', authenticate, async (req, res) => {
 // POST /api/housekeeping/tasks
 app.post('/api/housekeeping/tasks', authenticate, async (req, res) => {
   try {
-    const { title, description, due_date, reoccurrence, assigned_to_user_id } = req.body;
+    const { title, description, due_date, reoccurrence, reoccurrence_days, reoccurrence_months, assigned_to_user_id } = req.body;
     if (!title || !title.trim() || !due_date) {
       return res.status(400).json({ error: 'Title and due date are required' });
     }
     const db = await getDb();
     const result = await db.run(`
-      INSERT INTO housekeeping_tasks (title, description, due_date, reoccurrence, assigned_to_user_id)
-      VALUES (?, ?, ?, ?, ?)
-    `, [title.trim(), description, due_date, reoccurrence || 'none', assigned_to_user_id || null]);
+      INSERT INTO housekeeping_tasks (title, description, due_date, reoccurrence, reoccurrence_days, reoccurrence_months, assigned_to_user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `, [title.trim(), description, due_date, reoccurrence || 'none', reoccurrence_days || null, reoccurrence_months || null, assigned_to_user_id || null]);
     res.status(201).json({ id: result.lastID, message: 'Housekeeping task created successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -6137,16 +7088,16 @@ app.post('/api/housekeeping/tasks', authenticate, async (req, res) => {
 // PUT /api/housekeeping/tasks/:id
 app.put('/api/housekeeping/tasks/:id', authenticate, async (req, res) => {
   try {
-    const { title, description, due_date, reoccurrence, assigned_to_user_id, status } = req.body;
+    const { title, description, due_date, reoccurrence, reoccurrence_days, reoccurrence_months, assigned_to_user_id, status } = req.body;
     if (!title || !title.trim() || !due_date) {
       return res.status(400).json({ error: 'Title and due date are required' });
     }
     const db = await getDb();
     await db.run(`
       UPDATE housekeeping_tasks
-      SET title = ?, description = ?, due_date = ?, reoccurrence = ?, assigned_to_user_id = ?, status = ?
+      SET title = ?, description = ?, due_date = ?, reoccurrence = ?, reoccurrence_days = ?, reoccurrence_months = ?, assigned_to_user_id = ?, status = ?
       WHERE id = ?
-    `, [title.trim(), description, due_date, reoccurrence || 'none', assigned_to_user_id || null, status || 'pending', req.params.id]);
+    `, [title.trim(), description, due_date, reoccurrence || 'none', reoccurrence_days || null, reoccurrence_months || null, assigned_to_user_id || null, status || 'pending', req.params.id]);
     res.json({ message: 'Housekeeping task updated successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -6181,7 +7132,7 @@ app.post('/api/housekeeping/tasks/:id/complete', authenticate, async (req, res) 
 
     if (task.reoccurrence && task.reoccurrence !== 'none') {
       // Calculate next due date
-      const nextDue = calculateNextDueDate(task.due_date, task.reoccurrence);
+      const nextDue = calculateNextDueDate(task.due_date, task.reoccurrence, task.reoccurrence_days, task.reoccurrence_months);
       await db.run(`
         UPDATE housekeeping_tasks
         SET due_date = ?, status = 'pending'
@@ -6322,6 +7273,18 @@ async function canAccessTask(userId, task) {
 
 app.get('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
   try {
+    const taskIdStr = String(req.params.id);
+    if (taskIdStr.startsWith('housekeeping-')) {
+      const hkId = parseInt(taskIdStr.split('-')[1]);
+      const db = await getDb();
+      const task = await db.get(`
+        SELECT 'housekeeping-' || h.id as id, h.assigned_to_user_id as user_id, h.title, h.description, h.status, h.due_date
+        FROM housekeeping_tasks h
+        WHERE h.id = ?
+      `, [hkId]);
+      if (!task) return res.status(404).json({ error: 'Task not found' });
+      return res.json(task);
+    }
     const task = await getTaskById(req.params.id);
     const hasAccess = await canAccessTask(req.user.id, task);
     if (!hasAccess) {
@@ -6345,6 +7308,18 @@ app.post('/api/focusflow/tasks', authenticate, async (req, res) => {
 
 app.put('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
   try {
+    const taskIdStr = String(req.params.id);
+    if (taskIdStr.startsWith('housekeeping-')) {
+      const hkId = parseInt(taskIdStr.split('-')[1]);
+      const { title, description, due_date, reoccurrence, assigned_to_user_id, status } = req.body;
+      const db = await getDb();
+      await db.run(`
+        UPDATE housekeeping_tasks
+        SET title = ?, description = ?, due_date = ?, reoccurrence = ?, assigned_to_user_id = ?, status = ?
+        WHERE id = ?
+      `, [title.trim(), description, due_date, reoccurrence || 'none', assigned_to_user_id || null, status || 'pending', hkId]);
+      return res.json({ message: 'Housekeeping task updated successfully' });
+    }
     const existing = await getTaskById(req.params.id);
     const hasAccess = await canAccessTask(req.user.id, existing);
     if (!hasAccess) {
@@ -6360,6 +7335,13 @@ app.put('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
 
 app.delete('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
   try {
+    const taskIdStr = String(req.params.id);
+    if (taskIdStr.startsWith('housekeeping-')) {
+      const hkId = parseInt(taskIdStr.split('-')[1]);
+      const db = await getDb();
+      await db.run('DELETE FROM housekeeping_tasks WHERE id = ?', [hkId]);
+      return res.json({ message: 'Housekeeping task deleted successfully' });
+    }
     const existing = await getTaskById(req.params.id);
     const hasAccess = await canAccessTask(req.user.id, existing);
     if (!hasAccess) {
@@ -6374,6 +7356,39 @@ app.delete('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
 
 app.post('/api/focusflow/tasks/:id/complete', authenticate, async (req, res) => {
   try {
+    const taskIdStr = String(req.params.id);
+    if (taskIdStr.startsWith('housekeeping-')) {
+      const hkId = parseInt(taskIdStr.split('-')[1]);
+      const db = await getDb();
+      const task = await db.get('SELECT * FROM housekeeping_tasks WHERE id = ?', [hkId]);
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found' });
+      }
+
+      // Insert into housekeeping logs
+      await db.run(`
+        INSERT INTO housekeeping_logs (task_id, task_title, completed_by_user_id)
+        VALUES (?, ?, ?)
+      `, [task.id, task.title, req.user.id]);
+
+      if (task.reoccurrence && task.reoccurrence !== 'none') {
+        // Calculate next due date
+        const nextDue = calculateNextDueDate(task.due_date, task.reoccurrence, task.reoccurrence_days, task.reoccurrence_months);
+        await db.run(`
+          UPDATE housekeeping_tasks
+          SET due_date = ?, status = 'pending'
+          WHERE id = ?
+        `, [nextDue, task.id]);
+        return res.json({ message: 'Task logged and scheduled for next occurrence', next_due_date: nextDue });
+      } else {
+        await db.run(`
+          UPDATE housekeeping_tasks
+          SET status = 'completed'
+          WHERE id = ?
+        `, [task.id]);
+        return res.json({ message: 'Task marked as completed' });
+      }
+    }
     const success = await completeTask(req.user.id, req.params.id, req.body.completed);
     if (!success) {
       return res.status(404).json({ error: 'Task not found or update failed' });

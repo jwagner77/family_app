@@ -3,12 +3,19 @@ import {
   Plus, Trash2, Settings2, RefreshCw, X, Check, Sun, Moon,
   ArrowLeft, ArrowRight, ArrowUp, ArrowDown, Clock, AlignLeft, 
   BookOpen, CheckSquare, DollarSign, Calendar, AlertTriangle, 
-  ChefHat, Book, Info, PlusCircle, LayoutGrid
+  ChefHat, Book, Info, PlusCircle, LayoutGrid, Edit2, Play, Pause,
+  ChevronDown, Star, PlayCircle, PauseCircle, Layers, Copy,
+  ChevronLeft, ChevronRight, List, MapPin, Tag
 } from 'lucide-react';
 
 const WIDGET_TYPES = [
   { type: 'clock', name: 'Digital Clock & Date', category: 'Utility', defaultSize: { w: 4, h: 2 } },
   { type: 'text', name: 'Custom Text Card', category: 'Utility', defaultSize: { w: 3, h: 2 } },
+
+  { type: 'calendar_daily', name: '📅 Calendar: Daily Agenda', category: 'Calendar', defaultSize: { w: 4, h: 4 } },
+  { type: 'calendar_weekly', name: '📅 Calendar: Weekly Agenda', category: 'Calendar', defaultSize: { w: 6, h: 4 } },
+  { type: 'calendar_monthly', name: '📅 Calendar: Monthly Agenda', category: 'Calendar', defaultSize: { w: 6, h: 5 } },
+  { type: 'calendar_month_grid', name: '📅 Calendar: Full Monthly Calendar', category: 'Calendar', defaultSize: { w: 12, h: 6 } },
   
   { type: 'cookbook_menu', name: '🍳 Cookbook: Weekly Menu', category: 'Cookbook', defaultSize: { w: 6, h: 4 } },
   { type: 'cookbook_menu_3day', name: '🍳 Cookbook: 3-Day Meal Plan', category: 'Cookbook', defaultSize: { w: 3, h: 3 } },
@@ -33,6 +40,21 @@ const WIDGET_TYPES = [
 ];
 
 export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, resolvedTheme }) {
+  const [dashboards, setDashboards] = useState([]);
+  const [currentDashboardId, setCurrentDashboardId] = useState(() => localStorage.getItem('active_dashboard_id') || 'default');
+  const [isAddDashboardModalOpen, setIsAddDashboardModalOpen] = useState(false);
+  const [newDashboardName, setNewDashboardName] = useState('');
+  const [cloneFromId, setCloneFromId] = useState('');
+  const [isManageDashboardsModalOpen, setIsManageDashboardsModalOpen] = useState(false);
+  const [editingDashboardId, setEditingDashboardId] = useState(null);
+  const [renameDashboardName, setRenameDashboardName] = useState('');
+
+  // Rotation state
+  const [isRotating, setIsRotating] = useState(false);
+  const [rotationInterval, setRotationInterval] = useState(30);
+  const [rotationDashboards, setRotationDashboards] = useState([]);
+  const [secondsUntilRotate, setSecondsUntilRotate] = useState(30);
+
   const [widgets, setWidgets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
@@ -63,9 +85,31 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
   const [configLimit, setConfigLimit] = useState(5);
   const [configText, setConfigText] = useState('');
 
-  const fetchWidgets = async () => {
+  const fetchDashboards = async () => {
     try {
-      const res = await fetch('/api/dashboard/widgets');
+      const res = await fetch('/api/dashboards');
+      if (res.ok) {
+        const data = await res.json();
+        setDashboards(data);
+        if (data.length > 0) {
+          // If current ID is invalid or not in list, fallback to default or first
+          const exists = data.some(d => d.id === currentDashboardId);
+          if (!exists) {
+            const def = data.find(d => d.is_default) || data[0];
+            setCurrentDashboardId(def.id);
+            localStorage.setItem('active_dashboard_id', def.id);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch dashboards:', e);
+    }
+  };
+
+  const fetchWidgets = async (dashboardId = currentDashboardId) => {
+    if (!dashboardId) return;
+    try {
+      const res = await fetch(`/api/dashboard/widgets?dashboard_id=${encodeURIComponent(dashboardId)}`);
       if (res.ok) {
         const data = await res.json();
         setWidgets(data);
@@ -87,8 +131,19 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
         setBgValue(data.dashboard_bg_value || '');
         setBgKeywords(data.dashboard_bg_unsplash_keywords || '');
         setRefreshInterval(data.dashboard_refresh_interval || 'disabled');
+        
+        const rotEnabled = data.dashboard_rotation_enabled === 'true';
+        const rotInterval = parseInt(data.dashboard_rotation_interval, 10) || 30;
+        setRotationInterval(rotInterval);
+        setSecondsUntilRotate(rotInterval);
+        
+        if (data.dashboard_rotation_dashboards) {
+          try {
+            setRotationDashboards(JSON.parse(data.dashboard_rotation_dashboards));
+          } catch (e) {}
+        }
+        
         if (data.dashboard_bg_type === 'unsplash' && data.dashboard_bg_value) {
-          // Keep signature stable unless rotated or refreshed
           setCurrentSig(data.dashboard_bg_value);
         }
       }
@@ -98,12 +153,47 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
   };
 
   useEffect(() => {
-    fetchWidgets();
+    fetchDashboards();
     fetchDashboardSettings();
+  }, []);
+
+  useEffect(() => {
+    if (currentDashboardId) {
+      localStorage.setItem('active_dashboard_id', currentDashboardId);
+      fetchWidgets(currentDashboardId);
+    }
     if (bgType === 'unsplash') {
       setCurrentSig(Date.now().toString());
     }
-  }, [refreshTrigger]);
+  }, [currentDashboardId, refreshTrigger]);
+
+  // Handle dashboard auto-rotation
+  useEffect(() => {
+    if (!isRotating || dashboards.length <= 1) return;
+
+    const interval = setInterval(() => {
+      setSecondsUntilRotate(prev => {
+        if (prev <= 1) {
+          // Time to rotate to next dashboard
+          const validList = (rotationDashboards && rotationDashboards.length > 0)
+            ? dashboards.filter(d => rotationDashboards.includes(d.id))
+            : dashboards;
+          
+          const cycleList = validList.length > 0 ? validList : dashboards;
+          const currentIndex = cycleList.findIndex(d => d.id === currentDashboardId);
+          const nextIndex = (currentIndex + 1) % cycleList.length;
+          const nextDash = cycleList[nextIndex];
+          if (nextDash) {
+            setCurrentDashboardId(nextDash.id);
+          }
+          return rotationInterval;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isRotating, dashboards, rotationDashboards, currentDashboardId, rotationInterval]);
 
   // Set up auto-refresh interval
   useEffect(() => {
@@ -215,6 +305,103 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
     setTimeout(() => setToast(null), 3500);
   };
 
+  const handleCreateDashboard = async (e) => {
+    e.preventDefault();
+    if (!newDashboardName.trim()) return;
+
+    try {
+      const res = await fetch('/api/dashboards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newDashboardName.trim(),
+          clone_from_id: cloneFromId || null
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(`Dashboard "${data.name}" created!`);
+        setIsAddDashboardModalOpen(false);
+        setNewDashboardName('');
+        setCloneFromId('');
+        await fetchDashboards();
+        setCurrentDashboardId(data.id);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to create dashboard', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to create dashboard', 'error');
+    }
+  };
+
+  const handleRenameDashboard = async (dashboardId, newName) => {
+    if (!newName || !newName.trim()) return;
+    try {
+      const res = await fetch(`/api/dashboards/${dashboardId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim() })
+      });
+      if (res.ok) {
+        showToast('Dashboard renamed successfully');
+        setEditingDashboardId(null);
+        fetchDashboards();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to rename dashboard', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to rename dashboard', 'error');
+    }
+  };
+
+  const handleSetDefaultDashboard = async (dashboardId) => {
+    try {
+      const res = await fetch(`/api/dashboards/${dashboardId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_default: 1 })
+      });
+      if (res.ok) {
+        showToast('Default dashboard updated');
+        fetchDashboards();
+      }
+    } catch (e) {
+      showToast('Failed to update default dashboard', 'error');
+    }
+  };
+
+  const handleDeleteDashboard = async (dashboardId) => {
+    if (dashboards.length <= 1) {
+      showToast('Cannot delete the only remaining dashboard', 'error');
+      return;
+    }
+    const target = dashboards.find(d => d.id === dashboardId);
+    if (!window.confirm(`Are you sure you want to delete dashboard "${target?.name || 'this dashboard'}" and all its widgets?`)) return;
+
+    try {
+      const res = await fetch(`/api/dashboards/${dashboardId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        showToast('Dashboard deleted');
+        const remaining = dashboards.filter(d => d.id !== dashboardId);
+        setDashboards(remaining);
+        if (currentDashboardId === dashboardId) {
+          const next = remaining.find(d => d.is_default) || remaining[0];
+          setCurrentDashboardId(next ? next.id : 'default');
+        }
+        fetchDashboards();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to delete dashboard', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to delete dashboard', 'error');
+    }
+  };
+
   const addWidget = async (typeInfo) => {
     const id = 'w_' + Math.random().toString(36).substring(2, 11);
     
@@ -226,6 +413,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
 
     const newWidget = {
       id,
+      dashboard_id: currentDashboardId,
       type: typeInfo.type,
       x: 0,
       y: maxY,
@@ -256,7 +444,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
       }
     } catch (e) {
       showToast('Failed to add widget to server', 'error');
-      fetchWidgets(); // Rollback
+      fetchWidgets(currentDashboardId); // Rollback
     }
   };
 
@@ -332,7 +520,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
     } catch (e) {
       console.error(e);
       showToast('Failed to save dashboard layout', 'error');
-      fetchWidgets(); // Rollback
+      fetchWidgets(currentDashboardId); // Rollback
     }
   };
 
@@ -426,7 +614,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
     } catch (err) {
       console.error(err);
       showToast('Failed to save dashboard layout', 'error');
-      fetchWidgets();
+      fetchWidgets(currentDashboardId);
     }
   };
 
@@ -499,7 +687,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
     }
   };
 
-  if (loading) {
+  if (loading && dashboards.length === 0) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '60vh', gap: '1rem' }}>
         <div className="spinner"></div>
@@ -508,43 +696,126 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
     );
   }
 
+  const currentDashboard = dashboards.find(d => d.id === currentDashboardId) || dashboards[0] || { name: 'Main Dashboard' };
+
   return (
     <div style={{ width: '100%', paddingBottom: '4rem' }}>
       
       {/* Local toast alerts */}
       {toast && (
-        <div className={`alert-banner ${toast.type === 'success' ? 'alert-success' : 'alert-error'}`} style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 1100, width: 'auto', minWidth: '280px', boxShadow: 'var(--shadow-lg)' }}>
+        <div className={`alert-banner ${toast.type === 'success' ? 'alert-success' : (toast.type === 'info' ? 'alert-info' : 'alert-error')}`} style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 1100, width: 'auto', minWidth: '280px', boxShadow: 'var(--shadow-lg)' }}>
           <span>{toast.text}</span>
           <button className="close-btn" onClick={() => setToast(null)}>×</button>
         </div>
       )}
 
       {/* Dashboard Top Header Control Panel */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h2 style={{ fontSize: '2rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: (bgType === 'dark' || bgType === 'unsplash' || (bgType === 'upload' && bgValue)) ? '#ffffff' : 'inherit' }}>
-            <LayoutGrid size={28} style={{ color: 'var(--primary)' }} />
-            Custom Dashboard
-          </h2>
-          <p style={{ color: (bgType === 'dark' || bgType === 'unsplash' || (bgType === 'upload' && bgValue)) ? 'rgba(255, 255, 255, 0.7)' : 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-            Aggregated metrics and views across all home server applications.
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: (bgType === 'dark' || bgType === 'unsplash' || (bgType === 'upload' && bgValue)) ? '#ffffff' : 'inherit' }}>
+              <LayoutGrid size={26} style={{ color: 'var(--primary)' }} />
+              Dashboard
+            </h2>
+
+            {/* Dashboard Selector Dropdown */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.05)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+              <select
+                value={currentDashboardId}
+                onChange={(e) => setCurrentDashboardId(e.target.value)}
+                className="input-control"
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  fontSize: '0.875rem',
+                  fontWeight: '700',
+                  minWidth: '180px',
+                  cursor: 'pointer',
+                  background: 'var(--card)',
+                  color: 'var(--foreground)'
+                }}
+              >
+                {dashboards.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} {d.is_default ? '★ (Default)' : ''} ({d.widget_count || 0} widgets)
+                  </option>
+                ))}
+              </select>
+
+              {/* + Add Dashboard Button */}
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setNewDashboardName('');
+                  setCloneFromId('');
+                  setIsAddDashboardModalOpen(true);
+                }}
+                style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap' }}
+                title="Create a new dashboard"
+              >
+                <Plus size={14} /> Add Dashboard
+              </button>
+
+              {/* Manage Dashboards Button */}
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setIsManageDashboardsModalOpen(true)}
+                style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                title="Manage and rename dashboards"
+              >
+                <Settings2 size={14} />
+              </button>
+            </div>
+          </div>
+
+          <p style={{ color: (bgType === 'dark' || bgType === 'unsplash' || (bgType === 'upload' && bgValue)) ? 'rgba(255, 255, 255, 0.7)' : 'var(--text-muted)', fontSize: '0.8125rem', margin: 0 }}>
+            Viewing dashboard: <strong style={{ color: 'var(--primary)' }}>{currentDashboard.name}</strong> • Select or add dashboards to customize views across all home server applications.
           </p>
         </div>
         
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Dashboard Rotation Control */}
+          {dashboards.length > 1 && (
+            <button
+              type="button"
+              className={`btn ${isRotating ? 'btn-primary' : 'btn-outline'}`}
+              onClick={() => {
+                const nextState = !isRotating;
+                setIsRotating(nextState);
+                setSecondsUntilRotate(rotationInterval);
+                showToast(nextState ? `Auto-rotating dashboards every ${rotationInterval}s` : 'Dashboard rotation paused', 'info');
+              }}
+              style={{ padding: '0.5rem 0.85rem', display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.8125rem' }}
+              title={isRotating ? "Pause automatic dashboard rotation" : "Start automatic dashboard rotation"}
+            >
+              {isRotating ? (
+                <>
+                  <PauseCircle size={15} />
+                  <span>Rotating ({secondsUntilRotate}s)</span>
+                </>
+              ) : (
+                <>
+                  <PlayCircle size={15} />
+                  <span>Auto-Rotate</span>
+                </>
+              )}
+            </button>
+          )}
+
           <button 
             className="btn btn-dashboard-action" 
             onClick={() => setRefreshTrigger(p => p + 1)}
-            style={{ padding: '0.6rem 1rem', display: 'flex', gap: '0.4rem', fontSize: '0.85rem' }}
+            style={{ padding: '0.5rem 0.85rem', display: 'flex', gap: '0.4rem', fontSize: '0.8125rem' }}
             title="Reload widget data"
           >
-            <RefreshCw size={14} /> Refresh All
+            <RefreshCw size={14} /> Refresh
           </button>
           
           <button 
             className={`btn btn-dashboard-action ${isEditing ? 'active' : ''}`}
             onClick={() => setIsEditing(!isEditing)}
-            style={{ padding: '0.6rem 1rem', display: 'flex', gap: '0.4rem', fontSize: '0.85rem' }}
+            style={{ padding: '0.5rem 0.85rem', display: 'flex', gap: '0.4rem', fontSize: '0.8125rem' }}
           >
             {isEditing ? (
               <><Check size={14} /> Done Layout</>
@@ -558,7 +829,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
             <button 
               className="btn btn-primary"
               onClick={() => setIsAddOpen(!isAddOpen)}
-              style={{ padding: '0.6rem 1.25rem', display: 'flex', gap: '0.4rem', fontSize: '0.85rem' }}
+              style={{ padding: '0.5rem 1rem', display: 'flex', gap: '0.4rem', fontSize: '0.8125rem' }}
             >
               <Plus size={14} /> Add Widget
             </button>
@@ -569,7 +840,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
                 <div className="card animate-fade-in" style={{ position: 'absolute', right: 0, top: '110%', width: '320px', zIndex: 100, padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', boxShadow: 'var(--shadow-lg)' }}>
                   <h4 style={{ fontSize: '0.9rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', margin: 0 }}>Select Widget Type</h4>
                   
-                  {['Utility', 'Cookbook', 'Library', 'Home', 'Weather'].map(category => (
+                  {Array.from(new Set(WIDGET_TYPES.map(w => w.category))).map(category => (
                     <div key={category} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                       <span style={{ fontSize: '0.7rem', fontWeight: 'bold', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{category}</span>
                       {WIDGET_TYPES.filter(w => w.category === category).map(type => (
@@ -738,6 +1009,194 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
         </div>
       )}
 
+      {/* Create New Dashboard Modal */}
+      {isAddDashboardModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsAddDashboardModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Plus size={18} style={{ color: 'var(--primary)' }} /> Create New Dashboard
+              </h2>
+              <button className="close-btn" style={{ fontSize: '1.5rem' }} onClick={() => setIsAddDashboardModalOpen(false)}>×</button>
+            </div>
+            
+            <form onSubmit={handleCreateDashboard}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="form-group">
+                  <label style={{ fontWeight: '600', marginBottom: '0.4rem', display: 'block' }}>Dashboard Name *</label>
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={newDashboardName}
+                    onChange={e => setNewDashboardName(e.target.value)}
+                    placeholder="e.g. Kitchen Display, Kids View, Office Screen..."
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: '600', marginBottom: '0.4rem', display: 'block' }}>Initial Layout</label>
+                  <select
+                    className="input-control"
+                    value={cloneFromId}
+                    onChange={e => setCloneFromId(e.target.value)}
+                  >
+                    <option value="">Start with clean, empty dashboard</option>
+                    {dashboards.map(d => (
+                      <option key={d.id} value={d.id}>
+                        Clone widgets from "{d.name}" ({d.widget_count || 0} widgets)
+                      </option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem', display: 'block' }}>
+                    Cloning will make an independent copy of all widgets and coordinates.
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setIsAddDashboardModalOpen(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={!newDashboardName.trim()}>
+                    <Plus size={14} /> Create Dashboard
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Dashboards Modal */}
+      {isManageDashboardsModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsManageDashboardsModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Settings2 size={18} style={{ color: 'var(--primary)' }} /> Manage Dashboards
+              </h2>
+              <button className="close-btn" style={{ fontSize: '1.5rem' }} onClick={() => setIsManageDashboardsModalOpen(false)}>×</button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                Rename existing dashboards, set which one loads by default, or delete dashboards you no longer need.
+              </p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '350px', overflowY: 'auto' }}>
+                {dashboards.map(dash => {
+                  const isEditingThis = editingDashboardId === dash.id;
+                  const isDefault = Boolean(dash.is_default);
+
+                  return (
+                    <div
+                      key={dash.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.75rem 1rem',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        background: currentDashboardId === dash.id ? 'var(--accent)' : 'var(--card)',
+                        gap: '0.75rem'
+                      }}
+                    >
+                      {isEditingThis ? (
+                        <div style={{ display: 'flex', gap: '0.5rem', flex: 1, alignItems: 'center' }}>
+                          <input
+                            type="text"
+                            className="input-control"
+                            value={renameDashboardName}
+                            onChange={e => setRenameDashboardName(e.target.value)}
+                            autoFocus
+                            style={{ padding: '0.35rem 0.6rem', fontSize: '0.85rem' }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => handleRenameDashboard(dash.id, renameDashboardName)}
+                            style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                          >
+                            <Check size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => setEditingDashboardId(null)}
+                            style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem' }}
+                          >
+                            <X size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flex: 1, minWidth: 0 }}>
+                          <span style={{ fontWeight: '700', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {dash.name}
+                          </span>
+                          {isDefault && (
+                            <span style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '12px', background: 'rgba(234, 179, 8, 0.15)', color: '#eab308', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                              <Star size={11} /> Default
+                            </span>
+                          )}
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            ({dash.widget_count || 0} widgets)
+                          </span>
+                        </div>
+                      )}
+
+                      {!isEditingThis && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          {!isDefault && (
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              onClick={() => handleSetDefaultDashboard(dash.id)}
+                              style={{ padding: '0.35rem 0.6rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              title="Make this the default dashboard on login"
+                            >
+                              <Star size={12} /> Set Default
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => {
+                              setEditingDashboardId(dash.id);
+                              setRenameDashboardName(dash.name);
+                            }}
+                            style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem' }}
+                            title="Rename dashboard"
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          {dashboards.length > 1 && (
+                            <button
+                              type="button"
+                              className="btn btn-outline danger"
+                              onClick={() => handleDeleteDashboard(dash.id)}
+                              style={{ padding: '0.35rem 0.5rem', fontSize: '0.75rem', color: '#ef4444', borderColor: '#ef4444' }}
+                              title="Delete dashboard"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button type="button" className="btn btn-primary" onClick={() => setIsManageDashboardsModalOpen(false)}>
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* UNPLASH ATTRIBUTION BADGE */}
       {bgType === 'unsplash' && unsplashAttribution && (
         <div style={{
@@ -788,6 +1247,10 @@ function getWidgetIcon(type) {
   switch (type) {
     case 'clock': return <Clock size={16} />;
     case 'text': return <AlignLeft size={16} />;
+    case 'calendar_daily':
+    case 'calendar_weekly':
+    case 'calendar_monthly':
+    case 'calendar_month_grid': return <Calendar size={16} />;
     case 'cookbook_menu':
     case 'cookbook_menu_3day':
     case 'cookbook_menu_5day': return <ChefHat size={16} />;
@@ -814,6 +1277,10 @@ function getDefaultWidgetName(type) {
   const typeMap = {
     clock: 'Digital Clock & Date',
     text: 'Note Card',
+    calendar_daily: 'Daily Agenda',
+    calendar_weekly: 'Weekly Agenda',
+    calendar_monthly: 'Monthly Agenda',
+    calendar_month_grid: 'Monthly Calendar',
     cookbook_menu: 'Weekly Menu Plan',
     cookbook_menu_3day: '3-Day Meal Plan',
     cookbook_menu_5day: '5-Day Meal Plan',
@@ -904,6 +1371,15 @@ function WidgetContentLoader({ widget, refreshTrigger, onNavigateTab, user }) {
     case 'text':
       return <TextWidgetView text={widget.config.text || ''} />;
       
+    case 'calendar_daily':
+      return <CalendarDailyAgendaView data={data} onNavigateTab={onNavigateTab} />;
+    case 'calendar_weekly':
+      return <CalendarWeeklyAgendaView data={data} onNavigateTab={onNavigateTab} />;
+    case 'calendar_monthly':
+      return <CalendarMonthlyAgendaView data={data} onNavigateTab={onNavigateTab} />;
+    case 'calendar_month_grid':
+      return <CalendarMonthGridView data={data} onNavigateTab={onNavigateTab} />;
+
     case 'cookbook_leftovers':
       return <CookbookLeftoversView leftovers={data} />;
     case 'cookbook_menu':
@@ -1538,6 +2014,889 @@ function CookbookMenuNDaysView({ menu, daysCount }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ========================================================
+   CALENDAR WIDGET VIEWS (DAILY, WEEKLY, MONTHLY, FULL GRID)
+   ======================================================== */
+
+function processCalendarData(data, targetYear, targetMonth) {
+  if (!data) return { itemsByDate: {}, allItems: [], todayStr: '', colors: {} };
+  
+  const today = new Date();
+  const year = targetYear !== undefined ? targetYear : today.getFullYear();
+  const month = targetMonth !== undefined ? targetMonth : today.getMonth();
+  const todayStr = data.todayStr || today.toISOString().split('T')[0];
+
+  const colors = {
+    event: data.colors?.event || '#3b82f6',
+    task: data.colors?.task || '#10b981',
+    bill: data.colors?.bill || '#ef4444',
+    subscription: data.colors?.subscription || '#8b5cf6',
+    contact_event: data.colors?.contact_event || '#ec4899'
+  };
+
+  const itemsByDate = {};
+  const allItems = [];
+
+  const addItem = (item) => {
+    if (!item.dateStr) return;
+    if (!itemsByDate[item.dateStr]) itemsByDate[item.dateStr] = [];
+    itemsByDate[item.dateStr].push(item);
+    allItems.push(item);
+  };
+
+  const getDatesSpanned = (startStr, endStr) => {
+    if (!startStr) return [];
+    const sDate = startStr.split('T')[0];
+    if (!endStr) return [sDate];
+    const eDate = endStr.split('T')[0];
+    if (sDate === eDate) return [sDate];
+
+    const start = new Date(startStr);
+    let end = new Date(endStr);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return [sDate];
+    if (end.getHours() === 0 && end.getMinutes() === 0 && end.getSeconds() === 0 && end.getMilliseconds() === 0) {
+      end = new Date(end.getTime() - 1000);
+    }
+    const dates = [];
+    const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endComp = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+    while (cur <= endComp) {
+      const y = cur.getFullYear();
+      const m = String(cur.getMonth() + 1).padStart(2, '0');
+      const d = String(cur.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+    return dates;
+  };
+
+  // 1. Events
+  (data.events || []).forEach(e => {
+    const dates = getDatesSpanned(e.start_time, e.end_time);
+    dates.forEach(dateStr => {
+      let timeStr = null;
+      if (!e.all_day && e.start_time && e.start_time.includes('T')) {
+        const timePart = e.start_time.split('T')[1]?.substring(0, 5);
+        if (timePart) {
+          const [h, m] = timePart.split(':');
+          const hour = parseInt(h, 10);
+          const ampm = hour >= 12 ? 'PM' : 'AM';
+          const displayHour = hour % 12 || 12;
+          timeStr = `${displayHour}:${m} ${ampm}`;
+        }
+      }
+      addItem({
+        id: `event-${e.id}-${dateStr}`,
+        title: e.title,
+        type: 'event',
+        typeLabel: 'Event',
+        dateStr,
+        timeStr: e.all_day ? 'All Day' : timeStr,
+        allDay: Boolean(e.all_day),
+        location: e.location || '',
+        description: e.description || '',
+        color: colors.event,
+        icon: '📅'
+      });
+    });
+  });
+
+  // 2. Tasks
+  (data.tasks || []).forEach(t => {
+    if (t.due_date) {
+      const dateStr = t.due_date.split('T')[0];
+      addItem({
+        id: `task-${t.id}`,
+        title: t.title,
+        type: 'task',
+        typeLabel: 'Task',
+        dateStr,
+        timeStr: 'Due',
+        allDay: true,
+        location: t.list_name ? `List: ${t.list_name}` : '',
+        description: t.description || '',
+        color: colors.task,
+        icon: '☑️',
+        completed: Boolean(t.completed)
+      });
+    }
+  });
+
+  // 3. Bills
+  (data.bills || []).forEach(b => {
+    const dateStr = (b.due_date || b.next_billing_date || '').split('T')[0];
+    if (dateStr) {
+      addItem({
+        id: `bill-${b.id}`,
+        title: b.name,
+        type: 'bill',
+        typeLabel: 'Bill',
+        dateStr,
+        timeStr: `$${parseFloat(b.amount || 0).toFixed(2)}`,
+        allDay: true,
+        location: b.category || 'Recurring Bill',
+        description: `Amount: $${b.amount}`,
+        color: colors.bill,
+        icon: '💸',
+        amount: b.amount
+      });
+    }
+  });
+
+  // 4. Subscriptions
+  (data.subscriptions || []).forEach(s => {
+    const dateStr = (s.next_billing_date || s.due_date || '').split('T')[0];
+    if (dateStr) {
+      addItem({
+        id: `sub-${s.id}`,
+        title: s.name,
+        type: 'subscription',
+        typeLabel: 'Subscription',
+        dateStr,
+        timeStr: `$${parseFloat(s.amount || 0).toFixed(2)}`,
+        allDay: true,
+        location: s.billing_cycle ? `${s.billing_cycle} sub` : 'Subscription',
+        description: `Amount: $${s.amount}`,
+        color: colors.subscription,
+        icon: '🔁',
+        amount: s.amount
+      });
+    }
+  });
+
+  // 5. Contact Birthdays
+  (data.contacts || []).forEach(c => {
+    if (c.birthday) {
+      const parts = c.birthday.split('-');
+      if (parts.length === 3) {
+        const birthYear = parseInt(parts[0], 10);
+        const birthMonth = parts[1];
+        const birthDay = parts[2];
+        [year - 1, year, year + 1].forEach(projYear => {
+          const dateStr = `${projYear}-${birthMonth}-${birthDay}`;
+          const age = projYear - birthYear;
+          const ageSuffix = age > 0 ? ` (${age} Birthday)` : ' Birthday';
+          addItem({
+            id: `bday-${c.id}-${projYear}`,
+            title: `🎂 ${c.name}${ageSuffix}`,
+            type: 'contact_event',
+            typeLabel: 'Birthday',
+            dateStr,
+            timeStr: 'All Day',
+            allDay: true,
+            location: 'Birthday',
+            description: `${c.name} turns ${age}. Born ${c.birthday}`,
+            color: colors.contact_event,
+            icon: '🎂'
+          });
+        });
+      }
+    }
+  });
+
+  // 6. Contact & User Important Dates
+  (data.contactImportantDates || []).forEach(d => {
+    if (d.date) {
+      const parts = d.date.split('-');
+      if (parts.length === 3) {
+        const startYear = parseInt(parts[0], 10);
+        const startMonth = parts[1];
+        const startDay = parts[2];
+        [year - 1, year, year + 1].forEach(projYear => {
+          const dateStr = `${projYear}-${startMonth}-${startDay}`;
+          const years = projYear - startYear;
+          const yearsSuffix = years > 0 ? ` (${years} Years)` : '';
+          addItem({
+            id: `cdate-${d.id}-${projYear}`,
+            title: `✨ ${d.contact_name}'s ${d.name}${yearsSuffix}`,
+            type: 'contact_event',
+            typeLabel: 'Important Date',
+            dateStr,
+            timeStr: 'All Day',
+            allDay: true,
+            location: d.contact_name || '',
+            description: `${d.contact_name}'s ${d.name} (${d.date})`,
+            color: colors.contact_event,
+            icon: '✨'
+          });
+        });
+      }
+    }
+  });
+
+  (data.userImportantDates || []).forEach(d => {
+    if (d.date) {
+      const parts = d.date.split('-');
+      if (parts.length === 3) {
+        const startYear = parseInt(parts[0], 10);
+        const startMonth = parts[1];
+        const startDay = parts[2];
+        [year - 1, year, year + 1].forEach(projYear => {
+          const dateStr = `${projYear}-${startMonth}-${startDay}`;
+          const years = projYear - startYear;
+          const yearsSuffix = years > 0 ? ` (${years} Years)` : '';
+          addItem({
+            id: `udate-${d.id}-${projYear}`,
+            title: `✨ ${d.name}${yearsSuffix}`,
+            type: 'contact_event',
+            typeLabel: 'Important Date',
+            dateStr,
+            timeStr: 'All Day',
+            allDay: true,
+            location: '',
+            description: `${d.name} (${d.date})`,
+            color: colors.contact_event,
+            icon: '✨'
+          });
+        });
+      }
+    }
+  });
+
+  Object.keys(itemsByDate).forEach(k => {
+    itemsByDate[k].sort((a, b) => {
+      if (a.allDay && !b.allDay) return -1;
+      if (!a.allDay && b.allDay) return 1;
+      return (a.timeStr || '').localeCompare(b.timeStr || '');
+    });
+  });
+
+  allItems.sort((a, b) => {
+    if (a.dateStr !== b.dateStr) return a.dateStr.localeCompare(b.dateStr);
+    return (a.timeStr || '').localeCompare(b.timeStr || '');
+  });
+
+  return { itemsByDate, allItems, todayStr, colors };
+}
+
+// 1. DAILY AGENDA VIEW
+function CalendarDailyAgendaView({ data, onNavigateTab }) {
+  const today = new Date();
+  const [selectedDate, setSelectedDate] = useState(today);
+
+  const year = selectedDate.getFullYear();
+  const month = selectedDate.getMonth();
+  const { itemsByDate, todayStr, colors } = processCalendarData(data, year, month);
+
+  const selectedDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`;
+  const isToday = selectedDateStr === todayStr;
+  const items = itemsByDate[selectedDateStr] || [];
+
+  const handlePrevDay = () => {
+    setSelectedDate(d => new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1));
+  };
+  const handleNextDay = () => {
+    setSelectedDate(d => new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+  };
+  const handleToday = () => {
+    setSelectedDate(new Date());
+  };
+
+  const formattedHeader = selectedDate.toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.6rem' }}>
+      {/* Top Header Controls */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.35rem 0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button type="button" className="btn btn-outline" onClick={handlePrevDay} style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem', height: '24px' }}>
+            <ChevronLeft size={13} />
+          </button>
+          <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--foreground)' }}>
+            {formattedHeader}
+          </span>
+          <button type="button" className="btn btn-outline" onClick={handleNextDay} style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem', height: '24px' }}>
+            <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          {isToday ? (
+            <span style={{ fontSize: '0.65rem', fontWeight: '700', background: 'var(--primary)', color: '#fff', padding: '0.15rem 0.45rem', borderRadius: '10px' }}>
+              Today
+            </span>
+          ) : (
+            <button type="button" className="btn btn-outline" onClick={handleToday} style={{ padding: '0.15rem 0.45rem', fontSize: '0.65rem', height: '22px' }}>
+              Today
+            </button>
+          )}
+          <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
+            {items.length} {items.length === 1 ? 'item' : 'items'}
+          </span>
+        </div>
+      </div>
+
+      {/* Agenda Items List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, overflowY: 'auto', paddingRight: '0.15rem' }}>
+        {items.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--muted-foreground)', fontStyle: 'italic', fontSize: '0.75rem', padding: '1rem 0', textAlign: 'center' }}>
+            <span>No events or tasks scheduled for this day.</span>
+          </div>
+        ) : (
+          items.map(item => (
+            <div
+              key={item.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.45rem 0.6rem',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderLeft: `3.5px solid ${item.color}`,
+                fontSize: '0.75rem'
+              }}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: '0.1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.8rem' }}>{item.icon}</span>
+                  <span style={{ fontWeight: '700', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.title}
+                  </span>
+                </div>
+                {item.location && (
+                  <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    📍 {item.location}
+                  </span>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: '700', color: item.color, background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                  {item.timeStr || item.typeLabel}
+                </span>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {onNavigateTab && (
+        <button
+          type="button"
+          className="btn btn-outline"
+          onClick={() => onNavigateTab('calendar')}
+          style={{ fontSize: '0.7rem', padding: '0.25rem', marginTop: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}
+        >
+          Open Calendar View <ArrowRight size={11} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// 2. WEEKLY AGENDA VIEW
+function CalendarWeeklyAgendaView({ data, onNavigateTab }) {
+  const today = new Date();
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const baseDate = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (weekOffset * 7));
+  const { itemsByDate, todayStr } = processCalendarData(data, baseDate.getFullYear(), baseDate.getMonth());
+
+  const daysOfWeek = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + i);
+    const yStr = d.getFullYear();
+    const mStr = String(d.getMonth() + 1).padStart(2, '0');
+    const dayStr = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${yStr}-${mStr}-${dayStr}`;
+    daysOfWeek.push({
+      date: d,
+      dateStr,
+      isToday: dateStr === todayStr,
+      dayName: d.toLocaleDateString(undefined, { weekday: 'short' }),
+      formattedDate: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      items: itemsByDate[dateStr] || []
+    });
+  }
+
+  const startLabel = daysOfWeek[0].formattedDate;
+  const endLabel = daysOfWeek[6].formattedDate;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.5rem' }}>
+      {/* Header with week navigation */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.35rem 0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button type="button" className="btn btn-outline" onClick={() => setWeekOffset(w => w - 1)} style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem', height: '24px' }}>
+            <ChevronLeft size={13} />
+          </button>
+          <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--foreground)' }}>
+            {startLabel} – {endLabel}
+          </span>
+          <button type="button" className="btn btn-outline" onClick={() => setWeekOffset(w => w + 1)} style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem', height: '24px' }}>
+            <ChevronRight size={13} />
+          </button>
+        </div>
+
+        {weekOffset !== 0 && (
+          <button type="button" className="btn btn-outline" onClick={() => setWeekOffset(0)} style={{ padding: '0.15rem 0.45rem', fontSize: '0.65rem', height: '22px' }}>
+            Current Week
+          </button>
+        )}
+      </div>
+
+      {/* 7-Day Agenda List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flex: 1, overflowY: 'auto', paddingRight: '0.15rem' }}>
+        {daysOfWeek.map(day => (
+          <div
+            key={day.dateStr}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.3rem',
+              padding: '0.45rem 0.6rem',
+              borderRadius: 'var(--radius-sm)',
+              background: day.isToday ? 'rgba(59, 130, 246, 0.06)' : 'var(--card)',
+              border: day.isToday ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border)'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: '800', color: day.isToday ? 'var(--primary)' : 'var(--foreground)' }}>
+                  {day.dayName}, {day.formattedDate}
+                </span>
+                {day.isToday && (
+                  <span style={{ fontSize: '0.6rem', fontWeight: '700', background: 'var(--primary)', color: '#fff', padding: '0.05rem 0.35rem', borderRadius: '8px' }}>
+                    Today
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)' }}>
+                {day.items.length} {day.items.length === 1 ? 'item' : 'items'}
+              </span>
+            </div>
+
+            {day.items.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.15rem' }}>
+                {day.items.map(item => (
+                  <div
+                    key={item.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '0.4rem',
+                      padding: '0.25rem 0.4rem',
+                      borderRadius: '4px',
+                      background: 'rgba(255,255,255,0.03)',
+                      borderLeft: `2.5px solid ${item.color}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    <span style={{ color: 'var(--foreground)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      {item.icon} {item.title}
+                    </span>
+                    <span style={{ color: item.color, fontSize: '0.65rem', fontWeight: '700', flexShrink: 0 }}>
+                      {item.timeStr}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>
+                No events or tasks
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 3. MONTHLY AGENDA VIEW
+function CalendarMonthlyAgendaView({ data, onNavigateTab }) {
+  const today = new Date();
+  const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const { itemsByDate, todayStr } = processCalendarData(data, year, month);
+
+  const monthName = currentDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+  const monthDates = Object.keys(itemsByDate)
+    .filter(d => d.startsWith(monthPrefix) && itemsByDate[d]?.length > 0)
+    .sort();
+
+  const totalMonthItems = monthDates.reduce((acc, d) => acc + (itemsByDate[d]?.length || 0), 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.5rem' }}>
+      {/* Month Navigation */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '0.35rem 0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button type="button" className="btn btn-outline" onClick={() => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem', height: '24px' }}>
+            <ChevronLeft size={13} />
+          </button>
+          <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--foreground)' }}>
+            {monthName}
+          </span>
+          <button type="button" className="btn btn-outline" onClick={() => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} style={{ padding: '0.2rem 0.4rem', fontSize: '0.7rem', height: '24px' }}>
+            <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button type="button" className="btn btn-outline" onClick={() => setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1))} style={{ padding: '0.15rem 0.45rem', fontSize: '0.65rem', height: '22px' }}>
+            This Month
+          </button>
+          <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
+            {totalMonthItems} {totalMonthItems === 1 ? 'item' : 'items'}
+          </span>
+        </div>
+      </div>
+
+      {/* Month Agenda Scrollable List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, overflowY: 'auto', paddingRight: '0.15rem' }}>
+        {monthDates.length === 0 ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, color: 'var(--muted-foreground)', fontStyle: 'italic', fontSize: '0.75rem', padding: '2rem 0', textAlign: 'center' }}>
+            No scheduled items for {monthName}.
+          </div>
+        ) : (
+          monthDates.map(dateStr => {
+            const dateObj = new Date(`${dateStr}T12:00:00`);
+            const isToday = dateStr === todayStr;
+            const items = itemsByDate[dateStr] || [];
+
+            return (
+              <div
+                key={dateStr}
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.3rem',
+                  padding: '0.45rem 0.6rem',
+                  borderRadius: 'var(--radius-sm)',
+                  background: isToday ? 'rgba(59, 130, 246, 0.06)' : 'var(--card)',
+                  border: isToday ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border)'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: '800', color: isToday ? 'var(--primary)' : 'var(--foreground)' }}>
+                    {dateObj.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                    {isToday && <span style={{ marginLeft: '0.35rem', fontSize: '0.6rem', fontWeight: '700', background: 'var(--primary)', color: '#fff', padding: '0.05rem 0.35rem', borderRadius: '8px' }}>Today</span>}
+                  </span>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)' }}>
+                    {items.length} {items.length === 1 ? 'item' : 'items'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                  {items.map(item => (
+                    <div
+                      key={item.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.4rem',
+                        padding: '0.25rem 0.4rem',
+                        borderRadius: '4px',
+                        background: 'rgba(255,255,255,0.03)',
+                        borderLeft: `3px solid ${item.color}`,
+                        fontSize: '0.7rem'
+                      }}
+                    >
+                      <span style={{ color: 'var(--foreground)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {item.icon} {item.title}
+                      </span>
+                      <span style={{ color: item.color, fontSize: '0.65rem', fontWeight: '700', flexShrink: 0 }}>
+                        {item.timeStr}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 4. FULL MONTHLY CALENDAR GRID VIEW (FILLS ENTIRE DASHBOARD PAGE)
+function CalendarMonthGridView({ data, onNavigateTab }) {
+  const today = new Date();
+  const [currentDate, setCurrentDate] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
+  const [inspectDay, setInspectDay] = useState(null);
+
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const { itemsByDate, todayStr, colors } = processCalendarData(data, year, month);
+
+  const monthName = currentDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+
+  // Compute 35 or 42 grid cells
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const numDaysInMonth = new Date(year, month + 1, 0).getDate();
+  const prevMonthNumDays = new Date(year, month, 0).getDate();
+
+  const daysGrid = [];
+
+  // Previous month padding
+  for (let i = firstDayIndex - 1; i >= 0; i--) {
+    const day = prevMonthNumDays - i;
+    const m = month === 0 ? 11 : month - 1;
+    const y = month === 0 ? year - 1 : year;
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    daysGrid.push({
+      day,
+      dateStr,
+      isCurrentMonth: false,
+      isToday: dateStr === todayStr,
+      items: itemsByDate[dateStr] || []
+    });
+  }
+
+  // Current month days
+  for (let d = 1; d <= numDaysInMonth; d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    daysGrid.push({
+      day: d,
+      dateStr,
+      isCurrentMonth: true,
+      isToday: dateStr === todayStr,
+      items: itemsByDate[dateStr] || []
+    });
+  }
+
+  // Next month padding to fill complete grid
+  const remaining = (daysGrid.length > 35 ? 42 : 35) - daysGrid.length;
+  for (let d = 1; d <= remaining; d++) {
+    const m = month === 11 ? 0 : month + 1;
+    const y = month === 11 ? year + 1 : year;
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    daysGrid.push({
+      day: d,
+      dateStr,
+      isCurrentMonth: false,
+      isToday: dateStr === todayStr,
+      items: itemsByDate[dateStr] || []
+    });
+  }
+
+  const inspectedItems = inspectDay ? (itemsByDate[inspectDay] || []) : [];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.4rem', position: 'relative' }}>
+      {/* Month Navigation & Category Legend */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', background: 'rgba(255,255,255,0.03)', padding: '0.4rem 0.6rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button type="button" className="btn btn-outline" onClick={() => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))} style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', height: '26px' }}>
+            <ChevronLeft size={14} />
+          </button>
+          <span style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--foreground)', minWidth: '130px', textAlign: 'center' }}>
+            {monthName}
+          </span>
+          <button type="button" className="btn btn-outline" onClick={() => setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))} style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', height: '26px' }}>
+            <ChevronRight size={14} />
+          </button>
+          <button type="button" className="btn btn-outline" onClick={() => setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1))} style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', height: '26px' }}>
+            Today
+          </button>
+        </div>
+
+        {/* Category color dots legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.event || '#3b82f6' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Events</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.task || '#10b981' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Tasks</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.bill || '#ef4444' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Bills</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.subscription || '#8b5cf6' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Subs</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.contact_event || '#ec4899' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Birthdays</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Weekday headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: '2px', textAlign: 'center' }}>
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+          <div key={d} style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--muted-foreground)', padding: '0.2rem 0' }}>
+            {d}
+          </div>
+        ))}
+      </div>
+
+      {/* Days Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gridAutoRows: 'minmax(55px, 1fr)', gap: '3px', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+        {daysGrid.map(dayCell => {
+          const isSelected = inspectDay === dayCell.dateStr;
+          return (
+            <div
+              key={dayCell.dateStr}
+              onClick={() => setInspectDay(isSelected ? null : dayCell.dateStr)}
+              style={{
+                border: isSelected ? '1.5px solid var(--primary)' : (dayCell.isToday ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid var(--border)'),
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.25rem',
+                background: dayCell.isToday ? 'rgba(59, 130, 246, 0.08)' : (dayCell.isCurrentMonth ? 'var(--card)' : 'rgba(0,0,0,0.02)'),
+                opacity: dayCell.isCurrentMonth ? 1 : 0.45,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.15rem',
+                cursor: 'pointer',
+                overflow: 'hidden',
+                position: 'relative'
+              }}
+            >
+              {/* Day number header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span
+                  style={{
+                    fontSize: '0.7rem',
+                    fontWeight: dayCell.isToday ? '800' : '600',
+                    width: '18px',
+                    height: '18px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    background: dayCell.isToday ? 'var(--primary)' : 'transparent',
+                    color: dayCell.isToday ? '#fff' : 'var(--foreground)'
+                  }}
+                >
+                  {dayCell.day}
+                </span>
+
+                {dayCell.items.length > 0 && (
+                  <span style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--muted-foreground)' }}>
+                    {dayCell.items.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Event pill snippets */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', overflow: 'hidden' }}>
+                {dayCell.items.slice(0, 3).map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      fontSize: '0.58rem',
+                      fontWeight: '600',
+                      padding: '0.05rem 0.2rem',
+                      borderRadius: '2px',
+                      background: 'rgba(255,255,255,0.04)',
+                      borderLeft: `2px solid ${item.color}`,
+                      color: 'var(--foreground)',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}
+                    title={`${item.title} (${item.timeStr || item.typeLabel})`}
+                  >
+                    {item.title}
+                  </div>
+                ))}
+                {dayCell.items.length > 3 && (
+                  <span style={{ fontSize: '0.55rem', color: 'var(--muted-foreground)', paddingLeft: '0.2rem' }}>
+                    +{dayCell.items.length - 3} more
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Inspected Day Detail Popup / Tray */}
+      {inspectDay && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '0.5rem',
+            left: '0.5rem',
+            right: '0.5rem',
+            maxHeight: '190px',
+            background: 'var(--popover, var(--card))',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.35)',
+            zIndex: 20,
+            padding: '0.75rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.35rem' }}>
+            <span style={{ fontSize: '0.85rem', fontWeight: '800', color: 'var(--foreground)' }}>
+              Agenda for {new Date(`${inspectDay}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+            <button
+              type="button"
+              onClick={() => setInspectDay(null)}
+              style={{ background: 'none', border: 'none', color: 'var(--muted-foreground)', cursor: 'pointer', fontSize: '1rem', padding: '0.1rem 0.3rem' }}
+            >
+              ×
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', overflowY: 'auto', flex: 1 }}>
+            {inspectedItems.length === 0 ? (
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                No events or tasks on this day.
+              </span>
+            ) : (
+              inspectedItems.map(item => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '0.5rem',
+                    padding: '0.35rem 0.5rem',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--muted)',
+                    borderLeft: `3px solid ${item.color}`,
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                    <span style={{ fontWeight: '700', color: 'var(--foreground)' }}>
+                      {item.icon} {item.title}
+                    </span>
+                    {item.location && (
+                      <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)' }}>
+                        📍 {item.location}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '0.7rem', fontWeight: '700', color: item.color, flexShrink: 0 }}>
+                    {item.timeStr || item.typeLabel}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

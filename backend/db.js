@@ -382,14 +382,35 @@ export async function getDb() {
       FOREIGN KEY (to_user_id) REFERENCES users (id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS dashboards (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      is_default INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS dashboard_widgets (
       id TEXT PRIMARY KEY,
+      dashboard_id TEXT DEFAULT 'default',
       type TEXT NOT NULL,
       x INTEGER NOT NULL,
       y INTEGER NOT NULL,
       w INTEGER NOT NULL,
       h INTEGER NOT NULL,
       config TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS dashboard_shares (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      target_type TEXT NOT NULL CHECK(target_type IN ('single', 'rotation')),
+      dashboard_id TEXT,
+      rotation_interval INTEGER DEFAULT 30,
+      rotation_dashboards TEXT,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Home Hub');
@@ -441,13 +462,14 @@ export async function getDb() {
     INSERT OR IGNORE INTO settings (key, value) VALUES ('focus_ticking_sound', 'false');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('confetti_enabled', 'true');
 
-    INSERT OR IGNORE INTO settings (key, value) VALUES ('cookbook_url', '');
-    INSERT OR IGNORE INTO settings (key, value) VALUES ('cookbook_key', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('mtg_url', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('mtg_key', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('library_url', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('library_key', '');
-    INSERT OR IGNORE INTO settings (key, value) VALUES ('home_url', '');
-    INSERT OR IGNORE INTO settings (key, value) VALUES ('home_key', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('dashboard_share_token', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('dashboard_rotation_enabled', 'false');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('dashboard_rotation_interval', '30');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('dashboard_rotation_dashboards', '["default"]');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('unsplash_key', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('unsplash_app_id', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('unsplash_secret', '');
@@ -455,6 +477,34 @@ export async function getDb() {
     INSERT OR IGNORE INTO settings (key, value) VALUES ('weather_location', '10001');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('weather_unit', 'fahrenheit');
   `);
+
+  // Safe Migration to add dashboard_id column to dashboard_widgets table if missing
+  try {
+    await dbInstance.run("ALTER TABLE dashboard_widgets ADD COLUMN dashboard_id TEXT DEFAULT 'default'");
+  } catch (err) {}
+
+  // Safe Migration: ensure default dashboard exists and orphaned widgets are assigned to 'default'
+  try {
+    const existingCount = await dbInstance.get("SELECT COUNT(*) as count FROM dashboards");
+    if (!existingCount || existingCount.count === 0) {
+      await dbInstance.run("INSERT OR IGNORE INTO dashboards (id, name, is_default) VALUES ('default', 'Main Dashboard', 1)");
+    }
+    await dbInstance.run("UPDATE dashboard_widgets SET dashboard_id = 'default' WHERE dashboard_id IS NULL OR dashboard_id = ''");
+  } catch (err) {}
+
+  // Safe Migration: migrate legacy single dashboard share token to dashboard_shares table
+  try {
+    const tokenRow = await dbInstance.get("SELECT value FROM settings WHERE key = 'dashboard_share_token'");
+    if (tokenRow && tokenRow.value) {
+      const existingShares = await dbInstance.get("SELECT COUNT(*) as count FROM dashboard_shares");
+      if (!existingShares || existingShares.count === 0) {
+        await dbInstance.run(
+          "INSERT OR IGNORE INTO dashboard_shares (id, name, token, target_type, dashboard_id, active) VALUES (?, ?, ?, 'single', 'default', 1)",
+          ['share_' + Date.now(), 'Main Dashboard Public Share', tokenRow.value]
+        );
+      }
+    }
+  } catch (err) {}
 
   // Safe Migration to add primary_color column to users table if missing
   try {
@@ -484,6 +534,46 @@ export async function getDb() {
   // Safe Migration to add timezone column to users table if missing
   try {
     await dbInstance.run("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'US/New_York'");
+  } catch (err) {}
+
+  // Safe Migration to add navbar_bg column to users table if missing
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN navbar_bg TEXT");
+  } catch (err) {}
+
+  // Safe Migration to add navbar_opacity column to users table if missing
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN navbar_opacity REAL DEFAULT 0.75");
+  } catch (err) {}
+
+  // Safe Migration to add app_bg column to users table if missing
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN app_bg TEXT");
+  } catch (err) {}
+
+  // Safe Migration to add theme_info_cards column to users table if missing
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN theme_info_cards INTEGER DEFAULT 0");
+  } catch (err) {}
+
+  // Safe Migration to add text_color column to users table if missing
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN text_color TEXT DEFAULT 'white'");
+  } catch (err) {}
+
+  // Safe Migration to add dynamic_text_color column to users table if missing
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN dynamic_text_color INTEGER DEFAULT 0");
+  } catch (err) {}
+
+  // Safe Migration to add notes_file column to game_play_history if missing
+  try {
+    await dbInstance.run("ALTER TABLE game_play_history ADD COLUMN notes_file TEXT");
+  } catch (err) {}
+
+  // Safe Migration to add is_read column to notification_logs table if missing
+  try {
+    await dbInstance.run("ALTER TABLE notification_logs ADD COLUMN is_read INTEGER DEFAULT 0");
   } catch (err) {}
 
   // Safe Migration to add branding_logo_light and branding_logo_dark settings if missing
@@ -570,6 +660,24 @@ export async function getDb() {
   try {
     await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN github_issue_number INTEGER");
   } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE housekeeping_tasks ADD COLUMN reoccurrence_days TEXT");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE housekeeping_tasks ADD COLUMN reoccurrence_months TEXT");
+  } catch (err) {}
+
+  try {
+    await dbInstance.run(`
+      CREATE TABLE IF NOT EXISTS contact_important_dates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        contact_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        date TEXT NOT NULL,
+        FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE CASCADE
+      )
+    `);
+  } catch (err) {}
 
   // Create notification logs table
   await dbInstance.exec(`
@@ -590,6 +698,14 @@ export async function getDb() {
       relationship TEXT,
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS contact_important_dates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      contact_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS health_logs (
@@ -679,6 +795,8 @@ export async function getDb() {
       description TEXT,
       due_date TEXT NOT NULL,
       reoccurrence TEXT NOT NULL DEFAULT 'none',
+      reoccurrence_days TEXT,
+      reoccurrence_months TEXT,
       assigned_to_user_id INTEGER,
       status TEXT NOT NULL DEFAULT 'pending',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,

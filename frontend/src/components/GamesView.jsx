@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, 
+  Play,
   Trash2, 
   Edit2, 
   Star, 
@@ -13,14 +14,34 @@ import {
   Search,
   Filter,
   Check,
-  Info
+  Info,
+  ExternalLink
 } from 'lucide-react';
 
-export default function GamesView({ showToast }) {
+export default function GamesView({ showToast, currentUser }) {
   const [games, setGames] = useState([]);
   const [history, setHistory] = useState([]);
   const [loadingGames, setLoadingGames] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [mtgUrl, setMtgUrl] = useState('');
+  const [users, setUsers] = useState([]);
+  const [contacts, setContacts] = useState([]);
+  const [winnerType, setWinnerType] = useState('pending');
+  const [winnerContact, setWinnerContact] = useState('');
+  const [winnerOther, setWinnerOther] = useState('');
+
+  // Current Game Card states
+  const [currentGame, setCurrentGame] = useState(null);
+  const [activePlayers, setActivePlayers] = useState([]);
+  const [winners, setWinners] = useState([]);
+  const [notesContent, setNotesContent] = useState('');
+  const [notesPreviewMode, setNotesPreviewMode] = useState(false);
+  const [customPlayerName, setCustomPlayerName] = useState('');
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+
+  // Notes viewer modal states
+  const [viewingNotesLog, setViewingNotesLog] = useState(null);
+  const [viewingNotesContent, setViewingNotesContent] = useState('');
 
   // Search/Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +72,8 @@ export default function GamesView({ showToast }) {
   useEffect(() => {
     fetchGames();
     fetchHistory();
+    fetchMtgUrl();
+    fetchUsersAndContacts();
 
     const handleAddTrigger = (e) => {
       if (e.detail.tab === 'games') {
@@ -62,6 +85,35 @@ export default function GamesView({ showToast }) {
       window.removeEventListener('trigger-add-action', handleAddTrigger);
     };
   }, []);
+
+  const fetchMtgUrl = async () => {
+    try {
+      const res = await fetch('/api/settings/public');
+      if (res.ok) {
+        const data = await res.json();
+        setMtgUrl(data.mtg_url || '');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchUsersAndContacts = async () => {
+    try {
+      const resUsers = await fetch('/api/users/list');
+      if (resUsers.ok) {
+        const data = await resUsers.json();
+        setUsers(data);
+      }
+      const resContacts = await fetch('/api/contacts');
+      if (resContacts.ok) {
+        const data = await resContacts.json();
+        setContacts(data);
+      }
+    } catch (err) {
+      console.error('Error fetching users/contacts for games:', err);
+    }
+  };
 
   const fetchGames = async () => {
     setLoadingGames(true);
@@ -176,9 +228,6 @@ export default function GamesView({ showToast }) {
 
     const randomGame = eligible[Math.floor(Math.random() * eligible.length)];
     setPickedGame(randomGame);
-
-    // Auto log to play history
-    logPlayHistory(randomGame.id, count);
   };
 
   const logPlayHistory = async (gameId, count) => {
@@ -200,10 +249,147 @@ export default function GamesView({ showToast }) {
     }
   };
 
+  const handlePlayGame = (game) => {
+    setCurrentGame(game);
+    setNotesContent('');
+    setWinners([]);
+    
+    const defaultPlayers = [];
+    if (currentUser?.display_name || currentUser?.username) {
+      defaultPlayers.push(currentUser.display_name || currentUser.username);
+    }
+    setActivePlayers(defaultPlayers);
+    showToast(`Loaded "${game.title}" into the Current Game panel! 🎲`, 'success');
+  };
+
+  // --- Current Game & Notes Markdown Editor Handlers ---
+  const handleAddPlayer = (name) => {
+    if (!name.trim()) return;
+    const cleanName = name.trim();
+    if (activePlayers.includes(cleanName)) {
+      showToast(`${cleanName} is already playing!`, 'error');
+      return;
+    }
+    setActivePlayers([...activePlayers, cleanName]);
+    setCustomPlayerName('');
+  };
+
+  const handleRemovePlayer = (name) => {
+    setActivePlayers(activePlayers.filter(p => p !== name));
+    setWinners(winners.filter(p => p !== name));
+  };
+
+  const handleToggleWinner = (name) => {
+    if (winners.includes(name)) {
+      setWinners(winners.filter(w => w !== name));
+    } else {
+      setWinners([...winners, name]);
+    }
+  };
+
+  const handleSlashCommand = (cmd) => {
+    let template = '';
+    switch (cmd) {
+      case 'score':
+        template = '\n\n### Current Scoreboard\n| Player | Round 1 | Round 2 | Total |\n| :--- | :--- | :--- | :--- |\n' + 
+          activePlayers.map(p => `| ${p} | 0 | 0 | 0 |`).join('\n') + '\n';
+        break;
+      case 'table':
+        template = '\n\n| Header 1 | Header 2 |\n| :--- | :--- |\n| Cell 1 | Cell 2 |\n';
+        break;
+      case 'notes':
+        template = '\n\n### Game Play Notes\n- Round 1: \n- Notable plays: \n';
+        break;
+      case 'round':
+        template = '\n\n### Round Notes\n* \n';
+        break;
+      case 'clear':
+        setNotesContent('');
+        setShowSlashMenu(false);
+        return;
+      default:
+        break;
+    }
+    setNotesContent(prev => prev + template);
+    setShowSlashMenu(false);
+  };
+
+  const handleGameOver = async () => {
+    if (!currentGame) return;
+    if (activePlayers.length === 0) {
+      showToast('Please select at least 1 player', 'error');
+      return;
+    }
+    const winnerString = winners.length > 0 ? winners.join(' & ') : 'No Winner';
+    try {
+      const res = await fetch('/api/games/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          game_id: currentGame.id,
+          players_count: activePlayers.length,
+          winner: winnerString,
+          notes_content: notesContent
+        })
+      });
+      if (res.ok) {
+        showToast(`Game Over! Logged play for "${currentGame.title}" with winner: ${winnerString}! 🏆`, 'success');
+        setCurrentGame(null);
+        setActivePlayers([]);
+        setWinners([]);
+        setNotesContent('');
+        fetchHistory();
+      } else {
+        const err = await res.json();
+        showToast(err.error || 'Failed to submit game play log', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Network error logging game over', 'error');
+    }
+  };
+
+  const handleViewNotes = async (log) => {
+    if (!log.notes_file) return;
+    try {
+      const res = await fetch(`/api/games/history/${log.id}/notes`);
+      if (res.ok) {
+        const markdown = await res.text();
+        setViewingNotesLog(log);
+        setViewingNotesContent(markdown);
+      } else {
+        showToast('Failed to load notes content', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error fetching notes content from server', 'error');
+    }
+  };
+
   // Open Edit Play Modal
   const openEditPlayModal = (play) => {
     setSelectedPlay(play);
-    setEditWinner(play.winner || '');
+    const win = play.winner || '';
+    setEditWinner(win);
+
+    if (win === 'Pending' || win === '') {
+      setWinnerType('pending');
+      setWinnerContact('');
+      setWinnerOther('');
+    } else if (users.some(u => (u.display_name || u.username) === win)) {
+      setWinnerType(win);
+      setWinnerContact('');
+      setWinnerOther('');
+    } else if (contacts.some(c => c.name === win)) {
+      setWinnerType('contact');
+      setWinnerContact(win);
+      setWinnerOther('');
+    } else {
+      setWinnerType('other');
+      setWinnerContact('');
+      setWinnerOther(win);
+    }
+
     setEditPlayersCount(play.players_count || '');
     // Format datetime-local input value
     const dateStr = play.played_at.includes('T') ? play.played_at.substring(0, 16) : play.played_at;
@@ -216,12 +402,23 @@ export default function GamesView({ showToast }) {
     e.preventDefault();
     if (!selectedPlay) return;
 
+    const finalWinner = 
+      winnerType === 'pending' ? 'Pending' :
+      winnerType === 'contact' ? winnerContact :
+      winnerType === 'other' ? winnerOther :
+      winnerType;
+
+    if (!finalWinner || !finalWinner.trim()) {
+      showToast('Winner name is required', 'error');
+      return;
+    }
+
     try {
       const res = await fetch(`/api/games/history/${selectedPlay.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          winner: editWinner.trim(),
+          winner: finalWinner.trim(),
           players_count: editPlayersCount ? parseInt(editPlayersCount, 10) : null,
           played_at: editDate || new Date().toISOString()
         })
@@ -242,7 +439,11 @@ export default function GamesView({ showToast }) {
 
   // Delete Play Log Handler
   const handleDeletePlayLog = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this play log?')) return;
+    const isAdmin = currentUser?.role_name === 'Administrator';
+    if (!isAdmin) {
+      showToast('Only administrators can delete game play logs.', 'error');
+      return;
+    }
 
     try {
       const res = await fetch(`/api/games/history/${id}`, {
@@ -427,8 +628,41 @@ export default function GamesView({ showToast }) {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <RenderStars count={game.rating} />
+                    <button 
+                      type="button" 
+                      className="btn-icon"
+                      onClick={() => handlePlayGame(game)}
+                      style={{ 
+                        padding: '0.25rem',
+                        color: '#10b981',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                      title="Log a Play"
+                    >
+                      <Play size={14} fill="currentColor" />
+                    </button>
+                    {game.title === 'Magic: The Gathering' && mtgUrl && (
+                      <a 
+                        href={mtgUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="btn-icon" 
+                        style={{ 
+                          padding: '0.25rem',
+                          color: 'var(--primary)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                        title="Open MTG App"
+                      >
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
                     <button 
                       type="button" 
                       className="btn-icon text-destructive"
@@ -445,7 +679,257 @@ export default function GamesView({ showToast }) {
           </div>
         </div>
 
-        {/* COLUMN 2: GAMES PLAYED HISTORY */}
+        {/* COLUMN 2: CURRENT GAME */}
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Gamepad2 size={18} style={{ color: 'var(--primary)' }} /> Current Game
+            </h2>
+            {currentGame && (
+              <button 
+                type="button" 
+                onClick={() => {
+                  setCurrentGame(null);
+                  setActivePlayers([]);
+                  setWinners([]);
+                  setNotesContent('');
+                }}
+                className="btn-icon text-destructive"
+                style={{ padding: '0.25rem' }}
+                title="Cancel Session"
+              >
+                ×
+              </button>
+            )}
+          </div>
+
+          {!currentGame ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', padding: '2rem 1.5rem', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', textAlign: 'center' }}>
+              <Gamepad2 size={36} style={{ color: 'var(--muted-foreground)', margin: '0 auto 0.5rem auto' }} />
+              <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--muted-foreground)' }}>No active game session. Load a game from the library or pick one below to start.</p>
+              <select 
+                className="input-control"
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const selected = games.find(g => g.id === parseInt(e.target.value, 10));
+                  if (selected) handlePlayGame(selected);
+                }}
+                value=""
+                style={{ marginTop: '0.5rem' }}
+              >
+                <option value="">-- Choose a Game --</option>
+                {games.map(g => (
+                  <option key={g.id} value={g.id}>{g.title} ({g.game_type})</option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--primary)', fontWeight: 'bold' }}>
+                  Active Game
+                </span>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 'bold', margin: '0.125rem 0' }}>
+                  {currentGame.title}
+                </h3>
+                <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                  Recommended players: {currentGame.min_players === currentGame.max_players ? `${currentGame.min_players}` : `${currentGame.min_players}-${currentGame.max_players}`}
+                </p>
+              </div>
+
+              {/* Select Players */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--muted-foreground)', marginBottom: '-0.25rem' }}>
+                  Select Players:
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <select 
+                    className="input-control"
+                    onChange={(e) => {
+                      if (!e.target.value) return;
+                      handleAddPlayer(e.target.value);
+                      e.target.value = '';
+                    }}
+                    defaultValue=""
+                    style={{ flex: 1 }}
+                  >
+                    <option value="" disabled>-- Add Player --</option>
+                    <optgroup label="Household Members">
+                      {users.map(u => {
+                        const name = u.display_name || u.username;
+                        return <option key={u.id} value={name}>{name}</option>;
+                      })}
+                    </optgroup>
+                    <optgroup label="Contacts">
+                      {contacts.map(c => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>or</span>
+                  <input 
+                    type="text"
+                    className="input-control"
+                    placeholder="Guest Name"
+                    value={customPlayerName}
+                    onChange={e => setCustomPlayerName(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddPlayer(customPlayerName);
+                      }
+                    }}
+                    style={{ flex: 1 }}
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => handleAddPlayer(customPlayerName)}
+                    className="btn btn-outline"
+                    style={{ padding: '0 0.75rem', height: '36px' }}
+                  >
+                    Add
+                  </button>
+                </div>
+
+                {/* Active Players checklist */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                  <div style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>
+                    Active Players (Check winners):
+                  </div>
+                  {activePlayers.length === 0 ? (
+                    <p style={{ margin: 0, fontStyle: 'italic', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                      No players added yet. Select members or type a guest name.
+                    </p>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {activePlayers.map(player => {
+                        const isWinner = winners.includes(player);
+                        return (
+                          <div 
+                            key={player} 
+                            style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '0.35rem', 
+                              padding: '0.25rem 0.5rem', 
+                              background: isWinner ? 'var(--primary-light)' : 'var(--card-hover)', 
+                              border: isWinner ? '1px solid var(--primary)' : '1px solid var(--border)', 
+                              borderRadius: '20px',
+                              boxShadow: 'var(--shadow-sm)'
+                            }}
+                          >
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8125rem', cursor: 'pointer', margin: 0, fontWeight: isWinner ? '700' : 'normal', color: isWinner ? 'var(--primary-foreground)' : 'var(--foreground)' }}>
+                              <input 
+                                type="checkbox"
+                                checked={isWinner}
+                                onChange={() => handleToggleWinner(player)}
+                                style={{ cursor: 'pointer', accentColor: 'var(--primary)' }}
+                              />
+                              {isWinner ? '🏆 ' : ''}{player}
+                            </label>
+                            <button 
+                              type="button" 
+                              onClick={() => handleRemovePlayer(player)} 
+                              style={{ 
+                                background: 'transparent', 
+                                border: 'none', 
+                                color: isWinner ? 'var(--primary-foreground)' : 'var(--text-muted)', 
+                                cursor: 'pointer', 
+                                fontSize: '0.875rem', 
+                                padding: '0 0.125rem',
+                                fontWeight: 'bold'
+                              }}
+                              title="Remove Player"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Slash notes editor */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--muted-foreground)', margin: 0 }}>
+                      Notes & Scorecard:
+                    </label>
+                    <button 
+                      type="button" 
+                      onClick={() => setNotesPreviewMode(!notesPreviewMode)}
+                      className="btn" 
+                      style={{ fontSize: '0.65rem', padding: '1px 6px', height: '18px', background: 'var(--card-hover)', border: '1px solid var(--border)', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    >
+                      {notesPreviewMode ? '✍️ Edit' : '👁️ Preview'}
+                    </button>
+                  </div>
+                  {!notesPreviewMode && (
+                    <div style={{ display: 'flex', gap: '0.25rem' }}>
+                      <button type="button" onClick={() => handleSlashCommand('score')} className="btn btn-outline" style={{ fontSize: '0.65rem', padding: '2px 6px', height: '22px' }}>/score</button>
+                      <button type="button" onClick={() => handleSlashCommand('table')} className="btn btn-outline" style={{ fontSize: '0.65rem', padding: '2px 6px', height: '22px' }}>/table</button>
+                      <button type="button" onClick={() => handleSlashCommand('notes')} className="btn btn-outline" style={{ fontSize: '0.65rem', padding: '2px 6px', height: '22px' }}>/notes</button>
+                      <button type="button" onClick={() => handleSlashCommand('round')} className="btn btn-outline" style={{ fontSize: '0.65rem', padding: '2px 6px', height: '22px' }}>/round</button>
+                      <button type="button" onClick={() => handleSlashCommand('clear')} className="btn btn-outline btn-danger" style={{ fontSize: '0.65rem', padding: '2px 6px', height: '22px' }}>/clear</button>
+                    </div>
+                  )}
+                </div>
+
+                {notesPreviewMode ? (
+                  <div 
+                    className="markdown-body"
+                    style={{ 
+                      minHeight: '130px', 
+                      padding: '0.75rem', 
+                      border: '1px solid var(--border)', 
+                      borderRadius: 'var(--radius)', 
+                      background: 'var(--card-hover)', 
+                      overflowY: 'auto',
+                      fontSize: '0.8125rem',
+                      lineHeight: '1.4',
+                      color: 'var(--foreground)'
+                    }}
+                    dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(notesContent) }}
+                  />
+                ) : (
+                  <>
+                    <textarea
+                      className="input-control"
+                      placeholder="Take notes, keep score, or type comments. Click templates above to drop structure!"
+                      value={notesContent}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setNotesContent(val);
+                        setShowSlashMenu(val.endsWith('/'));
+                      }}
+                      style={{ minHeight: '130px', fontFamily: 'monospace', fontSize: '0.8125rem', lineHeight: '1.4' }}
+                    />
+                    {showSlashMenu && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '-0.25rem' }}>
+                        💡 Templates ready: Click `/score`, `/table`, `/notes`, or `/round` above to insert structures!
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Game Over Button */}
+              <button 
+                type="button"
+                onClick={handleGameOver}
+                className="btn btn-primary"
+                style={{ width: '100%', marginTop: '0.5rem', gap: '0.5rem', justifyContent: 'center' }}
+              >
+                🏁 Game Over (Log to History)
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* COLUMN 3: GAMES PLAYED HISTORY */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', height: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
             <h2 style={{ fontSize: '1.25rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -514,6 +998,17 @@ export default function GamesView({ showToast }) {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {log.notes_file && (
+                        <button 
+                          type="button" 
+                          className="btn-icon"
+                          onClick={() => handleViewNotes(log)}
+                          style={{ padding: '0.25rem', color: 'var(--primary)' }}
+                          title="View Game Notes"
+                        >
+                          <Info size={13} />
+                        </button>
+                      )}
                       <button 
                         type="button" 
                         className="btn-icon"
@@ -523,15 +1018,17 @@ export default function GamesView({ showToast }) {
                       >
                         <Edit2 size={13} />
                       </button>
-                      <button 
-                        type="button" 
-                        className="btn-icon text-destructive"
-                        onClick={() => handleDeletePlayLog(log.id)}
-                        style={{ padding: '0.25rem' }}
-                        title="Remove Log"
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      {currentUser?.role_name === 'Administrator' && (
+                        <button 
+                          type="button" 
+                          className="btn-icon text-destructive"
+                          onClick={() => handleDeletePlayLog(log.id)}
+                          style={{ padding: '0.25rem' }}
+                          title="Remove Log"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -721,12 +1218,22 @@ export default function GamesView({ showToast }) {
                 </div>
 
                 <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0, textAlign: 'center' }}>
-                  This game has been added to your Played History as <strong>Pending</strong>. Feel free to update the winner once the game finishes!
+                  Click <strong>Let's Play!</strong> to load this game into your active session card and select players!
                 </p>
 
                 <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
                   <button type="button" className="btn btn-outline" onClick={() => setPickedGame(null)}>Roll Again</button>
-                  <button type="button" className="btn btn-primary" onClick={() => setIsPickModalOpen(false)}>Let's Play!</button>
+                  <button 
+                    type="button" 
+                    className="btn btn-primary" 
+                    onClick={() => {
+                      handlePlayGame(pickedGame);
+                      setIsPickModalOpen(false);
+                      setPickedGame(null);
+                    }}
+                  >
+                    Let's Play!
+                  </button>
                 </div>
               </div>
             )}
@@ -758,15 +1265,64 @@ export default function GamesView({ showToast }) {
               </div>
 
               <div className="form-group">
-                <label>Winner Name</label>
-                <input 
-                  type="text" 
+                <label>Winner</label>
+                <select 
                   className="input-control" 
-                  placeholder="e.g. Joshua, Mom, Team A" 
-                  value={editWinner}
-                  onChange={e => setEditWinner(e.target.value)}
+                  value={winnerType}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setWinnerType(val);
+                    if (val === 'contact' && contacts.length > 0 && !winnerContact) {
+                      setWinnerContact(contacts[0].name);
+                    }
+                  }}
                   required 
-                />
+                >
+                  <option value="pending">Pending</option>
+                  
+                  {users.length > 0 && (
+                    <optgroup label="Household Users">
+                      {users.map(u => {
+                        const name = u.display_name || u.username;
+                        return <option key={u.id} value={name}>{name}</option>;
+                      })}
+                    </optgroup>
+                  )}
+
+                  <option value="contact">Contact...</option>
+                  <option value="other">Other (Manual Entry)...</option>
+                </select>
+
+                {winnerType === 'contact' && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>Select Contact</label>
+                    <select 
+                      className="input-control"
+                      value={winnerContact}
+                      onChange={e => setWinnerContact(e.target.value)}
+                      required
+                    >
+                      <option value="">-- Choose Contact --</option>
+                      {contacts.map(c => (
+                        <option key={c.id} value={c.name}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {winnerType === 'other' && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', marginBottom: '0.25rem' }}>Winner Name (Manual Entry)</label>
+                    <input 
+                      type="text" 
+                      className="input-control"
+                      placeholder="e.g. Mom, Team A, Guest"
+                      value={winnerOther}
+                      onChange={e => setWinnerOther(e.target.value)}
+                      required
+                    />
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: '1rem' }}>
@@ -802,6 +1358,141 @@ export default function GamesView({ showToast }) {
         </div>
       )}
 
+      {/* MODAL 4: VIEW GAME NOTES */}
+      {viewingNotesLog && (
+        <div className="modal-overlay" onClick={() => setViewingNotesLog(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Info size={20} /> Game Session Notes
+              </h2>
+              <button className="close-btn" onClick={() => setViewingNotesLog(null)}>×</button>
+            </div>
+            
+            <div className="modal-body" style={{ maxHeight: '450px', overflowY: 'auto', padding: '1rem 0.5rem' }}>
+              <div style={{ marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 'bold' }}>
+                  Game Played
+                </span>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: '0.25rem 0' }}>
+                  {viewingNotesLog.game_title}
+                </h3>
+                <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
+                  <span>📅 {new Date(viewingNotesLog.played_at).toLocaleDateString()}</span>
+                  <span>👥 {viewingNotesLog.players_count} Players</span>
+                  <span>🏆 Winner: {viewingNotesLog.winner}</span>
+                </div>
+              </div>
+
+              <div 
+                className="markdown-body"
+                style={{ fontSize: '0.875rem', lineHeight: '1.6', color: 'var(--foreground)' }}
+                dangerouslySetInnerHTML={{ __html: renderMarkdownToHtml(viewingNotesContent) }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+              <button type="button" className="btn btn-outline" onClick={() => setViewingNotesLog(null)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
+}
+
+function renderMarkdownToHtml(markdown) {
+  if (!markdown) return '<p style="color: var(--muted-foreground); font-style: italic;">No notes recorded for this game play.</p>';
+  let html = markdown
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+    
+  // Headers
+  html = html.replace(/^### (.*$)/gim, '<h3 style="font-size: 1.125rem; font-weight: bold; margin-top: 1rem; margin-bottom: 0.5rem; color: var(--foreground); border-bottom: 1px solid var(--border); padding-bottom: 0.25rem;">$1</h3>');
+  html = html.replace(/^## (.*$)/gim, '<h2 style="font-size: 1.25rem; font-weight: bold; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--foreground);">$1</h2>');
+  html = html.replace(/^# (.*$)/gim, '<h1 style="font-size: 1.5rem; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.75rem; color: var(--foreground);">$1</h1>');
+  
+  // Bold
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  
+  // Lists
+  html = html.replace(/^\s*-\s+(.*$)/gim, '<li style="margin-left: 1.5rem; list-style-type: disc; margin-bottom: 0.25rem;">$1</li>');
+  html = html.replace(/^\s*\*\s+(.*$)/gim, '<li style="margin-left: 1.5rem; list-style-type: disc; margin-bottom: 0.25rem;">$1</li>');
+  
+  // Table Parser
+  const lines = html.split('\n');
+  const processedLines = [];
+  let inTable = false;
+  let tableRows = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (line.startsWith('|') && line.endsWith('|')) {
+      inTable = true;
+      const cells = line.split('|').map(c => c.trim()).filter((c, idx, arr) => idx > 0 && idx < arr.length - 1);
+      const isAlignLine = line.includes('-') && !line.match(/[a-zA-Z0-9]/);
+      if (!isAlignLine) {
+        tableRows.push(cells);
+      }
+    } else {
+      if (inTable) {
+        let tableHtml = '<table style="width:100%; border-collapse:collapse; margin: 1rem 0; border: 1px solid var(--border); font-size: 0.875rem;">';
+        tableRows.forEach((row, rIdx) => {
+          const isHeader = rIdx === 0;
+          tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
+          row.forEach(cell => {
+            if (isHeader) {
+              tableHtml += `<th style="padding: 0.5rem 0.75rem; border-right: 1px solid var(--border); font-weight: bold; background: var(--card-hover); text-align: left; color: var(--foreground);">${cell}</th>`;
+            } else {
+              tableHtml += `<td style="padding: 0.5rem 0.75rem; border-right: 1px solid var(--border);">${cell}</td>`;
+            }
+          });
+          tableHtml += '</tr>';
+        });
+        tableHtml += '</table>';
+        processedLines.push(tableHtml);
+        
+        inTable = false;
+        tableRows = [];
+      }
+      processedLines.push(lines[i]);
+    }
+  }
+
+  if (inTable && tableRows.length > 0) {
+    let tableHtml = '<table style="width:100%; border-collapse:collapse; margin: 1rem 0; border: 1px solid var(--border); font-size: 0.875rem;">';
+    tableRows.forEach((row, rIdx) => {
+      const isHeader = rIdx === 0;
+      tableHtml += '<tr style="border-bottom: 1px solid var(--border);">';
+      row.forEach(cell => {
+        if (isHeader) {
+          tableHtml += `<th style="padding: 0.5rem 0.75rem; border-right: 1px solid var(--border); font-weight: bold; background: var(--card-hover); text-align: left; color: var(--foreground);">${cell}</th>`;
+        } else {
+          tableHtml += `<td style="padding: 0.5rem 0.75rem; border-right: 1px solid var(--border);">${cell}</td>`;
+        }
+      });
+      tableHtml += '</tr>';
+    });
+    tableHtml += '</table>';
+    processedLines.push(tableHtml);
+  }
+
+  html = processedLines.join('\n');
+
+  // Double newlines to paragraph breaks
+  html = html.replace(/\n\n/g, '<br/><br/>');
+  // Single newline to simple break if not in list or table
+  html = html.split('\n').map(line => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('<li') || trimmed.startsWith('<tr') || trimmed.startsWith('<table') || trimmed.startsWith('</table') || trimmed.startsWith('<td') || trimmed.startsWith('<th') || trimmed.startsWith('<h') || trimmed.includes('<table')) {
+      return line;
+    }
+    return line + '<br/>';
+  }).join('\n');
+
+  return html;
 }

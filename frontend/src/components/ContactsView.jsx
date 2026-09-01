@@ -5,6 +5,7 @@ const RELATIONSHIP_OPTIONS = ['Family', 'Friend', 'Work', 'Spouse', 'Child', 'Pa
 
 export default function ContactsView({ showToast }) {
   const [contacts, setContacts] = useState([]);
+  const [selectedContactIds, setSelectedContactIds] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [relationshipFilter, setRelationshipFilter] = useState('All');
   const [loading, setLoading] = useState(true);
@@ -28,6 +29,8 @@ export default function ContactsView({ showToast }) {
   const [birthday, setBirthday] = useState('');
   const [relationship, setRelationship] = useState('Family');
   const [notes, setNotes] = useState('');
+  const [newDateName, setNewDateName] = useState('');
+  const [newDateValue, setNewDateValue] = useState('');
 
   useEffect(() => {
     fetchContacts();
@@ -185,6 +188,84 @@ export default function ContactsView({ showToast }) {
     setIsModalOpen(true);
   };
 
+  const handleAddImportantDate = async () => {
+    if (!newDateName.trim() || !newDateValue) {
+      showToast('Please enter both event name and date', 'error');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/contacts/${selectedContact.id}/important-dates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newDateName.trim(), date: newDateValue })
+      });
+      if (res.ok) {
+        const added = await res.json();
+        showToast('Important date added!', 'success');
+        
+        // Update local contacts list state so it renders instantly
+        const updatedContacts = contacts.map(c => {
+          if (c.id === selectedContact.id) {
+            return {
+              ...c,
+              important_dates: [...(c.important_dates || []), added]
+            };
+          }
+          return c;
+        });
+        setContacts(updatedContacts);
+        
+        // Also update selectedContact so the modal updates its list
+        setSelectedContact(prev => ({
+          ...prev,
+          important_dates: [...(prev.important_dates || []), added]
+        }));
+        
+        setNewDateName('');
+        setNewDateValue('');
+      } else {
+        showToast('Failed to add important date', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error adding important date', 'error');
+    }
+  };
+
+  const handleDeleteImportantDate = async (dateId) => {
+    try {
+      const res = await fetch(`/api/contacts/important-dates/${dateId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        showToast('Important date deleted', 'success');
+        
+        // Update local contacts state
+        const updatedContacts = contacts.map(c => {
+          if (c.id === selectedContact.id) {
+            return {
+              ...c,
+              important_dates: (c.important_dates || []).filter(d => d.id !== dateId)
+            };
+          }
+          return c;
+        });
+        setContacts(updatedContacts);
+        
+        // Update selectedContact
+        setSelectedContact(prev => ({
+          ...prev,
+          important_dates: (prev.important_dates || []).filter(d => d.id !== dateId)
+        }));
+      } else {
+        showToast('Failed to delete important date', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error deleting important date', 'error');
+    }
+  };
+
   const handleSave = async (e) => {
     e.preventDefault();
     if (!name.trim()) {
@@ -241,6 +322,58 @@ export default function ContactsView({ showToast }) {
       console.error(err);
       showToast('Error deleting contact', 'error');
     }
+  };
+
+  const handleExportContacts = (contactsToExport) => {
+    if (contactsToExport.length === 0) {
+      showToast('No contacts selected for export', 'error');
+      return;
+    }
+    
+    let vcfContent = '';
+    contactsToExport.forEach(c => {
+      vcfContent += 'BEGIN:VCARD\r\n';
+      vcfContent += 'VERSION:3.0\r\n';
+      vcfContent += `FN:${c.name}\r\n`;
+      
+      const nameParts = c.name.trim().split(' ');
+      if (nameParts.length > 1) {
+        const first = nameParts[0];
+        const last = nameParts.slice(1).join(' ');
+        vcfContent += `N:${last};${first};;;\r\n`;
+      } else {
+        vcfContent += `N:;${c.name};;;\r\n`;
+      }
+      
+      if (c.phone) {
+        vcfContent += `TEL;TYPE=CELL:${c.phone}\r\n`;
+      }
+      if (c.email) {
+        vcfContent += `EMAIL;TYPE=INTERNET:${c.email}\r\n`;
+      }
+      if (c.birthday) {
+        vcfContent += `BDAY:${c.birthday}\r\n`;
+      }
+      if (c.notes) {
+        const escapedNotes = c.notes.replace(/\\/g, '\\\\').replace(/\n/g, '\\n');
+        vcfContent += `NOTE:${escapedNotes}\r\n`;
+      }
+      vcfContent += 'END:VCARD\r\n';
+    });
+
+    const blob = new Blob([vcfContent], { type: 'text/vcard;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    const filename = contactsToExport.length === 1 
+      ? `${contactsToExport[0].name.replace(/\s+/g, '_')}.vcf`
+      : `Family_Contacts_Export.vcf`;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    showToast(`Successfully exported ${contactsToExport.length} contact(s) to vCard!`, 'success');
   };
 
   // Generate dynamic gradients based on name letters for beautiful initials avatars
@@ -311,8 +444,69 @@ export default function ContactsView({ showToast }) {
             {RELATIONSHIP_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
           </select>
         </div>
-
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button 
+            type="button"
+            className="btn btn-outline"
+            onClick={() => {
+              const allFilteredIds = filteredContacts.map(c => c.id);
+              if (selectedContactIds.length > 0) {
+                setSelectedContactIds([]);
+              } else {
+                setSelectedContactIds(allFilteredIds);
+              }
+            }}
+            style={{ fontSize: '0.8125rem', height: '38px', padding: '0 0.75rem' }}
+          >
+            {selectedContactIds.length > 0 ? 'Clear Selection' : 'Select Contacts'}
+          </button>
+        </div>
       </div>
+
+      {selectedContactIds.length > 0 && (
+        <div className="card animate-fade-in" style={{ padding: '0.75rem 1.25rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center', background: 'var(--accent)', borderLeft: '4px solid var(--primary)', marginTop: '-0.5rem' }}>
+          <div style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+            Selected {selectedContactIds.length} contact{selectedContactIds.length === 1 ? '' : 's'}
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button 
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                const selected = contacts.filter(c => selectedContactIds.includes(c.id));
+                handleExportContacts(selected);
+              }}
+              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', height: 'auto' }}
+            >
+              Export Selected ({selectedContactIds.length})
+            </button>
+            <button 
+              type="button"
+              className="btn btn-outline"
+              onClick={() => {
+                const allFilteredIds = filteredContacts.map(c => c.id);
+                const allSelected = allFilteredIds.every(id => selectedContactIds.includes(id));
+                if (allSelected) {
+                  setSelectedContactIds(prev => prev.filter(id => !allFilteredIds.includes(id)));
+                } else {
+                  setSelectedContactIds(prev => Array.from(new Set([...prev, ...allFilteredIds])));
+                }
+              }}
+              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', height: 'auto', background: 'var(--card)' }}
+            >
+              {filteredContacts.map(c => c.id).every(id => selectedContactIds.includes(id)) ? 'Deselect All' : 'Select All'}
+            </button>
+            <button 
+              type="button"
+              className="btn btn-outline"
+              onClick={() => setSelectedContactIds([])}
+              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', height: 'auto', background: 'var(--card)' }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Grid listing */}
       {loading ? (
@@ -324,6 +518,27 @@ export default function ContactsView({ showToast }) {
           {filteredContacts.map(contact => (
             <div key={contact.id} className="card hover-lift" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', position: 'relative' }}>
               
+              {/* Selection Checkbox */}
+              <div style={{ position: 'absolute', top: '0.75rem', right: '0.75rem' }}>
+                <input 
+                  type="checkbox"
+                  checked={selectedContactIds.includes(contact.id)}
+                  onChange={() => {
+                    if (selectedContactIds.includes(contact.id)) {
+                      setSelectedContactIds(prev => prev.filter(id => id !== contact.id));
+                    } else {
+                      setSelectedContactIds(prev => [...prev, contact.id]);
+                    }
+                  }}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    cursor: 'pointer',
+                    accentColor: 'var(--primary)'
+                  }}
+                />
+              </div>
+
               {/* Top Section: Avatar + Name + Relationship Tag */}
               <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                 <div style={{
@@ -372,6 +587,21 @@ export default function ContactsView({ showToast }) {
                         <Shield size={10} /> Household User
                       </span>
                     )}
+                    {contact.game_wins > 0 && (
+                      <span style={{
+                        fontSize: '0.6875rem',
+                        padding: '0.125rem 0.5rem',
+                        borderRadius: '20px',
+                        background: '#f59e0b',
+                        color: '#fff',
+                        fontWeight: 'bold',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem'
+                      }} title={`${contact.game_wins} Game Wins`}>
+                        🏆 {contact.game_wins} {contact.game_wins === 1 ? 'Win' : 'Wins'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -397,6 +627,16 @@ export default function ContactsView({ showToast }) {
                     <Calendar size={13} style={{ color: 'var(--muted-foreground)' }} />
                     <span style={{ color: 'var(--text-muted)' }}>{contact.birthday}</span>
                   </div>
+                )}
+                {contact.important_dates && contact.important_dates.length > 0 && (
+                  contact.important_dates.map(d => (
+                    <div key={d.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <Calendar size={13} style={{ color: 'var(--primary)' }} />
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        <strong>{d.name}:</strong> {d.date}
+                      </span>
+                    </div>
+                  ))
                 )}
                 {contact.notes && (
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
@@ -446,6 +686,13 @@ export default function ContactsView({ showToast }) {
 
               {/* Action buttons */}
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: 'auto', paddingTop: '0.5rem' }}>
+                <button
+                  className="btn btn-outline"
+                  style={{ minWidth: 'auto', padding: '0.35rem 0.5rem', height: 'auto', fontSize: '0.75rem', gap: '0.25rem' }}
+                  onClick={() => handleExportContacts([contact])}
+                >
+                  Export
+                </button>
                 <button
                   className="btn btn-outline"
                   style={{ minWidth: 'auto', padding: '0.35rem 0.5rem', height: 'auto', fontSize: '0.75rem', gap: '0.25rem' }}
@@ -622,6 +869,69 @@ export default function ContactsView({ showToast }) {
                     >
                       <Plus size={12} /> Add Relationship
                     </button>
+                  </div>
+                )}
+
+                {modalMode === 'edit' && (
+                  <div style={{ borderTop: '1px solid var(--border)', marginTop: '1rem', paddingTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <h3 style={{ fontSize: '0.9375rem', fontWeight: '600', margin: 0, display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
+                      <Calendar size={14} style={{ color: 'var(--primary)' }} /> Manage Important Dates
+                    </h3>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                      Record additional dates such as Anniversaries, Graduations, or special landmarks.
+                    </p>
+                    
+                    {/* Add date form */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1.2fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '0.6875rem' }}>Event Name</label>
+                        <input 
+                          type="text" 
+                          className="input-control" 
+                          placeholder="e.g. Anniversary" 
+                          value={newDateName} 
+                          onChange={(e) => setNewDateName(e.target.value)}
+                          style={{ height: '32px', fontSize: '0.75rem' }}
+                        />
+                      </div>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label style={{ fontSize: '0.6875rem' }}>Date</label>
+                        <input 
+                          type="date" 
+                          className="input-control" 
+                          value={newDateValue} 
+                          onChange={(e) => setNewDateValue(e.target.value)}
+                          style={{ height: '32px', fontSize: '0.75rem' }}
+                        />
+                      </div>
+                      <button 
+                        type="button" 
+                        className="btn btn-outline" 
+                        onClick={handleAddImportantDate}
+                        style={{ height: '32px', padding: '0 0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <Plus size={14} /> Add
+                      </button>
+                    </div>
+
+                    {/* Dates list */}
+                    {selectedContact?.important_dates && selectedContact.important_dates.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+                        {selectedContact.important_dates.map(d => (
+                          <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', background: 'var(--accent)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                            <span><strong>{d.name}:</strong> {d.date}</span>
+                            <button 
+                              type="button"
+                              onClick={() => handleDeleteImportantDate(d.id)}
+                              style={{ background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center' }}
+                              title="Delete date"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 

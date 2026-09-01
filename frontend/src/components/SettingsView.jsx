@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info } from 'lucide-react';
+import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info, Layers, ExternalLink, Play, CheckCircle2 } from 'lucide-react';
 import WordTemplateExport from './WordTemplateExport';
 
 const CATEGORIES_LABELS = {
@@ -48,10 +48,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
   // App Settings states
   const [appName, setAppName] = useState('');
-  const [primaryColor, setPrimaryColor] = useState(currentUser?.primary_color || '#d35400');
-  const [theme, setTheme] = useState(currentUser?.theme || 'system');
-  const [loading, setLoading] = useState(true);
+  const [primaryColor, setPrimaryColor] = useState('#2c3e50');
+  const [theme, setTheme] = useState('system');
+  const [accentColor, setAccentColor] = useState('#3498db');
+  const [borderRadius, setBorderRadius] = useState('medium');
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Helper to expand and format accent color for HTML color picker
   const getValidColorPickerValue = (colorStr) => {
@@ -125,16 +127,27 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [revealKey, setRevealKey] = useState(false);
   const [loadingApiKey, setLoadingApiKey] = useState(false);
   
+  // Dashboard & Multi-Link Sharing states
+  const [dashboardsList, setDashboardsList] = useState([]);
+  const [dashboardShares, setDashboardShares] = useState([]);
+  const [loadingShares, setLoadingShares] = useState(false);
+  const [isCreateShareModalOpen, setIsCreateShareModalOpen] = useState(false);
+  const [newShareName, setNewShareName] = useState('');
+  const [newShareTargetType, setNewShareTargetType] = useState('single');
+  const [newShareDashboardId, setNewShareDashboardId] = useState('default');
+  const [newShareRotationInterval, setNewShareRotationInterval] = useState(30);
+  const [newShareRotationDashboards, setNewShareRotationDashboards] = useState([]);
+  const [revealedShareTokens, setRevealedShareTokens] = useState({});
+
+  // Legacy single share token state for backward compatibility
   const [shareToken, setShareToken] = useState('');
   const [revealShareToken, setRevealShareToken] = useState(false);
   const [loadingShareToken, setLoadingShareToken] = useState(false);
 
-  const [cookbookUrl, setCookbookUrl] = useState('');
-  const [cookbookKey, setCookbookKey] = useState('');
+  const [mtgUrl, setMtgUrl] = useState('');
+  const [mtgKey, setMtgKey] = useState('');
   const [libraryUrl, setLibraryUrl] = useState('');
   const [libraryKey, setLibraryKey] = useState('');
-  const [homeUrl, setHomeUrl] = useState('');
-  const [homeKey, setHomeKey] = useState('');
   const [taskUrl, setTaskUrl] = useState('');
   const [taskKey, setTaskKey] = useState('');
   const [unsplashKey, setUnsplashKey] = useState('');
@@ -152,6 +165,9 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [dashboardBgType, setDashboardBgType] = useState('theme');
   const [dashboardBgValue, setDashboardBgValue] = useState('');
   const [dashboardBgUnsplashKeywords, setDashboardBgUnsplashKeywords] = useState('');
+  const [dashboardRotationEnabled, setDashboardRotationEnabled] = useState(false);
+  const [dashboardRotationInterval, setDashboardRotationInterval] = useState('30');
+  const [dashboardRotationDashboards, setDashboardRotationDashboards] = useState([]);
   const [uploadingBg, setUploadingBg] = useState(false);
 
   const [calendarEventColor, setCalendarEventColor] = useState('#3b82f6');
@@ -159,6 +175,84 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [calendarBillColor, setCalendarBillColor] = useState('#ef4444');
   const [calendarSubColor, setCalendarSubColor] = useState('#8b5cf6');
   const [calendarContactEventColor, setCalendarContactEventColor] = useState('#ec4899');
+
+  const fetchDashboardsList = async () => {
+    try {
+      const res = await fetch('/api/dashboards');
+      if (res.ok) {
+        const data = await res.json();
+        setDashboardsList(data);
+        if (data.length > 0 && (!newShareDashboardId || newShareDashboardId === 'default')) {
+          const def = data.find(d => d.is_default) || data[0];
+          setNewShareDashboardId(def.id);
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching dashboards list:', e);
+    }
+  };
+
+  const fetchDashboardShares = async () => {
+    setLoadingShares(true);
+    try {
+      const res = await fetch('/api/dashboard/shares');
+      if (res.ok) {
+        const data = await res.json();
+        setDashboardShares(data);
+      }
+    } catch (e) {
+      console.error('Error fetching dashboard shares:', e);
+    } finally {
+      setLoadingShares(false);
+    }
+  };
+
+  const handleCreateShareLink = async (e) => {
+    e.preventDefault();
+    if (!newShareName.trim()) return;
+
+    try {
+      const res = await fetch('/api/dashboard/shares', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newShareName.trim(),
+          target_type: newShareTargetType,
+          dashboard_id: newShareTargetType === 'single' ? (newShareDashboardId || 'default') : null,
+          rotation_interval: Number(newShareRotationInterval || 30),
+          rotation_dashboards: newShareTargetType === 'rotation' ? (newShareRotationDashboards.length > 0 ? newShareRotationDashboards : null) : null
+        })
+      });
+      if (res.ok) {
+        showToast('Public dashboard share link created successfully!', 'success');
+        setIsCreateShareModalOpen(false);
+        setNewShareName('');
+        fetchDashboardShares();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to create share link', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to create share link', 'error');
+    }
+  };
+
+  const handleDeleteShareLink = async (id, name) => {
+    if (!window.confirm(`Are you sure you want to revoke and delete the share link "${name}"? Anyone using this link will lose access immediately.`)) return;
+
+    try {
+      const res = await fetch(`/api/dashboard/shares/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast(`Share link "${name}" deleted.`, 'success');
+        fetchDashboardShares();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to delete share link', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to delete share link', 'error');
+    }
+  };
 
   const fetchShareToken = async () => {
     setLoadingShareToken(true);
@@ -183,6 +277,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       if (res.ok) {
         setShareToken(data.share_token);
         showToast('Shared dashboard token generated successfully!', 'success');
+        fetchDashboardShares();
       } else {
         throw new Error(data.error || 'Failed to generate token');
       }
@@ -201,6 +296,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       if (res.ok) {
         setShareToken('');
         showToast('Shared dashboard token revoked successfully!', 'success');
+        fetchDashboardShares();
       } else {
         const data = await res.json();
         throw new Error(data.error || 'Failed to revoke token');
@@ -538,12 +634,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setBrandingLogoDark(data.branding_logo_dark || '');
         setBrandingFavicon(data.branding_favicon || '');
 
-        setCookbookUrl(data.cookbook_url || '');
-        setCookbookKey(data.cookbook_key || '');
+        setMtgUrl(data.mtg_url || '');
+        setMtgKey(data.mtg_key || '');
         setLibraryUrl(data.library_url || '');
         setLibraryKey(data.library_key || '');
-        setHomeUrl(data.home_url || '');
-        setHomeKey(data.home_key || '');
         setTaskUrl(data.task_url || '');
         setTaskKey(data.task_key || '');
         setUnsplashKey(data.unsplash_key || '');
@@ -561,12 +655,25 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setDashboardBgValue(data.dashboard_bg_value || '');
         setDashboardBgUnsplashKeywords(data.dashboard_bg_unsplash_keywords || '');
 
+        setDashboardRotationEnabled(data.dashboard_rotation_enabled === 'true');
+        setDashboardRotationInterval(data.dashboard_rotation_interval || '30');
+        if (data.dashboard_rotation_dashboards) {
+          try {
+            setDashboardRotationDashboards(JSON.parse(data.dashboard_rotation_dashboards));
+          } catch (e) {
+            setDashboardRotationDashboards([]);
+          }
+        }
+
         setCalendarEventColor(data.calendar_event_color || '#3b82f6');
         setCalendarTaskColor(data.calendar_task_color || '#10b981');
         setCalendarBillColor(data.calendar_bill_color || '#ef4444');
         setCalendarSubColor(data.calendar_sub_color || '#8b5cf6');
         setCalendarContactEventColor(data.calendar_contact_event_color || '#ec4899');
       }
+
+      await fetchDashboardsList();
+      await fetchDashboardShares();
 
       if (canReadUsers) {
         const usersRes = await fetch('/api/users');
@@ -636,12 +743,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     setSavingIntegrations(true);
     try {
       const payload = {
-        cookbook_url: cookbookUrl.trim(),
-        cookbook_key: cookbookKey,
+        mtg_url: mtgUrl.trim(),
+        mtg_key: mtgKey,
         library_url: libraryUrl.trim(),
         library_key: libraryKey,
-        home_url: homeUrl.trim(),
-        home_key: homeKey,
         task_url: taskUrl.trim(),
         task_key: taskKey,
         unsplash_key: unsplashKey,
@@ -682,7 +787,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         dashboard_refresh_interval: dashboardRefreshInterval,
         dashboard_bg_type: dashboardBgType,
         dashboard_bg_value: dashboardBgValue,
-        dashboard_bg_unsplash_keywords: dashboardBgUnsplashKeywords
+        dashboard_bg_unsplash_keywords: dashboardBgUnsplashKeywords,
+        dashboard_rotation_enabled: String(dashboardRotationEnabled),
+        dashboard_rotation_interval: String(dashboardRotationInterval),
+        dashboard_rotation_dashboards: JSON.stringify(dashboardRotationDashboards)
       };
 
       const res = await fetch('/api/settings', {
@@ -1313,6 +1421,102 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Dashboard Rotation Configuration */}
+              <div className="card" style={{ padding: '1.25rem', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--muted)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <RotateCcw size={16} style={{ color: 'var(--primary)' }} />
+                    <label htmlFor="dashboard-rotation-toggle" style={{ fontWeight: '600', margin: 0, fontSize: '0.95rem', cursor: 'pointer' }}>
+                      Dashboard Auto-Rotation
+                    </label>
+                  </div>
+                  <input
+                    id="dashboard-rotation-toggle"
+                    type="checkbox"
+                    checked={dashboardRotationEnabled}
+                    onChange={(e) => setDashboardRotationEnabled(e.target.checked)}
+                    disabled={!canManageGeneral}
+                    style={{ width: '1.15rem', height: '1.15rem', cursor: 'pointer' }}
+                  />
+                </div>
+                <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
+                  Automatically cycle through selected dashboards on an active display or kiosk screen.
+                </span>
+
+                {dashboardRotationEnabled && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.25rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                    <div className="form-group">
+                      <label htmlFor="dashboard-rotation-interval">Rotation Frequency</label>
+                      <select
+                        id="dashboard-rotation-interval"
+                        className="input-control"
+                        value={dashboardRotationInterval}
+                        onChange={(e) => setDashboardRotationInterval(e.target.value)}
+                        disabled={!canManageGeneral}
+                      >
+                        <option value="10">10 Seconds</option>
+                        <option value="15">15 Seconds</option>
+                        <option value="30">30 Seconds</option>
+                        <option value="60">1 Minute</option>
+                        <option value="120">2 Minutes</option>
+                        <option value="300">5 Minutes</option>
+                        <option value="600">10 Minutes</option>
+                        <option value="900">15 Minutes</option>
+                        <option value="1800">30 Minutes</option>
+                      </select>
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ marginBottom: '0.4rem', display: 'block' }}>Dashboards Included in Rotation</label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '200px', overflowY: 'auto' }}>
+                        {dashboardsList.map(dash => {
+                          const isIncluded = dashboardRotationDashboards.length === 0 || dashboardRotationDashboards.includes(dash.id);
+                          return (
+                            <label
+                              key={dash.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.6rem',
+                                padding: '0.5rem 0.75rem',
+                                borderRadius: 'var(--radius)',
+                                background: 'var(--card)',
+                                border: '1px solid var(--border)',
+                                cursor: canManageGeneral ? 'pointer' : 'default',
+                                fontSize: '0.85rem'
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isIncluded}
+                                onChange={(e) => {
+                                  if (!canManageGeneral) return;
+                                  let current = dashboardRotationDashboards.length === 0
+                                    ? dashboardsList.map(d => d.id)
+                                    : [...dashboardRotationDashboards];
+                                  if (e.target.checked) {
+                                    if (!current.includes(dash.id)) current.push(dash.id);
+                                  } else {
+                                    current = current.filter(id => id !== dash.id);
+                                  }
+                                  setDashboardRotationDashboards(current);
+                                }}
+                                disabled={!canManageGeneral}
+                              />
+                              <span style={{ fontWeight: '600' }}>{dash.name}</span>
+                              {dash.is_default ? <span style={{ fontSize: '0.7rem', color: '#eab308' }}>★ (Default)</span> : null}
+                              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>
+                                {dash.widget_count || 0} widgets
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {canManageGeneral && (
@@ -2112,9 +2316,184 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         </div>
       )}
 
-      {/* CALENDAR SETTINGS TAB */}
-      {activeSubTab === 'calendar' && canReadCalendar && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      {/* INTEGRATIONS & API KEY TAB */}
+      {activeSubTab === 'integrations' && currentUser?.role_name === 'Administrator' && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Application Integrations Card */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <Settings size={20} style={{ color: 'var(--primary)' }} />
+              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Application Integrations</h3>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
+              Configure the connection URLs and API keys for the Cookbook, Library, Task App, and external integrations. 
+              These settings enable widgets on your custom dashboard to reflect your personal data in real time.
+            </p>
+
+            <form onSubmit={handleSaveIntegrations} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+                
+                {/* Magic: The Gathering App Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.75rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>🔮</span> MTG App
+                  </h4>
+                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>App URL</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={mtgUrl}
+                      onChange={(e) => setMtgUrl(e.target.value)}
+                      placeholder="e.g. http://localhost:8080"
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>API Key</label>
+                    <input
+                      type="password"
+                      className="input-control"
+                      value={mtgKey}
+                      onChange={(e) => setMtgKey(e.target.value)}
+                      placeholder={mtgKey ? "••••••••" : "Enter API key"}
+                    />
+                  </div>
+                </div>
+
+                {/* Unsplash Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>📷</span> Unsplash API
+                  </h4>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>App ID / Client Name</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={unsplashAppId}
+                      onChange={(e) => setUnsplashAppId(e.target.value)}
+                      placeholder="Enter Unsplash App ID"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Access Key</label>
+                    <input
+                      type="password"
+                      className="input-control"
+                      value={unsplashKey}
+                      onChange={(e) => setUnsplashKey(e.target.value)}
+                      placeholder={unsplashKey ? "••••••••" : "Enter Access key"}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Secret Key</label>
+                    <input
+                      type="password"
+                      className="input-control"
+                      value={unsplashSecret}
+                      onChange={(e) => setUnsplashSecret(e.target.value)}
+                      placeholder={unsplashSecret ? "••••••••" : "Enter Secret key"}
+                    />
+                  </div>
+                </div>
+
+                {/* Weather Widgets Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>🌤️</span> Weather Widgets
+                  </h4>
+                  <div className="form-group">
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Zip Code / Location</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={weatherLocation}
+                      onChange={(e) => setWeatherLocation(e.target.value)}
+                      placeholder="e.g. 10001 or New York"
+                      required
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Temperature Unit</label>
+                    <select
+                      className="input-control"
+                      value={weatherUnit}
+                      onChange={(e) => setWeatherUnit(e.target.value)}
+                      style={{ padding: '0.35rem 0.5rem' }}
+                    >
+                      <option value="fahrenheit">Fahrenheit (°F)</option>
+                      <option value="celsius">Celsius (°C)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* GitHub Issues Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>🐙</span> GitHub Issues Sync
+                  </h4>
+                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                    <label className="switch-container">
+                      <input 
+                        type="checkbox"
+                        className="switch-input"
+                        checked={githubIntegrationEnabled}
+                        onChange={(e) => setGithubIntegrationEnabled(e.target.checked)}
+                      />
+                      <div className="switch-control" />
+                      <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Enable Issues Integration</span>
+                    </label>
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="github-owner" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Repo Owner *</label>
+                    <input
+                      id="github-owner"
+                      type="text"
+                      className="input-control"
+                      value={githubOwner}
+                      onChange={(e) => setGithubOwner(e.target.value)}
+                      placeholder="e.g. jwagner77"
+                      required={githubIntegrationEnabled}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="github-repo" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Repo Name *</label>
+                    <input
+                      id="github-repo"
+                      type="text"
+                      className="input-control"
+                      value={githubRepo}
+                      onChange={(e) => setGithubRepo(e.target.value)}
+                      placeholder="e.g. family_app"
+                      required={githubIntegrationEnabled}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="github-token" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Personal Access Token *</label>
+                    <input
+                      id="github-token"
+                      type="password"
+                      className="input-control"
+                      value={githubToken}
+                      onChange={(e) => setGithubToken(e.target.value)}
+                      placeholder={githubToken ? "••••••••" : "Enter access token"}
+                      required={githubIntegrationEnabled}
+                    />
+                  </div>
+                </div>
+
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} disabled={savingIntegrations}>
+                  <Save size={14} /> {savingIntegrations ? 'Saving...' : 'Save Integration Settings'}
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Microsoft Calendar Sync Settings Card */}
           {(() => {
             const isSSO = currentUser?.auth_provider === 'sso';
             return (
@@ -2267,350 +2646,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             );
           })()}
 
-          {/* Calendar Color Settings Card */}
-          <div className="card">
-            <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px' }}>
-              <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
-                <Palette size={18} /> Calendar Event Label Colors
-              </h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
-                Customize the colors used to represent different items on your calendar view.
-              </p>
-
-              <div className="form-group">
-                <label htmlFor="calendar-event-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarEventColor }} />
-                  Events Color
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    id="calendar-event-color-picker"
-                    type="color"
-                    value={calendarEventColor}
-                    onChange={(e) => setCalendarEventColor(e.target.value)}
-                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
-                  />
-                  <input
-                    type="text"
-                    className="input-control"
-                    value={calendarEventColor}
-                    onChange={(e) => setCalendarEventColor(e.target.value)}
-                    placeholder="#3b82f6"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="calendar-task-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarTaskColor }} />
-                  Tasks Color
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    id="calendar-task-color-picker"
-                    type="color"
-                    value={calendarTaskColor}
-                    onChange={(e) => setCalendarTaskColor(e.target.value)}
-                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
-                  />
-                  <input
-                    type="text"
-                    className="input-control"
-                    value={calendarTaskColor}
-                    onChange={(e) => setCalendarTaskColor(e.target.value)}
-                    placeholder="#10b981"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="calendar-bill-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarBillColor }} />
-                  Bills Color
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    id="calendar-bill-color-picker"
-                    type="color"
-                    value={calendarBillColor}
-                    onChange={(e) => setCalendarBillColor(e.target.value)}
-                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
-                  />
-                  <input
-                    type="text"
-                    className="input-control"
-                    value={calendarBillColor}
-                    onChange={(e) => setCalendarBillColor(e.target.value)}
-                    placeholder="#ef4444"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="calendar-sub-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarSubColor }} />
-                  Subscriptions Color
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    id="calendar-sub-color-picker"
-                    type="color"
-                    value={calendarSubColor}
-                    onChange={(e) => setCalendarSubColor(e.target.value)}
-                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
-                  />
-                  <input
-                    type="text"
-                    className="input-control"
-                    value={calendarSubColor}
-                    onChange={(e) => setCalendarSubColor(e.target.value)}
-                    placeholder="#8b5cf6"
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="calendar-contact-event-color-picker" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: calendarContactEventColor }} />
-                  Contact Events Color
-                </label>
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
-                  <input
-                    id="calendar-contact-event-color-picker"
-                    type="color"
-                    value={calendarContactEventColor}
-                    onChange={(e) => setCalendarContactEventColor(e.target.value)}
-                    style={{ width: '40px', height: '36px', padding: 0, border: 'none', cursor: 'pointer', borderRadius: 'var(--radius)' }}
-                  />
-                  <input
-                    type="text"
-                    className="input-control"
-                    value={calendarContactEventColor}
-                    onChange={(e) => setCalendarContactEventColor(e.target.value)}
-                    placeholder="#ec4899"
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  style={{ gap: '0.5rem' }}
-                  disabled={saving}
-                >
-                  <Save size={16} /> {saving ? 'Saving...' : 'Save Color Settings'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* INTEGRATIONS & API KEY TAB */}
-      {activeSubTab === 'integrations' && currentUser?.role_name === 'Administrator' && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-          
-          {/* Application Integrations Card */}
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <Settings size={20} style={{ color: 'var(--primary)' }} />
-              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Application Integrations</h3>
-            </div>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
-              Configure the connection URLs and API keys for the Cookbook, Library, Task App, and external integrations. 
-              These settings enable widgets on your custom dashboard to reflect your personal data in real time.
-            </p>
-
-            <form onSubmit={handleSaveIntegrations} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
-                
-                {/* Cookbook Integration */}
-                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
-                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.75rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    <span>🍳</span> Cookbook App
-                  </h4>
-                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>App URL</label>
-                    <input
-                      type="text"
-                      className="input-control"
-                      value={cookbookUrl}
-                      onChange={(e) => setCookbookUrl(e.target.value)}
-                      placeholder="e.g. http://localhost:8282"
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>API Key</label>
-                    <input
-                      type="password"
-                      className="input-control"
-                      value={cookbookKey}
-                      onChange={(e) => setCookbookKey(e.target.value)}
-                      placeholder={cookbookKey ? "••••••••" : "Enter API key"}
-                    />
-                  </div>
-                </div>
-
-                {/* Home App Integration (Consolidated fallback representation) */}
-                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)' }}>
-                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.75rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    <span>🏠</span> Home App
-                  </h4>
-                  <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>App URL</label>
-                    <input
-                      type="text"
-                      className="input-control"
-                      value={homeUrl}
-                      onChange={(e) => setHomeUrl(e.target.value)}
-                      placeholder="e.g. http://localhost:8383"
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: '600' }}>API Key</label>
-                    <input
-                      type="password"
-                      className="input-control"
-                      value={homeKey}
-                      onChange={(e) => setHomeKey(e.target.value)}
-                      placeholder={homeKey ? "••••••••" : "Enter API key"}
-                    />
-                  </div>
-                </div>
-
-                {/* Unsplash Integration */}
-                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    <span>📷</span> Unsplash API
-                  </h4>
-                  <div className="form-group">
-                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>App ID / Client Name</label>
-                    <input
-                      type="text"
-                      className="input-control"
-                      value={unsplashAppId}
-                      onChange={(e) => setUnsplashAppId(e.target.value)}
-                      placeholder="Enter Unsplash App ID"
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Access Key</label>
-                    <input
-                      type="password"
-                      className="input-control"
-                      value={unsplashKey}
-                      onChange={(e) => setUnsplashKey(e.target.value)}
-                      placeholder={unsplashKey ? "••••••••" : "Enter Access key"}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Secret Key</label>
-                    <input
-                      type="password"
-                      className="input-control"
-                      value={unsplashSecret}
-                      onChange={(e) => setUnsplashSecret(e.target.value)}
-                      placeholder={unsplashSecret ? "••••••••" : "Enter Secret key"}
-                    />
-                  </div>
-                </div>
-
-                {/* Weather Widgets Integration */}
-                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    <span>🌤️</span> Weather Widgets
-                  </h4>
-                  <div className="form-group">
-                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Zip Code / Location</label>
-                    <input
-                      type="text"
-                      className="input-control"
-                      value={weatherLocation}
-                      onChange={(e) => setWeatherLocation(e.target.value)}
-                      placeholder="e.g. 10001 or New York"
-                      required
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label style={{ fontSize: '0.7rem', fontWeight: '600' }}>Temperature Unit</label>
-                    <select
-                      className="input-control"
-                      value={weatherUnit}
-                      onChange={(e) => setWeatherUnit(e.target.value)}
-                      style={{ padding: '0.35rem 0.5rem' }}
-                    >
-                      <option value="fahrenheit">Fahrenheit (°F)</option>
-                      <option value="celsius">Celsius (°C)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* GitHub Issues Integration */}
-                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
-                    <span>🐙</span> GitHub Issues Sync
-                  </h4>
-                  <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-                    <label className="switch-container">
-                      <input 
-                        type="checkbox"
-                        className="switch-input"
-                        checked={githubIntegrationEnabled}
-                        onChange={(e) => setGithubIntegrationEnabled(e.target.checked)}
-                      />
-                      <div className="switch-control" />
-                      <span style={{ fontWeight: '500', fontSize: '0.75rem' }}>Enable Issues Integration</span>
-                    </label>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="github-owner" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Repo Owner *</label>
-                    <input
-                      id="github-owner"
-                      type="text"
-                      className="input-control"
-                      value={githubOwner}
-                      onChange={(e) => setGithubOwner(e.target.value)}
-                      placeholder="e.g. jwagner77"
-                      required={githubIntegrationEnabled}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="github-repo" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Repo Name *</label>
-                    <input
-                      id="github-repo"
-                      type="text"
-                      className="input-control"
-                      value={githubRepo}
-                      onChange={(e) => setGithubRepo(e.target.value)}
-                      placeholder="e.g. family_app"
-                      required={githubIntegrationEnabled}
-                    />
-                  </div>
-                  <div className="form-group" style={{ marginBottom: 0 }}>
-                    <label htmlFor="github-token" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Personal Access Token *</label>
-                    <input
-                      id="github-token"
-                      type="password"
-                      className="input-control"
-                      value={githubToken}
-                      onChange={(e) => setGithubToken(e.target.value)}
-                      placeholder={githubToken ? "••••••••" : "Enter access token"}
-                      required={githubIntegrationEnabled}
-                    />
-                  </div>
-                </div>
-
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }} disabled={savingIntegrations}>
-                  <Save size={14} /> {savingIntegrations ? 'Saving...' : 'Save Integration Settings'}
-                </button>
-              </div>
-            </form>
-          </div>
-
           {/* Key Management Card */}
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -2708,101 +2743,316 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             </div>
           </div>
 
-          {/* Public Dashboard Sharing Card */}
+          {/* Multi-Link Public Dashboard Sharing Card */}
           <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <Eye size={20} style={{ color: 'var(--primary)' }} />
-              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Public Dashboard Sharing</h3>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Eye size={20} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Public Dashboard Sharing</h3>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setNewShareName('');
+                  setNewShareTargetType('single');
+                  setNewShareDashboardId(dashboardsList[0]?.id || 'default');
+                  setNewShareRotationInterval(parseInt(dashboardRotationInterval, 10) || 30);
+                  setNewShareRotationDashboards(dashboardRotationDashboards.length > 0 ? [...dashboardRotationDashboards] : dashboardsList.map(d => d.id));
+                  setIsCreateShareModalOpen(true);
+                }}
+                style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              >
+                <Plus size={14} /> Create Share Link
+              </button>
             </div>
+            
             <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1.25rem', lineHeight: '1.5' }}>
-              Generate a secure, read-only token to share your dashboard publicly. Anyone with the link can view your dashboard on a monitor or tablet screen without needing to log in.
+              Generate secure, read-only links to host different dashboards or auto-rotating views across multiple screens, wall tablets, and kiosks without requiring a login.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div className="form-group">
-                <label>Read-Only Share Link</label>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                  <div style={{ position: 'relative', flex: 1 }}>
-                    <input
-                      type={revealShareToken ? "text" : "password"}
-                      className="input-control"
-                      value={shareToken ? `${window.location.origin}/shared/${shareToken}` : ''}
-                      placeholder={loadingShareToken ? "Loading token..." : "No share token generated yet"}
-                      readOnly
-                      style={{
-                        fontFamily: shareToken ? 'var(--font-mono)' : 'inherit',
-                        paddingRight: '2.5rem',
-                        background: 'var(--muted)',
-                        color: shareToken ? 'var(--foreground)' : 'var(--muted-foreground)',
-                        fontSize: '0.8rem'
-                      }}
-                    />
-                    {shareToken && (
-                      <button
-                        type="button"
-                        onClick={() => setRevealShareToken(!revealShareToken)}
-                        style={{
-                          position: 'absolute',
-                          right: '0.5rem',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          background: 'none',
-                          border: 'none',
-                          color: 'var(--muted-foreground)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          padding: '0.25rem'
-                        }}
-                        title={revealShareToken ? "Hide Share Link" : "Reveal Share Link"}
-                      >
-                        {revealShareToken ? <EyeOff size={16} /> : <Eye size={16} />}
-                      </button>
-                    )}
-                  </div>
-
-                  {shareToken && (
-                    <button
-                      type="button"
-                      className="btn btn-outline"
-                      onClick={() => handleCopyText(`${window.location.origin}/shared/${shareToken}`, 'Share Link')}
-                      style={{ padding: '0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, height: '2.5rem' }}
-                      title="Copy Share Link to Clipboard"
-                    >
-                      <Copy size={14} /> Copy
-                    </button>
-                  )}
-                </div>
+            {loadingShares ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.85rem' }}>
+                Loading shared links...
               </div>
-
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+            ) : dashboardShares.length === 0 ? (
+              <div style={{ padding: '2rem 1rem', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '1.5rem' }}>🔗</span>
+                <span style={{ fontSize: '0.9rem', fontWeight: '600' }}>No Public Share Links Configured</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', maxWidth: '400px' }}>
+                  Create links for individual dashboards or rotating displays to display around your home.
+                </span>
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={handleGenerateShareToken}
-                  disabled={loadingShareToken}
-                  style={{ gap: '0.35rem', display: 'flex', alignItems: 'center' }}
+                  onClick={() => {
+                    setNewShareName('Home Tablet Screen');
+                    setNewShareTargetType('single');
+                    setNewShareDashboardId(dashboardsList[0]?.id || 'default');
+                    setIsCreateShareModalOpen(true);
+                  }}
+                  style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
                 >
-                  <Eye size={14} />
-                  {shareToken ? 'Regenerate Share Token' : 'Generate Share Token'}
+                  <Plus size={14} /> Create Your First Share Link
                 </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {dashboardShares.map((share) => {
+                  const shareUrl = `${window.location.origin}/shared/${share.token}`;
+                  const isRevealed = Boolean(revealedShareTokens[share.id]);
 
-                {shareToken && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={handleRevokeShareToken}
-                    disabled={loadingShareToken}
-                    style={{ gap: '0.35rem', display: 'flex', alignItems: 'center', color: 'var(--destructive)' }}
-                  >
-                    <Trash2 size={14} />
-                    Revoke Share Token
-                  </button>
-                )}
+                  return (
+                    <div
+                      key={share.id}
+                      style={{
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        padding: '1rem',
+                        background: 'var(--muted)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.75rem'
+                      }}
+                    >
+                      {/* Top Header: DASHBOARD BEING SHARED LISTED PROMINENTLY ABOVE LINK */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '700', letterSpacing: '0.05em', color: 'var(--muted-foreground)' }}>
+                            Dashboard being shared:
+                          </span>
+                          {share.target_type === 'rotation' ? (
+                            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(59, 130, 246, 0.12)', padding: '0.2rem 0.55rem', borderRadius: '12px' }}>
+                              <RotateCcw size={13} /> Auto-Rotating ({share.rotation_dashboards?.length || dashboardsList.length} Dashboards - {share.rotation_interval || 30}s)
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'var(--card)', padding: '0.2rem 0.55rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                              <Layers size={13} style={{ color: 'var(--primary)' }} /> {share.dashboard_name || 'Main Dashboard'}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{share.name}</span>
+                          <button
+                            type="button"
+                            className="btn btn-outline danger"
+                            onClick={() => handleDeleteShareLink(share.id, share.name)}
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#ef4444', borderColor: '#ef4444' }}
+                            title="Revoke and delete this public share link"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Middle: Link Input Box and Copy / Open buttons */}
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <input
+                            type={isRevealed ? "text" : "password"}
+                            className="input-control"
+                            value={shareUrl}
+                            readOnly
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              paddingRight: '2.5rem',
+                              background: 'var(--card)',
+                              color: 'var(--foreground)',
+                              fontSize: '0.8rem'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setRevealedShareTokens(p => ({ ...p, [share.id]: !p[share.id] }))}
+                            style={{
+                              position: 'absolute',
+                              right: '0.5rem',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--muted-foreground)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '0.25rem'
+                            }}
+                            title={isRevealed ? "Hide Share Link" : "Reveal Share Link"}
+                          >
+                            {isRevealed ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          onClick={() => handleCopyText(shareUrl, `Link for "${share.name}"`)}
+                          style={{ padding: '0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, height: '2.4rem' }}
+                          title="Copy Share Link to Clipboard"
+                        >
+                          <Copy size={14} /> Copy
+                        </button>
+
+                        <button
+                          type="button"
+                          className="btn btn-outline"
+                          onClick={() => window.open(shareUrl, '_blank')}
+                          style={{ padding: '0 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, height: '2.4rem' }}
+                          title="Open link in new tab"
+                        >
+                          <ExternalLink size={14} /> Open
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Create Share Link Modal */}
+          {isCreateShareModalOpen && (
+            <div className="modal-overlay" onClick={() => setIsCreateShareModalOpen(false)}>
+              <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+                <div className="modal-header">
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Eye size={18} style={{ color: 'var(--primary)' }} /> Create Public Share Link
+                  </h2>
+                  <button className="close-btn" style={{ fontSize: '1.5rem' }} onClick={() => setIsCreateShareModalOpen(false)}>×</button>
+                </div>
+                
+                <form onSubmit={handleCreateShareLink}>
+                  <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div className="form-group">
+                      <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Link Label / Device Name *</label>
+                      <input
+                        type="text"
+                        className="input-control"
+                        value={newShareName}
+                        onChange={e => setNewShareName(e.target.value)}
+                        placeholder="e.g. Kitchen Wall Tablet, Office Secondary Screen"
+                        autoFocus
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>What would you like to share?</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className={`btn ${newShareTargetType === 'single' ? 'btn-primary' : 'btn-outline'}`}
+                          onClick={() => setNewShareTargetType('single')}
+                          style={{ padding: '0.6rem', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'center' }}
+                        >
+                          <span style={{ fontWeight: '700' }}>Single Dashboard</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>Share 1 specific dashboard</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${newShareTargetType === 'rotation' ? 'btn-primary' : 'btn-outline'}`}
+                          onClick={() => setNewShareTargetType('rotation')}
+                          style={{ padding: '0.6rem', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'center' }}
+                        >
+                          <span style={{ fontWeight: '700' }}>Dashboard Rotation</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>Auto-cycle multiple views</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {newShareTargetType === 'single' ? (
+                      <div className="form-group">
+                        <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Select Dashboard to Share</label>
+                        <select
+                          className="input-control"
+                          value={newShareDashboardId}
+                          onChange={e => setNewShareDashboardId(e.target.value)}
+                        >
+                          {dashboardsList.map(d => (
+                            <option key={d.id} value={d.id}>
+                              {d.name} {d.is_default ? '★ (Default)' : ''} ({d.widget_count || 0} widgets)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--muted)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                        <div className="form-group">
+                          <label htmlFor="modal-rot-interval" style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Rotation Frequency</label>
+                          <select
+                            id="modal-rot-interval"
+                            className="input-control"
+                            value={newShareRotationInterval}
+                            onChange={e => setNewShareRotationInterval(Number(e.target.value))}
+                          >
+                            <option value="10">10 Seconds</option>
+                            <option value="15">15 Seconds</option>
+                            <option value="30">30 Seconds</option>
+                            <option value="60">1 Minute</option>
+                            <option value="120">2 Minutes</option>
+                            <option value="300">5 Minutes</option>
+                            <option value="600">10 Minutes</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label style={{ fontWeight: '600', marginBottom: '0.4rem', display: 'block' }}>Dashboards in this Share Rotation</label>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '160px', overflowY: 'auto' }}>
+                            {dashboardsList.map(dash => {
+                              const isChecked = newShareRotationDashboards.length === 0 || newShareRotationDashboards.includes(dash.id);
+                              return (
+                                <label
+                                  key={dash.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.4rem 0.6rem',
+                                    borderRadius: 'var(--radius)',
+                                    background: 'var(--card)',
+                                    border: '1px solid var(--border)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem'
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      let current = newShareRotationDashboards.length === 0
+                                        ? dashboardsList.map(d => d.id)
+                                        : [...newShareRotationDashboards];
+                                      if (e.target.checked) {
+                                        if (!current.includes(dash.id)) current.push(dash.id);
+                                      } else {
+                                        current = current.filter(id => id !== dash.id);
+                                      }
+                                      setNewShareRotationDashboards(current);
+                                    }}
+                                  />
+                                  <span style={{ fontWeight: '600' }}>{dash.name}</span>
+                                  {dash.is_default ? <span style={{ fontSize: '0.7rem', color: '#eab308' }}>★</span> : null}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setIsCreateShareModalOpen(false)}>Cancel</button>
+                      <button type="submit" className="btn btn-primary" disabled={!newShareName.trim()}>
+                        <Plus size={14} /> Generate Share Link
+                      </button>
+                    </div>
+                  </div>
+                </form>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Documentation Card */}
           <div className="card">
