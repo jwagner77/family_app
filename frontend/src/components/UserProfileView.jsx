@@ -652,7 +652,7 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
   };
 
   return (
-    <div className="animate-fade-in" style={{ width: '100%', maxWidth: '960px', margin: '0 auto', padding: '1rem 0' }}>
+    <div className="animate-fade-in" style={{ width: '100%' }}>
       <div className="content-header" style={{ marginBottom: '1.5rem' }}>
         <div>
           <h2>User Profile</h2>
