@@ -16,31 +16,136 @@ import {
   Lock, 
   Save, 
   RotateCcw,
-  Users
+  Users,
+  Sparkles,
+  ArrowRightLeft,
+  Check
 } from 'lucide-react';
+
+// --- COLOR & GRADIENT HELPERS ---
+function getValidColorPickerValue(colorStr) {
+  if (!colorStr) return '#3f51b5';
+  let s = colorStr.trim();
+  if (!s.startsWith('#')) {
+    s = '#' + s;
+  }
+  if (/^#[0-9A-Fa-f]{3}$/.test(s)) {
+    return '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+  }
+  if (/^#[0-9A-Fa-f]{6}$/.test(s)) {
+    return s;
+  }
+  return '#3f51b5';
+}
+
+function hexToRgb(hex) {
+  if (!hex) return { r: 63, g: 81, b: 181 };
+  let c = hex.replace('#', '').trim();
+  if (c.length === 3) c = c[0] + c[0] + c[1] + c[1] + c[2] + c[2];
+  if (c.length !== 6) return { r: 63, g: 81, b: 181 };
+  const num = parseInt(c, 16);
+  if (isNaN(num)) return { r: 63, g: 81, b: 181 };
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
+function rgbToHex(r, g, b) {
+  const toHex = (c) => {
+    const hex = Math.min(255, Math.max(0, Math.round(c))).toString(16);
+    return hex.length === 1 ? '0' + hex : hex;
+  };
+  return '#' + toHex(r) + toHex(g) + toHex(b);
+}
+
+function adjustHexBrightness(hex, percent) {
+  const { r, g, b } = hexToRgb(hex);
+  const factor = (100 + percent) / 100;
+  return rgbToHex(r * factor, g * factor, b * factor);
+}
+
+function shiftHexHue(hex, degree) {
+  const { r, g, b } = hexToRgb(hex);
+  const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255;
+  const max = Math.max(rNorm, gNorm, bNorm), min = Math.min(rNorm, gNorm, bNorm);
+  let h = 0, s = 0, l = (max + min) / 2;
+
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case rNorm: h = (gNorm - bNorm) / d + (gNorm < bNorm ? 6 : 0); break;
+      case gNorm: h = (bNorm - rNorm) / d + 2; break;
+      case bNorm: h = (rNorm - gNorm) / d + 4; break;
+    }
+    h /= 6;
+  }
+
+  h = (h + degree / 360) % 1;
+  if (h < 0) h += 1;
+
+  const hue2rgb = (p, q, t) => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1/6) return p + (q - p) * 6 * t;
+    if (t < 1/2) return q;
+    if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+    return p;
+  };
+
+  let newR, newG, newB;
+  if (s === 0) {
+    newR = newG = newB = l;
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    newR = hue2rgb(p, q, h + 1/3);
+    newG = hue2rgb(p, q, h);
+    newB = hue2rgb(p, q, h - 1/3);
+  }
+
+  return rgbToHex(newR * 255, newG * 255, newB * 255);
+}
+
+function getDynamicAccentGradient(hex) {
+  const validHex = getValidColorPickerValue(hex);
+  const colorLight = adjustHexBrightness(validHex, 20);
+  const colorMid = validHex;
+  const colorDeep = shiftHexHue(adjustHexBrightness(validHex, -35), 25);
+  return `linear-gradient(135deg, ${colorLight} 0%, ${colorMid} 50%, ${colorDeep} 100%)`;
+}
 
 const PRELOADED_PATTERNS = [
   {
+    id: 'royal_purple',
+    name: 'Royal Purple',
+    value: 'linear-gradient(135deg, #2e1065 0%, #7c3aed 50%, #c084fc 100%)',
+    color: '#7c3aed'
+  },
+  {
+    id: 'sunset_glow',
     name: 'Sunset Glow',
     value: 'linear-gradient(135deg, #f5af19 0%, #f12711 100%)',
     color: '#f12711'
   },
   {
+    id: 'deep_space',
     name: 'Deep Space',
     value: 'linear-gradient(135deg, #434343 0%, #000000 100%)',
     color: '#2a2a2a'
   },
   {
+    id: 'nordic_forest',
     name: 'Nordic Forest',
     value: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)',
     color: '#387858'
   },
   {
+    id: 'lavender_fields',
     name: 'Lavender Fields',
     value: 'linear-gradient(135deg, #8a2387 0%, #e94057 50%, #f27121 100%)',
     color: '#e94057'
   },
   {
+    id: 'midnight_city',
     name: 'Midnight City',
     value: 'linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)',
     color: '#203a43'
@@ -55,6 +160,18 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
   const [birthday, setBirthday] = useState(currentUser?.birthday || '');
   const [pictureUrl, setPictureUrl] = useState(currentUser?.picture_url || '');
 
+  // Helper to parse gradient colors
+  const parseGradientColors = (bgStr) => {
+    if (!bgStr || typeof bgStr !== 'string' || !bgStr.startsWith('linear-gradient')) {
+      return { c1: '#4f46e5', c2: '#ec4899' };
+    }
+    const hexMatches = bgStr.match(/#[0-9A-Fa-f]{6}|#[0-9A-Fa-f]{3}/g);
+    if (hexMatches && hexMatches.length >= 2) {
+      return { c1: hexMatches[0], c2: hexMatches[hexMatches.length - 1] };
+    }
+    return { c1: '#4f46e5', c2: '#ec4899' };
+  };
+
   // Move General Settings state
   const [timezone, setTimezone] = useState(currentUser?.timezone || 'US/New_York');
   const [primaryColor, setPrimaryColor] = useState(currentUser?.primary_color || '#3f51b5');
@@ -66,6 +183,15 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
   const [textColor, setTextColor] = useState(currentUser?.text_color || 'white');
   const [dynamicTextColor, setDynamicTextColor] = useState(currentUser?.dynamic_text_color === 1 || currentUser?.dynamic_text_color === true);
   const [unsplashTarget, setUnsplashTarget] = useState('navbar');
+
+  // Custom 2-color gradient state
+  const [customGrad1, setCustomGrad1] = useState(() => parseGradientColors(currentUser?.navbar_bg).c1);
+  const [customGrad2, setCustomGrad2] = useState(() => parseGradientColors(currentUser?.navbar_bg).c2);
+  const [isDynamicAccentSelected, setIsDynamicAccentSelected] = useState(() => {
+    const bg = currentUser?.navbar_bg || '';
+    const dyn = getDynamicAccentGradient(currentUser?.primary_color || '#3f51b5');
+    return bg === dyn;
+  });
 
   // Unsplash search state
   const [isUnsplashModalOpen, setIsUnsplashModalOpen] = useState(false);
@@ -89,22 +215,6 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
   const [contacts, setContacts] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [loadingDates, setLoadingDates] = useState(true);
-
-  // Helper to expand and format accent color for HTML color picker
-  const getValidColorPickerValue = (colorStr) => {
-    if (!colorStr) return '#3f51b5';
-    let s = colorStr.trim();
-    if (!s.startsWith('#')) {
-      s = '#' + s;
-    }
-    if (/^#[0-9A-Fa-f]{3}$/.test(s)) {
-      return '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
-    }
-    if (/^#[0-9A-Fa-f]{6}$/.test(s)) {
-      return s;
-    }
-    return '#3f51b5';
-  };
 
   useEffect(() => {
     fetchImportantDates();
@@ -272,13 +382,77 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
   };
 
   const handleSelectPattern = (pattern) => {
+    setIsDynamicAccentSelected(false);
     setNavbarBg(pattern.value);
     setPrimaryColor(pattern.color);
     autoSaveProfile({ navbar_bg: pattern.value, primary_color: pattern.color });
     showToast(`Applied ${pattern.name} pattern! 🎨`);
   };
 
+  const handleSelectDynamicAccent = () => {
+    const dynGrad = getDynamicAccentGradient(primaryColor);
+    setIsDynamicAccentSelected(true);
+    setNavbarBg(dynGrad);
+    autoSaveProfile({ navbar_bg: dynGrad });
+    showToast('Applied Dynamic Accent Theme! ✨');
+  };
+
+  const handleSelectCustomGradient = (c1Override, c2Override) => {
+    setIsDynamicAccentSelected(false);
+    const c1 = c1Override || customGrad1;
+    const c2 = c2Override || customGrad2;
+    const grad = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+    setNavbarBg(grad);
+    autoSaveProfile({ navbar_bg: grad });
+    showToast('Applied Custom Gradient Theme! 🎨');
+  };
+
+  const handleCustomGradColorChange = (which, newColor) => {
+    const valid = getValidColorPickerValue(newColor);
+    let c1 = customGrad1;
+    let c2 = customGrad2;
+    if (which === 1) {
+      setCustomGrad1(valid);
+      c1 = valid;
+    } else {
+      setCustomGrad2(valid);
+      c2 = valid;
+    }
+    const grad = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+    setNavbarBg(grad);
+    setIsDynamicAccentSelected(false);
+    autoSaveProfile({ navbar_bg: grad });
+  };
+
+  const handleSwapCustomGradColors = () => {
+    const c1 = customGrad2;
+    const c2 = customGrad1;
+    setCustomGrad1(c1);
+    setCustomGrad2(c2);
+    const grad = `linear-gradient(135deg, ${c1} 0%, ${c2} 100%)`;
+    setNavbarBg(grad);
+    setIsDynamicAccentSelected(false);
+    autoSaveProfile({ navbar_bg: grad });
+    showToast('Swapped gradient colors! ⇄');
+  };
+
+  const handleAccentColorChange = (newColor) => {
+    setPrimaryColor(newColor);
+    const validHex = getValidColorPickerValue(newColor);
+    
+    // If the user currently has the Dynamic Accent theme active, dynamically update navbar_bg!
+    if (isDynamicAccentSelected || navbarBg === getDynamicAccentGradient(primaryColor)) {
+      const newDynamicGrad = getDynamicAccentGradient(validHex);
+      setNavbarBg(newDynamicGrad);
+      setIsDynamicAccentSelected(true);
+      autoSaveProfile({ primary_color: validHex, navbar_bg: newDynamicGrad });
+    } else {
+      autoSaveProfile({ primary_color: validHex });
+    }
+  };
+
   const handleRemoveNavbarBg = () => {
+    setIsDynamicAccentSelected(false);
     setNavbarBg('');
     autoSaveProfile({ navbar_bg: '' });
     showToast('Navbar background pattern removed');
@@ -651,14 +825,11 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
                   <input 
                     type="color" 
                     value={getValidColorPickerValue(primaryColor)}
-                    onChange={(e) => {
-                      setPrimaryColor(e.target.value);
-                      autoSaveProfile({ primary_color: e.target.value });
-                    }}
+                    onChange={(e) => handleAccentColorChange(e.target.value)}
                     style={{ 
                       width: '36px', 
                       height: '36px', 
-                      borderRadius: '4px',
+                      borderRadius: '4px', 
                       border: '1px solid var(--border)',
                       cursor: 'pointer',
                       padding: 0
@@ -668,8 +839,8 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
                     type="text" 
                     className="input-control"
                     value={primaryColor} 
-                    onChange={(e) => setPrimaryColor(e.target.value)}
-                    onBlur={(e) => autoSaveProfile({ primary_color: e.target.value })}
+                    onChange={(e) => handleAccentColorChange(e.target.value)}
+                    onBlur={(e) => handleAccentColorChange(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
                     placeholder="#3f51b5"
                     maxLength={7}
@@ -804,35 +975,193 @@ export default function UserProfileView({ showToast, currentUser, onProfileUpdat
                 </div>
               </div>
 
-              {/* Preloaded Patterns Grid */}
+              {/* Preloaded Patterns Grid & Custom Themes */}
               <div className="form-group" style={{ margin: 0 }}>
                 <label style={{ fontSize: '0.8125rem' }}>Or Choose a Pre-loaded Theme Pattern</label>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.5rem', marginTop: '0.35rem' }}>
-                  {PRELOADED_PATTERNS.map((p, idx) => (
-                    <div 
-                      key={idx}
-                      onClick={() => handleSelectPattern(p)}
-                      style={{
-                        height: '42px',
-                        borderRadius: 'var(--radius)',
-                        background: p.value,
-                        border: navbarBg === p.value ? '2px solid var(--primary)' : '1px solid var(--border)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#ffffff',
-                        fontSize: '0.6875rem',
-                        fontWeight: '700',
-                        textShadow: '0 1px 2px rgba(0,0,0,0.6)',
-                        boxSizing: 'border-box',
-                        transition: 'transform 0.15s ease'
-                      }}
-                      className="hover-lift"
-                      title={`Apply ${p.name}`}
-                    >
-                      {p.name}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))', gap: '0.5rem', marginTop: '0.35rem' }}>
+                  
+                  {/* 1. Dynamic Accent Pattern (Driven by Theme Accent Color) */}
+                  <div 
+                    onClick={handleSelectDynamicAccent}
+                    style={{
+                      height: '42px',
+                      borderRadius: 'var(--radius)',
+                      background: getDynamicAccentGradient(primaryColor),
+                      border: isDynamicAccentSelected || navbarBg === getDynamicAccentGradient(primaryColor) ? '2px solid var(--primary)' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      fontSize: '0.6875rem',
+                      fontWeight: '700',
+                      textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                      boxSizing: 'border-box',
+                      transition: 'transform 0.15s ease',
+                      position: 'relative',
+                      gap: '0.2rem'
+                    }}
+                    className="hover-lift"
+                    title="Dynamic Theme based on your Theme Accent Color"
+                  >
+                    <Sparkles size={12} /> Dynamic Accent
+                    {(isDynamicAccentSelected || navbarBg === getDynamicAccentGradient(primaryColor)) && (
+                      <span style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.65rem' }}>✓</span>
+                    )}
+                  </div>
+
+                  {/* 2. Pre-loaded Built-in Themes (Including Royal Purple) */}
+                  {PRELOADED_PATTERNS.map((p, idx) => {
+                    const isSelected = !isDynamicAccentSelected && navbarBg === p.value;
+                    return (
+                      <div 
+                        key={idx}
+                        onClick={() => handleSelectPattern(p)}
+                        style={{
+                          height: '42px',
+                          borderRadius: 'var(--radius)',
+                          background: p.value,
+                          border: isSelected ? '2px solid var(--primary)' : '1px solid var(--border)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#ffffff',
+                          fontSize: '0.6875rem',
+                          fontWeight: '700',
+                          textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                          boxSizing: 'border-box',
+                          transition: 'transform 0.15s ease',
+                          position: 'relative'
+                        }}
+                        className="hover-lift"
+                        title={`Apply ${p.name}`}
+                      >
+                        {p.name}
+                        {isSelected && (
+                          <span style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.65rem' }}>✓</span>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* 3. Fully Custom Two-Color Gradient Tile */}
+                  <div 
+                    onClick={() => handleSelectCustomGradient()}
+                    style={{
+                      height: '42px',
+                      borderRadius: 'var(--radius)',
+                      background: `linear-gradient(135deg, ${customGrad1} 0%, ${customGrad2} 100%)`,
+                      border: !isDynamicAccentSelected && navbarBg === `linear-gradient(135deg, ${customGrad1} 0%, ${customGrad2} 100%)` ? '2px solid var(--primary)' : '1px solid var(--border)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#ffffff',
+                      fontSize: '0.6875rem',
+                      fontWeight: '700',
+                      textShadow: '0 1px 2px rgba(0,0,0,0.6)',
+                      boxSizing: 'border-box',
+                      transition: 'transform 0.15s ease',
+                      position: 'relative',
+                      gap: '0.2rem'
+                    }}
+                    className="hover-lift"
+                    title="Fully Custom Two-Color Gradient Theme"
+                  >
+                    <Palette size={12} /> Custom Gradient
+                    {(!isDynamicAccentSelected && navbarBg === `linear-gradient(135deg, ${customGrad1} 0%, ${customGrad2} 100%)`) && (
+                      <span style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.65rem' }}>✓</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Custom Two-Color Gradient Builder Controls */}
+              <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8125rem', fontWeight: '600', color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <Palette size={14} style={{ color: 'var(--primary)' }} /> Custom Two-Color Gradient
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSwapCustomGradColors}
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', height: '24px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    title="Swap Color 1 and Color 2"
+                  >
+                    <ArrowRightLeft size={11} /> Swap Colors
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                  {/* Color 1 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>Color 1 (Start)</label>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={getValidColorPickerValue(customGrad1)}
+                        onChange={(e) => handleCustomGradColorChange(1, e.target.value)}
+                        style={{ width: '32px', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer', padding: 0 }}
+                      />
+                      <input 
+                        type="text" 
+                        className="input-control"
+                        value={customGrad1} 
+                        onChange={(e) => handleCustomGradColorChange(1, e.target.value)}
+                        maxLength={7}
+                        style={{ width: '90px', fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: '600', padding: '0.25rem 0.5rem' }}
+                      />
                     </div>
+                  </div>
+
+                  {/* Color 2 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>Color 2 (End)</label>
+                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      <input 
+                        type="color" 
+                        value={getValidColorPickerValue(customGrad2)}
+                        onChange={(e) => handleCustomGradColorChange(2, e.target.value)}
+                        style={{ width: '32px', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer', padding: 0 }}
+                      />
+                      <input 
+                        type="text" 
+                        className="input-control"
+                        value={customGrad2} 
+                        onChange={(e) => handleCustomGradColorChange(2, e.target.value)}
+                        maxLength={7}
+                        style={{ width: '90px', fontSize: '0.75rem', fontFamily: 'monospace', fontWeight: '600', padding: '0.25rem 0.5rem' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Gradient Preset Chips */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.15rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', marginRight: '0.2rem' }}>Quick Pairings:</span>
+                  {[
+                    { label: 'Ocean Blue', c1: '#0284c7', c2: '#06b6d4' },
+                    { label: 'Sunset Peach', c1: '#f97316', c2: '#ec4899' },
+                    { label: 'Emerald Mint', c1: '#059669', c2: '#10b981' },
+                    { label: 'Cyber Neon', c1: '#d946ef', c2: '#06b6d4' },
+                    { label: 'Berry Rose', c1: '#be123c', c2: '#fb7185' }
+                  ].map(preset => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setCustomGrad1(preset.c1);
+                        setCustomGrad2(preset.c2);
+                        handleSelectCustomGradient(preset.c1, preset.c2);
+                      }}
+                      className="btn btn-outline"
+                      style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', height: '22px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                    >
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: `linear-gradient(135deg, ${preset.c1}, ${preset.c2})`, display: 'inline-block' }}></span>
+                      {preset.label}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -1381,12 +1710,4 @@ function extractColorFromImage(imageElement) {
     return rgbToHex(rAvg, gAvg, bAvg);
   }
   return '#3f51b5';
-}
-
-function rgbToHex(r, g, b) {
-  const toHex = (c) => {
-    const hex = c.toString(16);
-    return hex.length === 1 ? '0' + hex : hex;
-  };
-  return '#' + toHex(r) + toHex(g) + toHex(b);
 }
