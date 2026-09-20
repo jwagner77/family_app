@@ -873,22 +873,32 @@ select.input-control {
   }
 }
 
-.close-btn {
-  background: transparent;
-  border: none;
+.close-btn,
+.btn-icon {
+  background: transparent !important;
+  background-color: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
   cursor: pointer;
   color: var(--muted-foreground);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: var(--transition-fast);
-  padding: 0.25rem;
+  padding: 0.35rem;
   border-radius: var(--radius);
+  outline: none;
 }
 
-.close-btn:hover {
+.close-btn:hover,
+.btn-icon:hover {
   color: var(--foreground);
-  background-color: var(--accent);
+  background-color: color-mix(in srgb, var(--foreground) 10%, transparent) !important;
+}
+
+.close-btn:active,
+.btn-icon:active {
+  transform: scale(0.95);
 }
 
 /* Tables (Shadcn Table style) */

@@ -564,7 +564,7 @@ export default function RecipesView({ showToast, user }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                 <button 
                   className="btn-icon"
-                  style={{ color: currentRecipe.favorite ? '#f1c40f' : 'var(--text-muted)' }}
+                  style={{ background: 'transparent', border: 'none', color: currentRecipe.favorite ? '#f1c40f' : 'var(--text-muted)' }}
                   onClick={(e) => handleToggleFavorite(currentRecipe.id, e)}
                   title={currentRecipe.favorite ? 'Unmark Favorite' : 'Mark Favorite'}
                 >
@@ -575,7 +575,9 @@ export default function RecipesView({ showToast, user }) {
                     <Edit2 size={14} /> Edit
                   </button>
                 )}
-                <button className="btn-icon" onClick={() => setCurrentRecipe(null)}><X size={20} /></button>
+                <button className="btn-icon close-btn" style={{ background: 'transparent', border: 'none' }} onClick={() => setCurrentRecipe(null)} title="Close">
+                  <X size={20} />
+                </button>
               </div>
             </div>
             
@@ -711,7 +713,7 @@ export default function RecipesView({ showToast, user }) {
           <div className="modal-content recipe-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editRecipe ? 'Edit Recipe' : 'Add New Recipe'}</h2>
-              <button className="btn-icon" onClick={() => setIsFormOpen(false)}><X size={20} /></button>
+              <button className="btn-icon close-btn" style={{ background: 'transparent', border: 'none' }} onClick={() => setIsFormOpen(false)} title="Close"><X size={20} /></button>
             </div>
             <div className="modal-body" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
               <RecipeForm 
@@ -732,7 +734,7 @@ export default function RecipesView({ showToast, user }) {
             <form onSubmit={handleConfirmAddToList}>
               <div className="modal-header">
                 <h2>Add to Shopping List</h2>
-                <button className="btn-icon" type="button" onClick={() => setPromptListRecipe(null)}><X size={20} /></button>
+                <button className="btn-icon close-btn" style={{ background: 'transparent', border: 'none' }} type="button" onClick={() => setPromptListRecipe(null)} title="Close"><X size={20} /></button>
               </div>
               <div className="modal-body">
                 <p>Choose which shopping list to add ingredients from <strong>"{promptListRecipe.title}"</strong> to:</p>
