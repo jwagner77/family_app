@@ -624,7 +624,7 @@ export default function RecipesView({ showToast, user }) {
                     <button 
                       className="btn btn-outline btn-sm" 
                       style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                      onClick={() => handleAddRecipeToShoppingList(currentRecipe)}
+                      onClick={() => handleAddRecipeClick(currentRecipe)}
                     >
                       <ShoppingCart size={13} /> Add ingredients to List
                     </button>
@@ -729,8 +729,8 @@ export default function RecipesView({ showToast, user }) {
 
       {/* Add Recipe ingredients to Shopping List picker modal */}
       {promptListRecipe && (
-        <div className="modal-overlay" onClick={() => setPromptListRecipe(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px', width: '90vw' }}>
+        <div className="modal-overlay" style={{ zIndex: 10001 }} onClick={() => setPromptListRecipe(null)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px', width: '90vw', height: 'auto', maxHeight: '90vh' }}>
             <form onSubmit={handleConfirmAddToList}>
               <div className="modal-header">
                 <h2>Add to Shopping List</h2>
