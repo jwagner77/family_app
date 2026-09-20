@@ -771,9 +771,7 @@ select.input-control {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  background-color: var(--card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background-color: transparent;
   z-index: 10;
 }
 
@@ -785,9 +783,7 @@ select.input-control {
   padding: 1.25rem 1.5rem;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  background-color: var(--card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background-color: transparent;
   z-index: 10;
 }
 
