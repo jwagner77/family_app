@@ -771,6 +771,45 @@ select.input-control {
   flex-shrink: 0;
 }
 
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.25rem 1.5rem;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background-color: inherit;
+}
+
+/* Modal sizing variants */
+.modal-content.modal-lg,
+.modal-content.recipe-modal {
+  width: 60vw;
+  max-width: 860px;
+}
+
+.modal-content.modal-xl {
+  width: 75vw;
+  max-width: 1100px;
+}
+
+@media (max-width: 1200px) {
+  .modal-content.modal-lg,
+  .modal-content.recipe-modal {
+    width: 75vw;
+    max-width: 75vw;
+  }
+}
+
+@media (max-width: 768px) {
+  .modal-content.modal-lg,
+  .modal-content.recipe-modal {
+    width: 95vw;
+    max-width: 95vw;
+  }
+}
+
 .modal-header h2 {
   font-size: 1.25rem;
   font-weight: 600;

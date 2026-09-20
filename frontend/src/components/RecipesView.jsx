@@ -558,19 +558,20 @@ export default function RecipesView({ showToast, user }) {
       {/* Recipe Detail Modal */}
       {currentRecipe && (
         <div className="modal-overlay" onClick={() => setCurrentRecipe(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content recipe-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{currentRecipe.title}</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0, wordBreak: 'break-word' }}>{currentRecipe.title}</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                 <button 
                   className="btn-icon"
                   style={{ color: currentRecipe.favorite ? '#f1c40f' : 'var(--text-muted)' }}
                   onClick={(e) => handleToggleFavorite(currentRecipe.id, e)}
+                  title={currentRecipe.favorite ? 'Unmark Favorite' : 'Mark Favorite'}
                 >
                   <Star size={18} fill={currentRecipe.favorite ? '#f1c40f' : 'transparent'} />
                 </button>
                 {canWrite && (
-                  <button className="btn btn-outline btn-sm" style={{ padding: '0.4rem 0.6rem' }} onClick={(e) => openEditForm(currentRecipe, e)}>
+                  <button className="btn btn-outline btn-sm" style={{ padding: '0.4rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }} onClick={(e) => openEditForm(currentRecipe, e)}>
                     <Edit2 size={14} /> Edit
                   </button>
                 )}
@@ -578,71 +579,81 @@ export default function RecipesView({ showToast, user }) {
               </div>
             </div>
             
-            <div className="modal-body" style={{ maxHeight: 'calc(80vh - 100px)', overflowY: 'auto' }}>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
               {currentRecipe.image_path ? (
                 <img 
                   src={currentRecipe.image_path} 
                   alt={currentRecipe.title} 
-                  style={{ width: '100%', maxHeight: '300px', objectFit: 'cover', borderRadius: 'var(--radius)', marginBottom: '1.5rem' }} 
+                  style={{ width: '100%', maxHeight: '320px', objectFit: 'cover', borderRadius: 'var(--radius)' }} 
                 />
               ) : (
-                <div style={{ width: '100%', height: '120px', background: 'linear-gradient(135deg, var(--primary-light), var(--accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', borderRadius: 'var(--radius)', marginBottom: '1.5rem' }}>🍳</div>
+                <div style={{ width: '100%', height: '120px', background: 'linear-gradient(135deg, var(--primary-light), var(--accent))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.75rem', borderRadius: 'var(--radius)' }}>🍳</div>
               )}
 
               {currentRecipe.description && (
-                <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem', lineHeight: '1.6' }}>{currentRecipe.description}</p>
+                <p style={{ fontSize: '1.05rem', lineHeight: '1.6', margin: 0, color: 'var(--foreground)' }}>{currentRecipe.description}</p>
               )}
 
-              <div className="grid-3" style={{ marginBottom: '1.5rem' }}>
-                <div className="card text-center" style={{ padding: '1rem' }}>
-                  <Clock size={20} style={{ margin: '0 auto 0.5rem', color: 'var(--primary)' }} />
-                  <span className="text-muted text-sm block">Prep Time</span>
-                  <strong>{currentRecipe.prep_time ? `${currentRecipe.prep_time} mins` : 'N/A'}</strong>
+              {/* Recipe Meta Stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem' }}>
+                <div className="card text-center" style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                  <Clock size={20} style={{ color: 'var(--primary)' }} />
+                  <span className="text-muted text-sm" style={{ display: 'block' }}>Prep Time</span>
+                  <strong style={{ fontSize: '1rem' }}>{currentRecipe.prep_time ? `${currentRecipe.prep_time} mins` : 'N/A'}</strong>
                 </div>
-                <div className="card text-center" style={{ padding: '1rem' }}>
-                  <Clock size={20} style={{ margin: '0 auto 0.5rem', color: 'var(--primary)' }} />
-                  <span className="text-muted text-sm block">Cook Time</span>
-                  <strong>{currentRecipe.cook_time ? `${currentRecipe.cook_time} mins` : 'N/A'}</strong>
+                <div className="card text-center" style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                  <Clock size={20} style={{ color: 'var(--primary)' }} />
+                  <span className="text-muted text-sm" style={{ display: 'block' }}>Cook Time</span>
+                  <strong style={{ fontSize: '1rem' }}>{currentRecipe.cook_time ? `${currentRecipe.cook_time} mins` : 'N/A'}</strong>
                 </div>
-                <div className="card text-center" style={{ padding: '1rem' }}>
-                  <Users size={20} style={{ margin: '0 auto 0.5rem', color: 'var(--primary)' }} />
-                  <span className="text-muted text-sm block">Servings</span>
-                  <strong>{currentRecipe.servings ? `${currentRecipe.servings} portions` : 'N/A'}</strong>
+                <div className="card text-center" style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                  <Users size={20} style={{ color: 'var(--primary)' }} />
+                  <span className="text-muted text-sm" style={{ display: 'block' }}>Servings</span>
+                  <strong style={{ fontSize: '1rem' }}>{currentRecipe.servings ? `${currentRecipe.servings} portions` : 'N/A'}</strong>
                 </div>
               </div>
 
-              <div className="dual-pane" style={{ marginBottom: '1.5rem' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                    <h3>Ingredients</h3>
+              {/* Ingredients and Instructions Side-by-Side */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
+                {/* Ingredients Pane */}
+                <div className="card" style={{ padding: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Ingredients</h3>
                     <button 
                       className="btn btn-outline btn-sm" 
-                      style={{ fontSize: '0.8rem', padding: '0.3rem 0.6rem' }}
+                      style={{ fontSize: '0.78rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
                       onClick={() => handleAddRecipeToShoppingList(currentRecipe)}
                     >
-                      <ShoppingCart size={12} /> Add ingredients to List
+                      <ShoppingCart size={13} /> Add ingredients to List
                     </button>
                   </div>
-                  <ul className="todo-list" style={{ listStyleType: 'none', paddingLeft: 0 }}>
+                  <ul style={{ listStyleType: 'none', paddingLeft: 0, margin: 0, display: 'flex', flexDirection: 'column' }}>
                     {currentRecipe.ingredients?.map((ing, idx) => (
-                      <li key={idx} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{ing.name}</span>
-                        <span style={{ fontWeight: '600' }}>
+                      <li key={idx} style={{ padding: '0.55rem 0', borderBottom: idx < currentRecipe.ingredients.length - 1 ? '1px solid var(--border)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                        <span style={{ flex: 1, wordBreak: 'break-word', fontSize: '0.92rem' }}>{ing.name}</span>
+                        <span style={{ fontWeight: '600', color: 'var(--primary)', whiteSpace: 'nowrap', textAlign: 'right', fontSize: '0.92rem' }}>
                           {ing.amount} {ing.unit}
                         </span>
                       </li>
                     ))}
+                    {(!currentRecipe.ingredients || currentRecipe.ingredients.length === 0) && (
+                      <li style={{ color: 'var(--text-muted)', fontSize: '0.88rem', fontStyle: 'italic', padding: '0.5rem 0' }}>No ingredients listed.</li>
+                    )}
                   </ul>
                 </div>
 
-                <div>
-                  <h3 style={{ marginBottom: '1rem' }}>Instructions</h3>
-                  <ol style={{ paddingLeft: '1.25rem', lineHeight: '1.7' }}>
+                {/* Instructions Pane */}
+                <div className="card" style={{ padding: '1.25rem' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '1rem', fontSize: '1.1rem' }}>Instructions</h3>
+                  <ol style={{ paddingLeft: '1.25rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                     {currentRecipe.instructions?.map((inst, idx) => (
-                      <li key={idx} style={{ marginBottom: '1rem', paddingBottom: '0.5rem', borderBottom: '1px dashed var(--border-light)' }}>
+                      <li key={idx} style={{ paddingBottom: idx < currentRecipe.instructions.length - 1 ? '0.65rem' : 0, borderBottom: idx < currentRecipe.instructions.length - 1 ? '1px dashed var(--border)' : 'none', lineHeight: '1.6', fontSize: '0.92rem' }}>
                         {inst.instruction_text}
                       </li>
                     ))}
+                    {(!currentRecipe.instructions || currentRecipe.instructions.length === 0) && (
+                      <li style={{ color: 'var(--text-muted)', fontSize: '0.88rem', fontStyle: 'italic', listStyleType: 'none', marginLeft: '-1.25rem' }}>No instructions listed.</li>
+                    )}
                   </ol>
                 </div>
               </div>
@@ -654,7 +665,7 @@ export default function RecipesView({ showToast, user }) {
                     <strong>Export Recipe to Word</strong>
                     <p className="text-muted text-sm" style={{ margin: 0 }}>Select a template to generate a structured document.</p>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     <select 
                       value={defaultTemplateId}
                       onChange={(e) => setDefaultTemplateId(e.target.value)}
@@ -673,7 +684,7 @@ export default function RecipesView({ showToast, user }) {
               )}
             </div>
             
-            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div>
                 {currentRecipe.source_url && (
                   <a href={currentRecipe.source_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover-underline">
@@ -697,7 +708,7 @@ export default function RecipesView({ showToast, user }) {
       {/* Recipe Create/Edit Form Modal */}
       {isFormOpen && (
         <div className="modal-overlay" onClick={() => setIsFormOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content recipe-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editRecipe ? 'Edit Recipe' : 'Add New Recipe'}</h2>
               <button className="btn-icon" onClick={() => setIsFormOpen(false)}><X size={20} /></button>
@@ -717,7 +728,7 @@ export default function RecipesView({ showToast, user }) {
       {/* Add Recipe ingredients to Shopping List picker modal */}
       {promptListRecipe && (
         <div className="modal-overlay" onClick={() => setPromptListRecipe(null)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px', width: '90vw' }}>
             <form onSubmit={handleConfirmAddToList}>
               <div className="modal-header">
                 <h2>Add to Shopping List</h2>
