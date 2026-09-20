@@ -28,6 +28,7 @@ export default function FloatingActionButton({ activeTab }) {
   const [hovered, setHovered] = useState(false);
   const [customAction, setCustomAction] = useState(null);
   const [prevTab, setPrevTab] = useState(activeTab);
+  const [hasModalOpen, setHasModalOpen] = useState(false);
 
   if (activeTab !== prevTab) {
     setPrevTab(activeTab);
@@ -44,10 +45,23 @@ export default function FloatingActionButton({ activeTab }) {
     };
   }, []);
 
+  // Automatically detect if any modal is open and hide the FAB
+  useEffect(() => {
+    const checkModal = () => {
+      const openModal = document.querySelector('.modal-overlay:not(.closing)');
+      setHasModalOpen(!!openModal);
+    };
+
+    checkModal();
+    const observer = new MutationObserver(checkModal);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+
   const actionLabel = customAction?.label !== undefined ? customAction.label : TAB_ACTIONS[activeTab];
   const isVisible = customAction?.visible !== undefined ? customAction.visible : !!TAB_ACTIONS[activeTab];
 
-  if (!isVisible || !actionLabel) return null;
+  if (!isVisible || !actionLabel || hasModalOpen) return null;
 
   const handleClick = () => {
     window.dispatchEvent(new CustomEvent('trigger-add-action', { detail: { tab: activeTab } }));
@@ -59,7 +73,7 @@ export default function FloatingActionButton({ activeTab }) {
         position: 'fixed',
         bottom: '2.5rem',
         right: '2.5rem',
-        zIndex: 999,
+        zIndex: 50,
         display: 'flex',
         alignItems: 'center',
         gap: '0.75rem',

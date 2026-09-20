@@ -710,9 +710,10 @@ select.input-control {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0);
-  backdrop-filter: blur(0px);
-  z-index: 1000;
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 10000;
   display: flex;
   align-items: center;
   justify-content: flex-end; /* Right align the drawer content */
@@ -726,8 +727,8 @@ select.input-control {
 
 .modal-content {
   background-color: color-mix(in srgb, var(--card) calc(var(--navbar-opacity, 0.75) * 100%), transparent);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 2);
   width: 25vw;
@@ -738,6 +739,7 @@ select.input-control {
   position: relative;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   transform: translateX(calc(100% + 2rem));
   animation: modalSlideIn 0.25s forwards cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -769,6 +771,10 @@ select.input-control {
   padding: 1.25rem 1.5rem;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  background-color: var(--card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 10;
 }
 
 .modal-footer {
@@ -779,7 +785,10 @@ select.input-control {
   padding: 1.25rem 1.5rem;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
-  background-color: inherit;
+  background-color: var(--card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  z-index: 10;
 }
 
 /* Modal sizing variants */
@@ -818,8 +827,9 @@ select.input-control {
 
 .modal-body {
   padding: 1.5rem;
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
+  min-height: 0;
 }
 
 /* Modal animations */

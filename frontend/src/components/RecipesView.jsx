@@ -579,7 +579,7 @@ export default function RecipesView({ showToast, user }) {
               </div>
             </div>
             
-            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto' }}>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflowY: 'auto', paddingBottom: '2.5rem' }}>
               {currentRecipe.image_path ? (
                 <img 
                   src={currentRecipe.image_path} 
@@ -660,23 +660,23 @@ export default function RecipesView({ showToast, user }) {
 
               {/* Template Export Selector */}
               {templates.length > 0 && (
-                <div className="card" style={{ padding: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                <div className="card" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', flexShrink: 0, minHeight: 'fit-content' }}>
                   <div>
-                    <strong>Export Recipe to Word</strong>
-                    <p className="text-muted text-sm" style={{ margin: 0 }}>Select a template to generate a structured document.</p>
+                    <strong style={{ fontSize: '1rem' }}>Export Recipe to Word</strong>
+                    <p className="text-muted text-sm" style={{ margin: '0.25rem 0 0 0' }}>Select a template to generate a structured document.</p>
                   </div>
-                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                     <select 
                       value={defaultTemplateId}
                       onChange={(e) => setDefaultTemplateId(e.target.value)}
                       className="input-control"
-                      style={{ minWidth: '150px' }}
+                      style={{ minWidth: '160px', height: '2.5rem' }}
                     >
                       {templates.map(t => (
                         <option key={t.id} value={t.id}>{t.name} {t.is_default ? '(Default)' : ''}</option>
                       ))}
                     </select>
-                    <button className="btn btn-outline" onClick={() => handleExportWord(currentRecipe.id)}>
+                    <button className="btn btn-outline" style={{ height: '2.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }} onClick={() => handleExportWord(currentRecipe.id)}>
                       <Download size={16} /> Export
                     </button>
                   </div>
