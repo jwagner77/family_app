@@ -1700,6 +1700,326 @@ async function seedDefaultRecipes(db) {
         'Pour into a greased muffin pan. Bake at 400 degrees for 12-15 minutes.',
         'Serve with maple syrup.'
       ]
+    },
+    {
+      title: 'Almond Raspberry Swirl Cake',
+      description: 'An elegant 3-layer almond cake swirled with raspberry puree, filled with seedless raspberry jam and whipped cream, and frosted with rich cream cheese frosting.',
+      prep_time: 60,
+      cook_time: 30,
+      servings: 12,
+      tags: 'Desserts, Cake, Raspberry, Almond, Baking, Celebration',
+      ingredients: [
+        { name: 'Cream Cheese, softened', amount: '8', unit: 'ounces', raw_text: '8 ounces Cream Cheese, softened' },
+        { name: 'Butter, softened', amount: '1 1/2', unit: 'sticks', raw_text: '1 ½ sticks Butter, softened' },
+        { name: 'Sugar', amount: '2', unit: 'cups', raw_text: '2 cups Sugar' },
+        { name: 'Eggs, room temperature', amount: '4', unit: '', raw_text: '4 Eggs, room temperature' },
+        { name: 'Cake Flour', amount: '3', unit: 'cups', raw_text: '3 cups Cake Flour' },
+        { name: 'Baking Powder', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Baking Powder' },
+        { name: 'Baking Soda', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Baking Soda' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Buttermilk', amount: '1', unit: 'cup', raw_text: '1 cup Buttermilk' },
+        { name: 'Vegetable Oil', amount: '1/4', unit: 'cup', raw_text: '¼ cup Vegetable Oil' },
+        { name: 'Almond Extract', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Almond Extract' },
+        { name: 'Seedless Raspberry Jam, plus additional', amount: '1/3', unit: 'cup', raw_text: '1/3 cup Seedless, Raspberry Jam, plus additional' },
+        { name: 'Raspberry Extract', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Raspberry Extract' },
+        { name: 'Whipped Cream', amount: '1', unit: 'recipe', raw_text: 'Whipped Cream (See Recipe)' },
+        { name: 'Cream Cheese Frosting', amount: '1', unit: 'recipe', raw_text: 'Cream Cheese Frosting (See Recipe)' },
+        { name: 'Fresh Raspberries (for garnish)', amount: '', unit: '', raw_text: 'Fresh Raspberries (for garnish)' }
+      ],
+      instructions: [
+        'Prepare Whipped Cream and Cream Cheese Frosting (see recipes).',
+        'Preheat oven to 325 degrees. Grease and flour three 8-inch pans adding a circle of parchment paper to the bottom of each pan.',
+        'In a medium bowl, whisk together flour, baking powder, baking soda and salt. Set aside.',
+        'In another bowl, mix together buttermilk, oil and almond extract. Set aside.',
+        'In the bowl of your mixer add butter and cream cheese and mix at medium speed until smooth.',
+        'Gradually add the sugar and mix on medium speed for 2-3 minutes.',
+        'Add eggs one at a time and mix until well incorporated.',
+        'With the mixer on low speed, alternate adding the flour mixture and the milk mixture, beginning and ending with the flour mixture.',
+        'Remove 1 cup of cake batter and put it in a separate small bowl. Add raspberry jam and raspberry extract and stir together.',
+        'Spread about one cup plain cake batter into each of the prepared pans. Then divide most of the raspberry batter between the three pans.',
+        'Add the remaining plain batter to each of the pans and the remaining raspberry batter. Tap each of the pans on the counter to level out the batter. Run a knife through the batter to create a swirl effect.',
+        'Bake for 28-30 minutes. Let cool for 5-10 minutes in the pans on a wire rack before turning out.',
+        'Place the first cake layer on the cake plate. Pipe a dam of cream cheese frosting around the edge of the layer.',
+        'Spread a thin layer of jam on the cake layer, then top with a layer of whipped cream filling.',
+        'Place the second layer on top and repeat steps 13 and 14. Place the third cake layer on top and pipe frosting into any gaps between the cake layers. Frost the cake with a thin layer of frosting.',
+        'Chill the cake for 10-15 minutes in the freezer. Add the final coat of frosting.',
+        'Pipe a large shell border around the top of the cake using a large 1M piping tip, and top with fresh raspberries.'
+      ]
+    },
+    {
+      title: 'Avocado Chocolate Pudding',
+      description: 'Rich, velvety, and naturally sweetened chocolate pudding made with fresh ripe avocados, unsweetened cocoa powder, and pure maple syrup.',
+      prep_time: 5,
+      cook_time: 5,
+      servings: 4,
+      tags: 'Desserts, Pudding, Chocolate, Healthy, Vegan, Gluten-Free, No Bake',
+      ingredients: [
+        { name: 'Ripe Avocados, peeled, chopped', amount: '2', unit: '', raw_text: '2 Ripe Avocados, peeled, chopped' },
+        { name: 'Unsweetened Cocoa Powder', amount: '1/3', unit: 'cup', raw_text: '1/3 cup Unsweetened Cocoa Powder' },
+        { name: 'Maple Syrup', amount: '1/4', unit: 'cup', raw_text: '¼ cup Maple Syrup' },
+        { name: 'Milk', amount: '1/2', unit: 'cup', raw_text: '½ cup Milk' },
+        { name: 'Vanilla Extract', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Vanilla Extract' }
+      ],
+      instructions: [
+        'Blend all ingredients together in a blender.',
+        'Chill in the refrigerator for 2 hours before serving.'
+      ]
+    },
+    {
+      title: 'Banana Pudding',
+      description: 'Classic southern-style layered banana pudding with vanilla wafers, fresh banana slices, sweetened condensed milk, and whipped topping.',
+      prep_time: 5,
+      cook_time: 15,
+      servings: 12,
+      tags: 'Desserts, Pudding, Banana, No Bake, Southern, Classic',
+      ingredients: [
+        { name: 'Milk', amount: '2', unit: 'cups', raw_text: '2 cups Milk' },
+        { name: 'Instant Banana Pudding Mix', amount: '1', unit: 'package (5 oz)', raw_text: '1 package (5 ounces) Instant Banana Pudding Mix' },
+        { name: 'Sweetened Condensed Milk', amount: '1', unit: 'can (14 oz)', raw_text: '1 can (14 ounces) Sweetened Condensed Milk' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Vanilla Extract' },
+        { name: 'Frozen whipped topping, thawed', amount: '1', unit: 'container (12 oz)', raw_text: '1 container (12 ounces) Frozen whipped topping, thawed' },
+        { name: 'Vanilla Wafers', amount: '1', unit: 'package (16 oz)', raw_text: '1 package (16 ounces) Vanilla Wafers' },
+        { name: 'Bananas, sliced', amount: '14', unit: '', raw_text: '14 Bananas, sliced' }
+      ],
+      instructions: [
+        'Mix milk and pudding mix in a large bowl. Blend in sweetened condensed milk until smooth. Stir in vanilla and fold in the whipped topping.',
+        'Layer wafers, banana slices and pudding mixture in a glass serving bowl.',
+        'Chill for 1 hour before serving.'
+      ]
+    },
+    {
+      title: 'Caramel Apple Crisp',
+      description: 'Warm spiced Granny Smith apples drizzled with melted caramel and topped with a crispy brown sugar and rolled oat crumble.',
+      prep_time: 25,
+      cook_time: 45,
+      servings: 8,
+      tags: 'Desserts, Apple, Crisp, Caramel, Fall, Baking',
+      ingredients: [
+        { name: 'Granny Smith Apples, peeled and thinly sliced', amount: '6', unit: '', raw_text: '6 Granny Smith Apples, peeled and thinly sliced' },
+        { name: 'Sugar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Sugar' },
+        { name: 'Flour', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Flour' },
+        { name: 'Cinnamon', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Cinnamon' },
+        { name: 'Caramel Morsels', amount: '14', unit: 'ounces', raw_text: '14 ounces Caramel Morsels' },
+        { name: 'Milk', amount: '6', unit: 'tablespoons', raw_text: '6 tablespoons Milk' },
+        { name: 'Flour (for Topping)', amount: '1 1/4', unit: 'cup', raw_text: '1 ¼ cup Flour' },
+        { name: 'Brown Sugar', amount: '1', unit: 'cup', raw_text: '1 cup Brown Sugar' },
+        { name: 'Rolled Oats', amount: '1', unit: 'cup', raw_text: '1 cup Rolled Oats' },
+        { name: 'Butter, softened', amount: '3/4', unit: 'cup', raw_text: '¾ cup Butter, softened' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees. Grease a 9x13-inch pan.',
+        'Toss apples with sugar, flour and cinnamon. Pour into the 9x13-inch pan and set aside.',
+        'Mix caramels and milk in a microwave safe bowl. Microwave until melted, stirring occasionally. Drizzle about half of the caramel sauce over the apples.',
+        'Combine topping ingredients in a bowl till crumbly and spread evenly over apples and caramel.',
+        'Bake for about 45 minutes or until topping is golden brown and apples are tender.',
+        'Serve with vanilla ice cream and remaining caramel sauce.'
+      ]
+    },
+    {
+      title: 'Carrot Cake Bars',
+      description: 'Spiced brown sugar carrot cake bars swirled with a rich cheesecake layer and baked until golden and tender.',
+      prep_time: 20,
+      cook_time: 40,
+      servings: 9,
+      tags: 'Desserts, Bars, Carrot Cake, Cheesecake, Baking',
+      ingredients: [
+        { name: 'Butter, melted', amount: '1/2', unit: 'cup', raw_text: '½ cup Butter, melted' },
+        { name: 'Light Brown Sugar, packed', amount: '1', unit: 'cup', raw_text: '1 cup Light Brown Sugar, packed' },
+        { name: 'Egg', amount: '1', unit: '', raw_text: '1 Egg' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Vanilla Extract' },
+        { name: 'Flour', amount: '1', unit: 'cup', raw_text: '1 cup Flour' },
+        { name: 'Cinnamon', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Cinnamon' },
+        { name: 'Baking Powder', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Baking Powder' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Salt' },
+        { name: 'Carrots, shredded', amount: '1', unit: 'cup', raw_text: '1 cup Carrots, shredded' },
+        { name: 'Cream Cheese, room temperature', amount: '4', unit: 'ounces', raw_text: '4 ounces Cream Cheese, room temperature' },
+        { name: 'Sugar', amount: '1/4', unit: 'cup', raw_text: '¼ cup Sugar' },
+        { name: 'Egg Yolk', amount: '1', unit: '', raw_text: '1 Egg Yolk' },
+        { name: 'Vanilla Extract', amount: '3/4', unit: 'teaspoon', raw_text: '¾ teaspoon Vanilla Extract' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees. Spray an 8x8-inch dish with non-stick spray and set aside.',
+        'In a medium bowl, mix together the melted butter and brown sugar.',
+        'Stir in the egg and vanilla extract.',
+        'Stir in flour, cinnamon, baking powder and salt.',
+        'Fold in shredded carrots and set aside.',
+        'In a medium bowl, cream together the cream cheese and sugar.',
+        'Beat in the egg yolk and vanilla extract.',
+        'Add about half of the carrot cake batter into the pan and spread evenly.',
+        'Dollop half the cheesecake batter on top of the carrot cake batter.',
+        'Add the remaining carrot cake batter on top of the cheesecake batter.',
+        'Dollop the remaining cheesecake batter on top of the carrot cake batter.',
+        'Using a knife, swirl the batters together.',
+        'Bake for 35-40 minutes. The center will still be jiggly.',
+        'Cool completely before cutting. Store in an airtight container in the refrigerator.'
+      ]
+    },
+    {
+      title: 'Cream Cheese Frosting',
+      description: 'Creamy, pipeable cream cheese frosting made with real butter, cream cheese, vanilla, and powdered sugar.',
+      prep_time: 10,
+      cook_time: 0,
+      servings: 12,
+      tags: 'Desserts, Frosting, Basics, Cakes',
+      ingredients: [
+        { name: 'Butter, slightly softened', amount: '2', unit: 'sticks', raw_text: '2 sticks, Butter, slightly softened' },
+        { name: 'Cream cheese softened', amount: '16', unit: 'ounces', raw_text: '16 ounces Cream cheese softened' },
+        { name: 'Vanilla', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Vanilla' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Powdered Sugar', amount: '6', unit: 'cups', raw_text: '6 cups Powdered Sugar' }
+      ],
+      instructions: [
+        'Cut butter into slices and add to the bowl of your mixture. Beat on low to medium speed until the butter is softened.',
+        'Cut the cream cheese into pieces and add to the butter, beating on low to medium speed until incorporated.',
+        'Add vanilla. Gradually add the powdered sugar beating on low speed until blended.',
+        'Increase mixing speed and beat until fluffy.'
+      ]
+    },
+    {
+      title: 'Dirt Pudding',
+      description: 'Fun and nostalgic chilled layered dessert with crushed Oreo cookies, creamy chocolate pudding, cream cheese, whipped topping, and gummy worms.',
+      prep_time: 30,
+      cook_time: 0,
+      servings: 12,
+      tags: 'Desserts, Pudding, Chocolate, Cookies, Kids, No Bake, Fun',
+      ingredients: [
+        { name: 'Oreos', amount: '1 1/2', unit: 'packages (14 oz)', raw_text: '1 ½ packages (14 ounces) Oreos' },
+        { name: 'Butter, melted', amount: '6', unit: 'tablespoons', raw_text: '6 tablespoons Butter, melted' },
+        { name: 'Milk', amount: '3 1/2', unit: 'cups', raw_text: '3 ½ cups Milk' },
+        { name: 'Chocolate Instant Pudding', amount: '2', unit: 'boxes', raw_text: '2 boxes Chocolate Instant Pudding' },
+        { name: 'Cream Cheese, room temperature', amount: '8', unit: 'ounces', raw_text: '8 ounces Cream Cheese, room temperature' },
+        { name: 'Powdered Sugar', amount: '1', unit: 'cup', raw_text: '1 cup Powdered Sugar' },
+        { name: 'Whipped Topping, thawed', amount: '12', unit: 'ounces', raw_text: '12 ounces Whipped Topping, thawed' },
+        { name: 'Gummy Worms (for garnish)', amount: '', unit: '', raw_text: 'Garnish Gummy Worms' }
+      ],
+      instructions: [
+        'Place Oreos in a large Ziplock bag and seal. Use a rolling pin to crush Oreos. Pour melted butter in the bag and shake to combine.',
+        'In a bowl, whisk together the milk and pudding mix together until it starts to thicken. Set aside.',
+        'Add the cream cheese and sugar to the bowl of an electric mixer. Beat on medium-high speed until smooth.',
+        'Fold the pudding in and beat on low speed. Stir in whipped topping.',
+        'Place a layer of Oreos at the bottom of a 9x13-inch dish. Add a layer of the pudding mixture over the Oreos. Repeat until both mixtures are gone, ending with the Oreos. Arrange Gummy Worms on top. Refrigerate for at least 3 hours or overnight.'
+      ]
+    },
+    {
+      title: 'Pecan Meltaways',
+      description: 'Buttery, tender pecan shortbread cookies that melt in your mouth, rolled in powdered sugar.',
+      prep_time: 30,
+      cook_time: 20,
+      servings: 24,
+      tags: 'Desserts, Cookies, Pecans, Holiday, Baking, Shortbread',
+      ingredients: [
+        { name: 'Salted Butter, room temperature', amount: '1/2', unit: 'cup', raw_text: '½ cup Salted Butter, room temperature' },
+        { name: 'Sugar', amount: '2 1/2', unit: 'tablespoons', raw_text: '2 ½ tablespoons Sugar' },
+        { name: 'Water', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Water' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' },
+        { name: 'Flour', amount: '1', unit: 'cup', raw_text: '1 cup Flour' },
+        { name: 'Pecans, toasted, cooled and finely chopped', amount: '1/2', unit: 'cup', raw_text: '½ cup Pecans, toasted, cooled and finely chopped' },
+        { name: 'Powdered Sugar', amount: '1', unit: 'cup', raw_text: '1 cup Powdered Sugar' }
+      ],
+      instructions: [
+        'Preheat oven to 325 degrees. Line a large baking sheet with parchment paper.',
+        'In a large bowl, cream butter with the sugar until light and fluffy. Mix in water and vanilla. Gradually add in the flour. Stir in pecans.',
+        'Shape dough into 1-inch balls and place on a baking sheet. Place the baking sheet in the refrigerator uncovered and chill for 15-30 minutes.',
+        'Bake for 20 minutes.',
+        'Remove from the oven and let stand for 1 minute. Roll warm cookies in the powdered sugar and place on a wire rack.'
+      ]
+    },
+    {
+      title: 'Pumpkin Pie',
+      description: 'Classic homemade spiced pumpkin pie with cinnamon, ginger, cloves, and evaporated milk in a flaky pie crust.',
+      prep_time: 5,
+      cook_time: 55,
+      servings: 8,
+      tags: 'Desserts, Pie, Pumpkin, Holiday, Thanksgiving, Fall, Baking',
+      ingredients: [
+        { name: 'Pie Crust (see recipe)', amount: '1', unit: 'recipe', raw_text: '1 recipe Pie Crust (see recipe)' },
+        { name: 'Sugar', amount: '3/4', unit: 'cup', raw_text: '¾ cup Sugar' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Cinnamon', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Cinnamon' },
+        { name: 'Ginger', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Ginger' },
+        { name: 'Cloves', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Cloves' },
+        { name: 'Eggs', amount: '2', unit: '', raw_text: '2 Eggs' },
+        { name: 'Pumpkin Puree', amount: '1', unit: 'can (15 oz)', raw_text: '1 can (15 ounces) Pumpkin Puree' },
+        { name: 'Evaporated Milk', amount: '1', unit: 'can (12 oz)', raw_text: '1 can (12 ounces) Evaporated Milk' }
+      ],
+      instructions: [
+        'Preheat oven to 425 degrees.',
+        'Press pie crust into 9-inch pie plate and flute the edges.',
+        'In a mixing bowl, combine sugar, salt, cinnamon, ginger, cloves, eggs, pumpkin and evaporated milk. Pour into the pie crust.',
+        'Bake for 15 minutes. Remove from oven, cover the pie crust edges with foil and lower the oven temperature to 350 degrees. Bake an additional 40-45 minutes or until a toothpick comes out clean.',
+        'Remove from the oven and cool. Refrigerate until ready to serve.'
+      ]
+    },
+    {
+      title: 'Tiramisu',
+      description: 'Authentic Italian chilled dessert layered with espresso-dipped ladyfingers and whipped amaretto mascarpone cream, dusted with cocoa.',
+      prep_time: 20,
+      cook_time: 0,
+      servings: 6,
+      tags: 'Desserts, Italian, Coffee, Tiramisu, No Bake',
+      ingredients: [
+        { name: 'Heavy Cream', amount: '1', unit: 'cup', raw_text: '1 cup Heavy Cream' },
+        { name: 'Mascarpone Cheese', amount: '1', unit: 'cup', raw_text: '1 cup Mascarpone Cheese' },
+        { name: 'Sugar', amount: '3', unit: 'tablespoons', raw_text: '3 tablespoons Sugar' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' },
+        { name: 'Amaretto', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Amaretto' },
+        { name: 'Strong Cold Coffee', amount: '2 1/2', unit: 'cups', raw_text: '2 ½ cups Strong Cold Coffee' },
+        { name: 'Ladyfingers', amount: '7', unit: 'ounces', raw_text: '7 ounces Ladyfingers' },
+        { name: 'Cocoa Powder (for dusting)', amount: '', unit: '', raw_text: 'Cocoa' }
+      ],
+      instructions: [
+        'Whip cream, sugar and vanilla until it forms soft peaks. Fold in Mascarpone cheese and amaretto.',
+        'Pour coffee into a shallow dish. Dip lady fingers in the coffee and place them at the bottom of an 8x8-inch dish. Add part of the cream mixture and level out. Repeat one or two times ending with the cream mixture.',
+        'Cover and refrigerate for at least 2 hours. Dust with cocoa before serving.'
+      ]
+    },
+    {
+      title: 'Whipped Cream',
+      description: 'Light, fluffy homemade whipped cream made with heavy cream, powdered sugar, and vanilla extract.',
+      prep_time: 15,
+      cook_time: 0,
+      servings: 8,
+      tags: 'Desserts, Basics, Whipped Cream, Topping',
+      ingredients: [
+        { name: 'Heavy Cream', amount: '1', unit: 'cup', raw_text: '1 cup Heavy Cream' },
+        { name: 'Powdered Sugar', amount: '1/4', unit: 'cup', raw_text: '¼ cup Powdered Sugar' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' }
+      ],
+      instructions: [
+        'Chill the mixing bowl in the freezer for 10 minutes.',
+        'Pour the heavy cream, sugar and vanilla into the bowl and begin beating a low speed, gradually increasing to medium high speed.',
+        'Beat on medium high speed until the whipped cream forms soft peaks.'
+      ]
+    },
+    {
+      title: 'White Chocolate Macadamia Nut Cookies',
+      description: 'Chewy, buttery cookies loaded with sweet white chocolate chips and crunchy roasted macadamia nuts.',
+      prep_time: 15,
+      cook_time: 10,
+      servings: 24,
+      tags: 'Desserts, Cookies, White Chocolate, Macadamia, Baking',
+      ingredients: [
+        { name: 'Butter, room temperature', amount: '1/2', unit: 'cup', raw_text: '½ cup Butter, room temperature' },
+        { name: 'Light Brown Sugar, packed', amount: '1/2', unit: 'cup', raw_text: '½ cup Light Brown Sugar, packed' },
+        { name: 'Sugar', amount: '1/3', unit: 'cup', raw_text: '1/3 cup Sugar' },
+        { name: 'Egg', amount: '1', unit: '', raw_text: '1 Egg' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' },
+        { name: 'Flour', amount: '1 3/4', unit: 'cups', raw_text: '1 ¾ cups Flour' },
+        { name: 'Baking Soda', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Baking Soda' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'White Chocolate Chips', amount: '1', unit: 'cup', raw_text: '1 cup White Chocolate Chips' },
+        { name: 'Salted Macadamia Nuts, roasted and chopped', amount: '1/2', unit: 'cup', raw_text: '½ cup Salted Macadamia Nuts, roasted and chopped' }
+      ],
+      instructions: [
+        'Preheat oven to 375 degrees. Line a baking sheet with parchment paper.',
+        'In a large mixing bowl, cream together the butter and sugars.',
+        'Mix in egg and vanilla.',
+        'Stir in white chocolate chips and nuts.',
+        'Roll dough into 1-inch balls and place on the prepared baking sheet, cover with plastic wrap and chill in the refrigerator for 30 minutes.',
+        'Bake for 10-12 minutes.',
+        'Cool on a wire rack for 5-10 minutes.'
+      ]
     }
   ];
 
