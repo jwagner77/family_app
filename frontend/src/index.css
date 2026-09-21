@@ -383,7 +383,7 @@ h1, h2, h3, h4, h5, h6 {
   --sidebar-offset: 280px;
   flex: 1;
   margin-left: var(--sidebar-offset);
-  padding: 1rem 3rem 2.5rem 3rem;
+  padding: 1rem 3rem 5.5rem 3rem;
   min-height: 100vh;
   width: calc(100% - var(--sidebar-offset));
   transition: margin-left var(--transition-normal), width var(--transition-normal);
@@ -1214,7 +1214,7 @@ select.input-control {
     --sidebar-offset: 84px;
     margin-left: var(--sidebar-offset);
     width: calc(100% - var(--sidebar-offset));
-    padding: 1rem 1.5rem 2.5rem 1.5rem;
+    padding: 1rem 1.5rem 5.5rem 1.5rem;
   }
 }
 
@@ -1302,14 +1302,14 @@ select.input-control {
     --sidebar-offset: 0px !important;
     margin-left: var(--sidebar-offset) !important;
     width: 100% !important;
-    padding: 5.25rem 1rem 3rem 1rem !important;
+    padding: 5.25rem 1rem 6rem 1rem !important;
   }
 
   .main-content.expanded {
     --sidebar-offset: 0px !important;
     margin-left: var(--sidebar-offset) !important;
     width: 100% !important;
-    padding: 5.25rem 1rem 3rem 1rem !important;
+    padding: 5.25rem 1rem 6rem 1rem !important;
   }
   
   .mobile-header {
