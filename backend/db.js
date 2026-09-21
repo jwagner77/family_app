@@ -2020,6 +2020,114 @@ async function seedDefaultRecipes(db) {
         'Bake for 10-12 minutes.',
         'Cool on a wire rack for 5-10 minutes.'
       ]
+    },
+    {
+      title: 'Cinnamon Date Smoothie',
+      description: 'Naturally sweetened wholesome smoothie with Medjool dates, ground rolled oats, cinnamon, vanilla, and milk.',
+      prep_time: 5,
+      cook_time: 0,
+      servings: 1,
+      tags: 'Drinks, Smoothie, Breakfast, Oats, Dates, Healthy, Quick',
+      ingredients: [
+        { name: 'Rolled Oats', amount: '1/2', unit: 'cup', raw_text: '½ cup Rolled Oats' },
+        { name: 'Medjool Dates', amount: '3', unit: '', raw_text: '3 Medjool Dates' },
+        { name: 'Milk', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Milk' },
+        { name: 'Vanilla Extract', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Vanilla Extract' },
+        { name: 'Cinnamon', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Cinnamon' },
+        { name: 'Ice Cubes', amount: '4', unit: '', raw_text: '4 Ice Cubes' }
+      ],
+      instructions: [
+        'Remove the pits from the dates. Soak them in the milk for 10-15 minutes.',
+        'Blend the rolled oats until powdery.',
+        'Add dates, milk, vanilla extract and cinnamon to blender and blend again.',
+        'Add ice to the blender and blend again.'
+      ]
+    },
+    {
+      title: 'Mango Protein Smoothie',
+      description: 'Tropical protein smoothie loaded with frozen mango, Greek yogurt, protein powder, and a touch of honey.',
+      prep_time: 5,
+      cook_time: 0,
+      servings: 1,
+      tags: 'Drinks, Smoothie, Protein, Mango, Healthy, Breakfast, Quick',
+      ingredients: [
+        { name: 'Frozen Mango', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Frozen Mango' },
+        { name: 'Protein Powder', amount: '1', unit: 'scoop', raw_text: '1 scoop Protein Powder' },
+        { name: 'Milk', amount: '1', unit: 'cup', raw_text: '1 cup Milk' },
+        { name: 'Greek Yogurt', amount: '1/2', unit: 'cup', raw_text: '½ cup Greek Yogurt' },
+        { name: 'Honey', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Honey' },
+        { name: 'Vanilla Extract', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Vanilla Extract' },
+        { name: 'Ice Cubes', amount: '6', unit: '', raw_text: '6 Ice Cubes' }
+      ],
+      instructions: [
+        'Combine mango, protein powder, milk, yogurt, honey, vanilla extract and ice.',
+        'Blend ingredients until smooth. Add ice and blend again.',
+        'Serve.'
+      ]
+    },
+    {
+      title: 'Nutella Protein Shake',
+      description: 'Decadent chocolate hazelnut protein shake made with Nutella, blended rolled oats, protein powder, and cold milk.',
+      prep_time: 5,
+      cook_time: 0,
+      servings: 1,
+      tags: 'Drinks, Shake, Protein, Nutella, Chocolate, Hazelnut, Quick',
+      ingredients: [
+        { name: 'Rolled Oats', amount: '1/2', unit: 'cup', raw_text: '½ cup Rolled Oats' },
+        { name: 'Milk', amount: '3/4', unit: 'cup', raw_text: '¾ cup Milk' },
+        { name: 'Nutella', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Nutella' },
+        { name: 'Protein Powder', amount: '1', unit: 'scoop', raw_text: '1 scoop Protein Powder' },
+        { name: 'Ice Cubes', amount: '6', unit: '', raw_text: '6 Ice Cubes' }
+      ],
+      instructions: [
+        'In a blender, add oats and pulse until finely ground.',
+        'Add the ingredients together and blend until smooth.',
+        'Serve.'
+      ]
+    },
+    {
+      title: 'Peanut Butter and Banana Protein Shake',
+      description: 'Classic energizing protein shake made with creamy peanut butter, fresh banana, chia seeds, cinnamon, and protein powder.',
+      prep_time: 5,
+      cook_time: 0,
+      servings: 1,
+      tags: 'Drinks, Shake, Protein, Peanut Butter, Banana, Healthy, Quick',
+      ingredients: [
+        { name: 'Ice Cubes', amount: '4', unit: '', raw_text: '4 Ice Cubes' },
+        { name: 'Milk', amount: '3/4', unit: 'cup', raw_text: '¾ cup Milk' },
+        { name: 'Banana', amount: '1', unit: '', raw_text: '1 Banana' },
+        { name: 'Protein Powder', amount: '2', unit: 'scoops', raw_text: '2 scoops Protein Powder' },
+        { name: 'Vanilla Extract', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Vanilla Extract' },
+        { name: 'Chia Seeds', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Chia Seeds' },
+        { name: 'Cinnamon', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Cinnamon' },
+        { name: 'Peanut Butter', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Peanut Butter' }
+      ],
+      instructions: [
+        'Add all ingredients to a blender and blend.',
+        'Serve.'
+      ]
+    },
+    {
+      title: 'Strawberry Cheesecake Protein Shake',
+      description: 'Creamy dessert-inspired protein shake made with frozen strawberries, vanilla Greek yogurt, cream cheese, rolled oats, and protein powder.',
+      prep_time: 7,
+      cook_time: 0,
+      servings: 1,
+      tags: 'Drinks, Shake, Protein, Strawberry, Cheesecake, Healthy, Quick',
+      ingredients: [
+        { name: 'Frozen Strawberries', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Frozen Strawberries' },
+        { name: 'Milk', amount: '1', unit: 'cup', raw_text: '1 cup Milk' },
+        { name: 'Vanilla Greek Yogurt', amount: '1/2', unit: 'cup', raw_text: '½ cup Vanilla Greek Yogurt' },
+        { name: 'Protein Powder', amount: '1', unit: 'scoop', raw_text: '1 scoop Protein Powder' },
+        { name: 'Cream Cheese', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Cream Cheese' },
+        { name: 'Ice Cubes', amount: '4', unit: '', raw_text: '4 ice cubes' },
+        { name: 'Rolled Oats', amount: '1/4', unit: 'cup', raw_text: '¼ cup Rolled Oats' }
+      ],
+      instructions: [
+        'Add oats to the blender and pulse until finely ground.',
+        'Add all ingredients to a blender. Blend.',
+        'Serve.'
+      ]
     }
   ];
 
