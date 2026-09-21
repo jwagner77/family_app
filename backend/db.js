@@ -1604,6 +1604,102 @@ async function seedDefaultRecipes(db) {
         'Remove from oven and cool completely.',
         'Dust the tops with powdered sugar and serve.'
       ]
+    },
+    {
+      title: 'Baked Eggs in Ramekins',
+      description: 'Individual ramekins filled with sautéed baby bella mushrooms, yellow peppers, green onions, and whole baked eggs topped with parmesan cheese.',
+      prep_time: 10,
+      cook_time: 20,
+      servings: 2,
+      tags: 'Breakfast, Eggs, Vegetarian, Quick, Brunch',
+      ingredients: [
+        { name: 'Eggs', amount: '2', unit: '', raw_text: '2 Eggs' },
+        { name: 'Yellow Pepper, chopped', amount: '1/2', unit: 'cup', raw_text: '½ cup Yellow Pepper, chopped' },
+        { name: 'Baby Bella Mushrooms, chopped', amount: '1 1/2', unit: '', raw_text: '1 ½ Baby Bella Mushrooms, chopped' },
+        { name: 'Green Onion, chopped', amount: '4', unit: 'tablespoons', raw_text: '4 tablespoons Green Onion, chopped' },
+        { name: 'Butter', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Butter' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Parmesan Cheese', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Parmesan Cheese' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees. Butter ramekins.',
+        'Heat butter in a skillet. Sauté mushrooms, peppers and green onions until water from the mushrooms disappear. Season with salt and pepper.',
+        'Transfer vegetables to two ramekins. Crack eggs on top.',
+        'Bake eggs for about 20 minutes or until completely cooked. The egg whites should be completely white.',
+        'Top with parmesan cheese.'
+      ]
+    },
+    {
+      title: 'Beer Pancakes',
+      description: 'Fluffy golden pancakes made with beer for a light, airy texture and deep flavor.',
+      prep_time: 5,
+      cook_time: 15,
+      servings: 4,
+      tags: 'Breakfast, Pancakes, Brunch',
+      ingredients: [
+        { name: 'Flour', amount: '1 1/4', unit: 'cups', raw_text: '1 ¼ cups Flour' },
+        { name: 'Sugar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Sugar' },
+        { name: 'Brown Sugar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Brown Sugar' },
+        { name: 'Baking Powder', amount: '3/4', unit: 'teaspoon', raw_text: '¾ teaspoon Baking Powder' },
+        { name: 'Salt', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Salt' },
+        { name: 'Butter, melted', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Butter, melted' },
+        { name: 'Egg', amount: '1', unit: '', raw_text: '1 Egg' },
+        { name: 'Beer', amount: '1', unit: 'cup', raw_text: '1 cup Beer' },
+        { name: 'Cooking Spray', amount: '', unit: '', raw_text: 'Cooking Spray' }
+      ],
+      instructions: [
+        'In a large bowl, stir together the flour, sugar, brown sugar, baking powder and salt.',
+        'Add melted butter, egg and beer.',
+        'Heat a skillet over medium heat.',
+        'Coat pan with cooking spray.',
+        'Pour about ¼ cup of batter onto the hot skillet.',
+        'When bubbles appear on the top, flip and cook until lightly brown on both sides.'
+      ]
+    },
+    {
+      title: 'French Toast',
+      description: 'Golden, cinnamon-infused French toast made with thick slices of rich brioche or challah bread.',
+      prep_time: 5,
+      cook_time: 5,
+      servings: 4,
+      tags: 'Breakfast, French Toast, Classic, Quick, Brunch',
+      ingredients: [
+        { name: 'Eggs', amount: '4', unit: '', raw_text: '4 Eggs' },
+        { name: 'Milk', amount: '1', unit: 'cup', raw_text: '1 cup Milk' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' },
+        { name: 'Butter', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Butter' },
+        { name: 'Sugar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Sugar' },
+        { name: 'Cinnamon', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Cinnamon' },
+        { name: 'Challah or Brioche Bread', amount: '8', unit: 'slices', raw_text: '8 slices Challah or Brioche Bread' }
+      ],
+      instructions: [
+        'Whisk milk, eggs and vanilla extract together in a big bowl.',
+        'Heat a pan over medium heat and melt butter in pan.',
+        'Dip bread slices in egg mixture for about 5 seconds each.',
+        'Place bread in the pan and cook until golden brown on both sides.'
+      ]
+    },
+    {
+      title: 'McGriddle Bites',
+      description: 'Bite-sized breakfast muffin cups packed with savory breakfast sausage, melted cheddar cheese, pancake batter, and sweet maple syrup.',
+      prep_time: 5,
+      cook_time: 15,
+      servings: 12,
+      tags: 'Breakfast, Sausage, Cheese, Muffins, Quick, Finger Food',
+      ingredients: [
+        { name: 'Pancake Mix, mixed per package directions', amount: '2', unit: 'cups', raw_text: '2 cups Pancake Mix, mixed per package directions' },
+        { name: 'Ground Breakfast Sausage', amount: '1', unit: 'pound', raw_text: '1 pound Ground Breakfast Sausage' },
+        { name: 'Cheddar cheese, shredded', amount: '1', unit: 'cup', raw_text: '1 cup Cheddar cheese, shredded' },
+        { name: 'Maple Syrup', amount: '1/4', unit: 'cup', raw_text: '¼ cup Maple Syrup' }
+      ],
+      instructions: [
+        'Preheat oven to 400 degrees.',
+        'Brown breakfast sausage in a skillet over medium-high heat. Drain grease and set aside.',
+        'Mix pancake batter, cooked sausage, cheese and syrup.',
+        'Pour into a greased muffin pan. Bake at 400 degrees for 12-15 minutes.',
+        'Serve with maple syrup.'
+      ]
     }
   ];
 
