@@ -175,16 +175,21 @@ export function renderRecipeDocx(templatePath, recipeData) {
     prep_time: recipeData.prep_time ? `${recipeData.prep_time} mins` : 'N/A',
     cook_time: recipeData.cook_time ? `${recipeData.cook_time} mins` : 'N/A',
     servings: recipeData.servings ? String(recipeData.servings) : 'N/A',
-    ingredients: recipeData.ingredients.map(ing => {
+    tags: recipeData.tags || '',
+    category: recipeData.tags ? recipeData.tags.split(',')[0].trim() : (recipeData.category || 'Recipe'),
+    ingredients: (recipeData.ingredients || []).map(ing => {
       const amount = ing.amount || '';
       const unit = ing.unit || '';
       const name = ing.name || '';
       
       let formatted = '';
-      if (ing.raw_text) {
+      if (ing.formatted) {
+        formatted = ing.formatted;
+      } else if (ing.raw_text) {
         formatted = ing.raw_text;
       } else {
         formatted = `${amount} ${unit} ${name}`.trim().replace(/\s+/g, ' ');
+        if (!formatted && name) formatted = name;
       }
 
       return {
@@ -194,9 +199,9 @@ export function renderRecipeDocx(templatePath, recipeData) {
         formatted
       };
     }),
-    instructions: recipeData.instructions.map(inst => ({
-      step: inst.step_number,
-      text: inst.instruction_text
+    instructions: (recipeData.instructions || []).map(inst => ({
+      step: inst.step_number || '',
+      text: inst.instruction_text || inst.text || ''
     }))
   };
 

@@ -201,6 +201,7 @@ async function authenticate(req, res, next) {
           theme: user.theme || 'system',
           auth_provider: user.auth_provider || 'local',
           calendar_guid: user.calendar_guid || '',
+          calendar_sync_mappings: user.calendar_sync_mappings ? JSON.parse(user.calendar_sync_mappings) : {},
           timezone: user.timezone || 'US/New_York',
           birthday: user.birthday || '',
           phone: user.phone || '',
@@ -259,6 +260,7 @@ async function authenticate(req, res, next) {
       theme: user.theme || 'system',
       auth_provider: user.auth_provider || 'local',
       calendar_guid: user.calendar_guid || '',
+      calendar_sync_mappings: user.calendar_sync_mappings ? JSON.parse(user.calendar_sync_mappings) : {},
       timezone: user.timezone || 'US/New_York',
       birthday: user.birthday || '',
       phone: user.phone || '',
@@ -788,6 +790,7 @@ app.post('/api/auth/login', async (req, res) => {
         theme: user.theme || 'system',
         auth_provider: user.auth_provider || 'local',
         calendar_guid: user.calendar_guid || '',
+        calendar_sync_mappings: user.calendar_sync_mappings ? JSON.parse(user.calendar_sync_mappings) : {},
         timezone: user.timezone || 'US/New_York',
         birthday: user.birthday || '',
         phone: user.phone || '',
@@ -831,7 +834,7 @@ async function syncUserAsContact(user) {
 
 app.post('/api/users/profile', authenticate, async (req, res) => {
   try {
-    const { primary_color, theme, display_name, timezone, calendar_guid, birthday, phone, email, picture_url, navbar_bg, navbar_opacity, app_bg, theme_info_cards, text_color, dynamic_text_color } = req.body;
+    const { primary_color, theme, display_name, timezone, calendar_guid, calendar_sync_mappings, birthday, phone, email, picture_url, navbar_bg, navbar_opacity, app_bg, theme_info_cards, text_color, dynamic_text_color } = req.body;
     const db = await getDb();
     
     const updates = [];
@@ -856,6 +859,10 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
     if (calendar_guid !== undefined) {
       updates.push('calendar_guid = ?');
       values.push(calendar_guid === '' ? null : calendar_guid);
+    }
+    if (calendar_sync_mappings !== undefined) {
+      updates.push('calendar_sync_mappings = ?');
+      values.push(typeof calendar_sync_mappings === 'string' ? calendar_sync_mappings : JSON.stringify(calendar_sync_mappings));
     }
     if (birthday !== undefined) {
       updates.push('birthday = ?');
@@ -931,6 +938,7 @@ app.post('/api/users/profile', authenticate, async (req, res) => {
       theme: updatedUserRaw.theme || 'system',
       auth_provider: updatedUserRaw.auth_provider || 'local',
       calendar_guid: updatedUserRaw.calendar_guid || '',
+      calendar_sync_mappings: updatedUserRaw.calendar_sync_mappings ? JSON.parse(updatedUserRaw.calendar_sync_mappings) : {},
       timezone: updatedUserRaw.timezone || 'US/New_York',
       birthday: updatedUserRaw.birthday || '',
       phone: updatedUserRaw.phone || '',
@@ -1228,6 +1236,7 @@ app.get('/api/settings/public', async (req, res) => {
       dashboard_rotation_interval: settings.dashboard_rotation_interval || '30',
       dashboard_rotation_dashboards: settings.dashboard_rotation_dashboards || '["default"]',
       calendar_event_color: settings.calendar_event_color || '#3b82f6',
+      calendar_holiday_color: settings.calendar_holiday_color || '#f97316',
       calendar_task_color: settings.calendar_task_color || '#10b981',
       calendar_bill_color: settings.calendar_bill_color || '#ef4444',
       calendar_sub_color: settings.calendar_sub_color || '#8b5cf6',
@@ -2369,11 +2378,36 @@ app.get('/api/users/calendars', authenticate, async (req, res) => {
   }
 });
 
+app.get('/api/users/calendar-sync-mappings', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const user = await db.get('SELECT calendar_guid, calendar_sync_mappings FROM users WHERE id = ?', [req.user.id]);
+    let mappings = {};
+    if (user?.calendar_sync_mappings) {
+      try {
+        mappings = JSON.parse(user.calendar_sync_mappings);
+      } catch (e) {}
+    }
+    if (!mappings.events && user?.calendar_guid) {
+      mappings.events = user.calendar_guid;
+    }
+    res.json({ mappings, calendar_guid: user?.calendar_guid || '' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/users/calendar-sync', authenticate, async (req, res) => {
   try {
-    const { calendarId } = req.body;
+    const { calendarId, mappings } = req.body;
     const db = await getDb();
-    await db.run('UPDATE users SET calendar_guid = ? WHERE id = ?', [calendarId || null, req.user.id]);
+    const mappingsStr = mappings ? (typeof mappings === 'string' ? mappings : JSON.stringify(mappings)) : null;
+    const primaryGuid = mappings?.events !== undefined ? (mappings.events || null) : (calendarId || null);
+
+    await db.run(
+      'UPDATE users SET calendar_guid = ?, calendar_sync_mappings = ? WHERE id = ?',
+      [primaryGuid, mappingsStr, req.user.id]
+    );
     res.json({ message: 'Calendar sync configuration updated' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2600,7 +2634,7 @@ async function getUnifiedUpcomingEventsList(userId) {
         all_day: e.all_day || 0,
         location: e.location || '',
         description: e.description || '',
-        calendar_type: 'event'
+        calendar_type: e.event_type === 'holiday' ? 'holiday' : 'event'
       });
     }
   });
@@ -2760,6 +2794,7 @@ async function getCalendarFullData(userId) {
 
   const colors = {
     event: settings.calendar_event_color || '#3b82f6',
+    holiday: settings.calendar_holiday_color || '#f97316',
     task: settings.calendar_task_color || '#10b981',
     bill: settings.calendar_bill_color || '#ef4444',
     subscription: settings.calendar_sub_color || '#8b5cf6',
@@ -2801,16 +2836,16 @@ app.get('/api/calendar/events/upcoming', authenticate, async (req, res) => {
 
 app.post('/api/calendar/events', authenticate, async (req, res) => {
   try {
-    const { title, description, start_time, end_time, location } = req.body;
+    const { title, description, start_time, end_time, location, event_type, all_day } = req.body;
     if (!title || !start_time || !end_time) {
       return res.status(400).json({ error: 'Title, start time, and end time are required' });
     }
     const db = await getDb();
     const result = await db.run(
-      "INSERT INTO calendar_events (title, description, start_time, end_time, location) VALUES (?, ?, ?, ?, ?)",
-      [title, description || '', start_time, end_time, location || '']
+      "INSERT INTO calendar_events (title, description, start_time, end_time, location, event_type, all_day) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      [title, description || '', start_time, end_time, location || '', event_type || 'event', all_day ? 1 : 0]
     );
-    res.status(201).json({ id: result.lastID, title, description, start_time, end_time, location });
+    res.status(201).json({ id: result.lastID, title, description, start_time, end_time, location, event_type: event_type || 'event', all_day: all_day ? 1 : 0 });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2818,19 +2853,21 @@ app.post('/api/calendar/events', authenticate, async (req, res) => {
 
 app.put('/api/calendar/events/:id', authenticate, async (req, res) => {
   try {
-    const { title, description, start_time, end_time, location } = req.body;
+    const { title, description, start_time, end_time, location, event_type, all_day } = req.body;
     const db = await getDb();
     const event = await db.get("SELECT * FROM calendar_events WHERE id = ?", [req.params.id]);
     if (!event) return res.status(404).json({ error: 'Event not found' });
     
     await db.run(
-      "UPDATE calendar_events SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+      "UPDATE calendar_events SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, event_type = ?, all_day = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
       [
         title !== undefined ? title : event.title,
         description !== undefined ? description : event.description,
         start_time !== undefined ? start_time : event.start_time,
         end_time !== undefined ? end_time : event.end_time,
         location !== undefined ? location : event.location,
+        event_type !== undefined ? event_type : (event.event_type || 'event'),
+        all_day !== undefined ? (all_day ? 1 : 0) : (event.all_day || 0),
         req.params.id
       ]
     );
@@ -3962,126 +3999,157 @@ async function syncTasksForUser(userId) {
 
 async function syncCalendarForUser(userId) {
   const user = await getUserById(userId);
-  if (!user || !user.calendar_guid) return;
+  if (!user) return;
+
+  let mappings = {};
+  if (user.calendar_sync_mappings) {
+    try {
+      mappings = JSON.parse(user.calendar_sync_mappings);
+    } catch (e) {}
+  }
+  if (!mappings.events && user.calendar_guid) {
+    mappings.events = user.calendar_guid;
+  }
+
+  // If no calendars are mapped to any M365 calendar, skip
+  const hasAnyMapping = Object.values(mappings).some(v => Boolean(v && v.trim()));
+  if (!hasAnyMapping) return;
 
   const token = await getValidM365Token(userId);
   if (!token) return;
 
   const db = await getDb();
 
+  const getCalendarEventsUrl = (calId) => {
+    if (!calId || calId === 'default') {
+      return 'https://graph.microsoft.com/v1.0/me/events';
+    }
+    return `https://graph.microsoft.com/v1.0/me/calendars/${calId}/events`;
+  };
+
   try {
     const userTz = normalizeTimezone(user.timezone);
-    const calRes = await fetch(`https://graph.microsoft.com/v1.0/me/calendars/${user.calendar_guid}/events?$top=100`, {
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Prefer': `outlook.timezone="${userTz}"`
-      }
-    });
 
-    if (!calRes.ok) {
-      console.error(`Failed to fetch events from MS Graph calendar ${user.calendar_guid}:`, await calRes.text());
-      return;
-    }
-
-    const calData = await calRes.json();
-    const msEvents = calData.value || [];
-
-    for (const me of msEvents) {
-      let localEvent = await db.get("SELECT * FROM calendar_events WHERE m365_event_id = ?", [me.id]);
+    // 1. SYNC EVENTS (Standard Events)
+    if (mappings.events && mappings.events.trim()) {
+      const targetCalId = mappings.events.trim();
+      const calUrl = getCalendarEventsUrl(targetCalId);
       
-      const title = me.subject || 'No Title';
-      const description = me.body?.content || '';
-      const start = formatToMinutes(me.start?.dateTime);
-      const end = formatToMinutes(me.end?.dateTime);
-      const location = me.location?.displayName || '';
+      const calRes = await fetch(`${calUrl}?$top=100`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Prefer': `outlook.timezone="${userTz}"`
+        }
+      });
 
-      if (!localEvent) {
-        await db.run(
-          "INSERT INTO calendar_events (title, description, start_time, end_time, location, m365_event_id) VALUES (?, ?, ?, ?, ?, ?)",
-          [title, description, start, end, location, me.id]
-        );
-      } else {
-        if (localEvent.title !== title || localEvent.description !== description || formatToMinutes(localEvent.start_time) !== start || formatToMinutes(localEvent.end_time) !== end || localEvent.location !== location) {
-          await db.run(
-            "UPDATE calendar_events SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, updated_at = created_at WHERE id = ?",
-            [title, description, start, end, location, localEvent.id]
-          );
+      if (calRes.ok) {
+        const calData = await calRes.json();
+        const msEvents = calData.value || [];
+
+        for (const me of msEvents) {
+          let localEvent = await db.get("SELECT * FROM calendar_events WHERE m365_event_id = ?", [me.id]);
+          
+          const title = me.subject || 'No Title';
+          const description = me.body?.content || '';
+          const start = formatToMinutes(me.start?.dateTime);
+          const end = formatToMinutes(me.end?.dateTime);
+          const location = me.location?.displayName || '';
+
+          if (!localEvent) {
+            await db.run(
+              "INSERT INTO calendar_events (title, description, start_time, end_time, location, event_type, m365_event_id) VALUES (?, ?, ?, ?, ?, 'event', ?)",
+              [title, description, start, end, location, me.id]
+            );
+          } else {
+            if (localEvent.title !== title || localEvent.description !== description || formatToMinutes(localEvent.start_time) !== start || formatToMinutes(localEvent.end_time) !== end || localEvent.location !== location) {
+              await db.run(
+                "UPDATE calendar_events SET title = ?, description = ?, start_time = ?, end_time = ?, location = ?, updated_at = created_at WHERE id = ?",
+                [title, description, start, end, location, localEvent.id]
+              );
+            }
+          }
+        }
+      }
+
+      const unsyncedEvents = await db.all("SELECT * FROM calendar_events WHERE (event_type = 'event' OR event_type IS NULL) AND m365_event_id IS NULL");
+      for (const ue of unsyncedEvents) {
+        const body = {
+          subject: ue.title,
+          body: { contentType: "html", content: ue.description || "" },
+          start: {
+            dateTime: ue.start_time.includes('T') ? ue.start_time : ue.start_time + "T09:00:00",
+            timeZone: userTz
+          },
+          end: {
+            dateTime: ue.end_time.includes('T') ? ue.end_time : ue.end_time + "T10:00:00",
+            timeZone: userTz
+          },
+          location: { displayName: ue.location || "" }
+        };
+
+        const res = await fetch(calUrl, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          await db.run("UPDATE calendar_events SET m365_event_id = ? WHERE id = ?", [data.id, ue.id]);
+        }
+      }
+
+      const updatedEvents = await db.all("SELECT * FROM calendar_events WHERE (event_type = 'event' OR event_type IS NULL) AND m365_event_id IS NOT NULL AND updated_at > created_at");
+      for (const ue of updatedEvents) {
+        const body = {
+          subject: ue.title,
+          body: { contentType: "html", content: ue.description || "" },
+          start: {
+            dateTime: ue.start_time.includes('T') ? ue.start_time : ue.start_time + "T09:00:00",
+            timeZone: userTz
+          },
+          end: {
+            dateTime: ue.end_time.includes('T') ? ue.end_time : ue.end_time + "T10:00:00",
+            timeZone: userTz
+          },
+          location: { displayName: ue.location || "" }
+        };
+
+        const patchRes = await fetch(`https://graph.microsoft.com/v1.0/me/events/${ue.m365_event_id}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (patchRes.ok) {
+          await db.run("UPDATE calendar_events SET updated_at = created_at WHERE id = ?", [ue.id]);
         }
       }
     }
 
-    const unsyncedEvents = await db.all("SELECT * FROM calendar_events WHERE m365_event_id IS NULL");
-    
-    for (const ue of unsyncedEvents) {
-      const body = {
-        subject: ue.title,
-        body: {
-          contentType: "html",
-          content: ue.description || ""
-        },
-        start: {
-          dateTime: ue.start_time.includes('T') ? ue.start_time : ue.start_time + "T09:00:00",
-          timeZone: normalizeTimezone(user.timezone)
-        },
-        end: {
-          dateTime: ue.end_time.includes('T') ? ue.end_time : ue.end_time + "T10:00:00",
-          timeZone: normalizeTimezone(user.timezone)
-        },
-        location: {
-          displayName: ue.location || ""
+    // 2. SYNC HOLIDAYS (if mapped)
+    if (mappings.holidays && mappings.holidays.trim()) {
+      const targetCalId = mappings.holidays.trim();
+      const calUrl = getCalendarEventsUrl(targetCalId);
+      const unsyncedHolidays = await db.all("SELECT * FROM calendar_events WHERE event_type = 'holiday' AND m365_event_id IS NULL");
+
+      for (const uh of unsyncedHolidays) {
+        const dateOnly = uh.start_time.split('T')[0];
+        const body = {
+          subject: `🎉 ${uh.title}`,
+          isAllDay: true,
+          body: { contentType: "html", content: uh.description || "US Holiday" },
+          start: { dateTime: `${dateOnly}T00:00:00`, timeZone: userTz },
+          end: { dateTime: `${dateOnly}T23:59:59`, timeZone: userTz }
+        };
+
+        const res = await fetch(calUrl, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          await db.run("UPDATE calendar_events SET m365_event_id = ? WHERE id = ?", [data.id, uh.id]);
         }
-      };
-
-      const res = await fetch(`https://graph.microsoft.com/v1.0/me/calendars/${user.calendar_guid}/events`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        await db.run("UPDATE calendar_events SET m365_event_id = ? WHERE id = ?", [data.id, ue.id]);
-      }
-    }
-
-    const updatedEvents = await db.all("SELECT * FROM calendar_events WHERE m365_event_id IS NOT NULL AND updated_at > created_at");
-    
-    for (const ue of updatedEvents) {
-      const body = {
-        subject: ue.title,
-        body: {
-          contentType: "html",
-          content: ue.description || ""
-        },
-        start: {
-          dateTime: ue.start_time.includes('T') ? ue.start_time : ue.start_time + "T09:00:00",
-          timeZone: normalizeTimezone(user.timezone)
-        },
-        end: {
-          dateTime: ue.end_time.includes('T') ? ue.end_time : ue.end_time + "T10:00:00",
-          timeZone: normalizeTimezone(user.timezone)
-        },
-        location: {
-          displayName: ue.location || ""
-        }
-      };
-
-      const patchRes = await fetch(`https://graph.microsoft.com/v1.0/me/events/${ue.m365_event_id}`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      if (patchRes.ok) {
-        await db.run("UPDATE calendar_events SET updated_at = created_at WHERE id = ?", [ue.id]);
-      } else {
-        console.error(`Failed to patch event ${ue.id} to MS Graph:`, await patchRes.text());
       }
     }
 
@@ -4141,11 +4209,11 @@ async function syncAllUsersM365() {
     // Run due today notifications check
     await checkDueTodayNotifications();
     
-    const users = await db.all("SELECT id, username, calendar_guid FROM users WHERE m365_access_token IS NOT NULL");
+    const users = await db.all("SELECT id, username, calendar_guid, calendar_sync_mappings FROM users WHERE m365_access_token IS NOT NULL");
     for (const u of users) {
       console.log(`Running background M365 sync for user: ${u.username}`);
       await syncTasksForUser(u.id);
-      if (u.calendar_guid) {
+      if (u.calendar_guid || u.calendar_sync_mappings) {
         await syncCalendarForUser(u.id);
       }
     }

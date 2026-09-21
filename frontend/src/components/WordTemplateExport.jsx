@@ -301,6 +301,7 @@ export default function WordTemplateExport({ showToast, user }) {
 
           <ul style={{ fontSize: '0.8rem', paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', margin: 0 }}>
             <li><strong>{"{title}"}</strong> - Recipe title</li>
+            <li><strong>{"{category}"}</strong> / <strong>{"{tags}"}</strong> - Recipe category / tags</li>
             <li><strong>{"{description}"}</strong> - Recipe description</li>
             <li><strong>{"{prep_time}"}</strong> / <strong>{"{cook_time}"}</strong> - Minutes</li>
             <li><strong>{"{servings}"}</strong> - Number of servings</li>

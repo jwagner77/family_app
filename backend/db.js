@@ -1,8 +1,9 @@
-﻿import sqlite3 from 'sqlite3';
+import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
+import { populateUSHolidays } from './holidays.js';
 
 let dbInstance = null;
 let dbPromise = null;
@@ -83,6 +84,8 @@ export async function getDb() {
       end_time TEXT NOT NULL,
       location TEXT,
       m365_event_id TEXT,
+      event_type TEXT DEFAULT 'event',
+      all_day INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -666,6 +669,31 @@ export async function getDb() {
   try {
     await dbInstance.run("ALTER TABLE housekeeping_tasks ADD COLUMN reoccurrence_months TEXT");
   } catch (err) {}
+
+  // Safe Migration to add event_type and all_day columns to calendar_events if missing
+  try {
+    await dbInstance.run("ALTER TABLE calendar_events ADD COLUMN event_type TEXT DEFAULT 'event'");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE calendar_events ADD COLUMN all_day INTEGER DEFAULT 0");
+  } catch (err) {}
+
+  // Safe Migration to add calendar_sync_mappings to users table if missing
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN calendar_sync_mappings TEXT");
+  } catch (err) {}
+
+  // Safe Migration to pre-populate calendar holiday color
+  try {
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('calendar_holiday_color', '#f97316')");
+  } catch (err) {}
+
+  // Safe Migration to populate known US Holidays
+  try {
+    await populateUSHolidays(dbInstance);
+  } catch (err) {
+    console.error('Failed to populate US Holidays on startup:', err);
+  }
 
   try {
     await dbInstance.run(`

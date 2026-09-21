@@ -23,6 +23,32 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [calendarGuid, setCalendarGuid] = useState(currentUser?.calendar_guid || '');
   const [timezone, setTimezone] = useState(currentUser?.timezone || 'US/New_York');
   const [availableCalendars, setAvailableCalendars] = useState([]);
+  const [calendarSyncMappings, setCalendarSyncMappings] = useState({
+    events: currentUser?.calendar_sync_mappings?.events || currentUser?.calendar_guid || '',
+    holidays: currentUser?.calendar_sync_mappings?.holidays || '',
+    tasks: currentUser?.calendar_sync_mappings?.tasks || '',
+    bills: currentUser?.calendar_sync_mappings?.bills || '',
+    subscriptions: currentUser?.calendar_sync_mappings?.subscriptions || '',
+    birthdays: currentUser?.calendar_sync_mappings?.birthdays || '',
+    meals: currentUser?.calendar_sync_mappings?.meals || ''
+  });
+
+  const fetchCalendarSyncMappings = async () => {
+    try {
+      const res = await fetch('/api/users/calendar-sync-mappings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.mappings) {
+          setCalendarSyncMappings(prev => ({
+            ...prev,
+            ...data.mappings
+          }));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch calendar sync mappings:', err);
+    }
+  };
 
   useEffect(() => {
     const targetSubTab = sessionStorage.getItem('temp_settings_subtab');
@@ -37,6 +63,9 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       } catch (e) {
         console.error('Failed to parse available calendars:', e);
       }
+    }
+    if (currentUser?.auth_provider === 'sso') {
+      fetchCalendarSyncMappings();
     }
   }, []);
 
@@ -171,6 +200,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [uploadingBg, setUploadingBg] = useState(false);
 
   const [calendarEventColor, setCalendarEventColor] = useState('#3b82f6');
+  const [calendarHolidayColor, setCalendarHolidayColor] = useState('#f97316');
   const [calendarTaskColor, setCalendarTaskColor] = useState('#10b981');
   const [calendarBillColor, setCalendarBillColor] = useState('#ef4444');
   const [calendarSubColor, setCalendarSubColor] = useState('#8b5cf6');
@@ -666,6 +696,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         }
 
         setCalendarEventColor(data.calendar_event_color || '#3b82f6');
+        setCalendarHolidayColor(data.calendar_holiday_color || '#f97316');
         setCalendarTaskColor(data.calendar_task_color || '#10b981');
         setCalendarBillColor(data.calendar_bill_color || '#ef4444');
         setCalendarSubColor(data.calendar_sub_color || '#8b5cf6');
@@ -1207,16 +1238,21 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     setSaving(true);
     try {
       if (currentUser?.auth_provider === 'sso') {
-        const res = await fetch('/api/users/profile', {
+        const primaryGuid = calendarSyncMappings.events || calendarGuid.trim();
+        const res = await fetch('/api/users/calendar-sync', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ calendar_guid: calendarGuid.trim() })
+          body: JSON.stringify({ 
+            calendarId: primaryGuid,
+            mappings: calendarSyncMappings
+          })
         });
-        if (!res.ok) throw new Error('Failed to save calendar GUID');
+        if (!res.ok) throw new Error('Failed to save calendar sync mappings');
       }
 
       const colorPayload = {
         calendar_event_color: calendarEventColor,
+        calendar_holiday_color: calendarHolidayColor,
         calendar_task_color: calendarTaskColor,
         calendar_bill_color: calendarBillColor,
         calendar_sub_color: calendarSubColor,
@@ -1230,8 +1266,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       });
       if (!settingsRes.ok) throw new Error('Failed to save calendar color settings');
 
-      showToast('Calendar settings saved successfully!', 'success');
-      onSettingsChange({ calendarGuid: calendarGuid.trim() });
+      showToast('Calendar sync settings saved successfully!', 'success');
+      onSettingsChange({ calendarGuid: (calendarSyncMappings.events || calendarGuid).trim() });
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -2496,17 +2532,30 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
           {/* Microsoft Calendar Sync Settings Card */}
           {(() => {
             const isSSO = currentUser?.auth_provider === 'sso';
+            const appCalendars = [
+              { key: 'events', label: 'Events', description: 'Standard events and scheduled calendar items', color: calendarEventColor },
+              { key: 'holidays', label: 'Holidays', description: 'US Federal Holidays and prominent cultural observances', color: calendarHolidayColor },
+              { key: 'tasks', label: 'Tasks', description: 'FocusFlow tasks with assigned due dates', color: calendarTaskColor },
+              { key: 'bills', label: 'Bills', description: 'Active recurring bill payment dates', color: calendarBillColor },
+              { key: 'subscriptions', label: 'Subscriptions', description: 'Subscription renewals and billing dates', color: calendarSubColor },
+              { key: 'birthdays', label: 'Birthdays & Important Dates', description: 'Contact birthdays, anniversaries, and custom milestones', color: calendarContactEventColor },
+              { key: 'meals', label: 'Meal Plan', description: 'Weekly breakfast, lunch, and dinner planned meals', color: '#ec4899' }
+            ];
+
             return (
               <div 
                 className="card" 
                 style={{ 
                   opacity: isSSO ? 1 : 0.6, 
-                  position: 'relative'
+                  position: 'relative',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1.25rem'
                 }}
               >
                 {!isSSO && (
                   <div style={{
-                    marginBottom: '1.5rem',
+                    marginBottom: '0.5rem',
                     padding: '0.75rem 1rem',
                     background: 'var(--muted)',
                     borderRadius: 'var(--radius)',
@@ -2521,125 +2570,134 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     <span>Microsoft Calendar Sync Settings are only available for accounts authenticated via Microsoft 365 Single Sign-On.</span>
                   </div>
                 )}
-                <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '500px', pointerEvents: isSSO ? 'auto' : 'none' }}>
-                  <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
-                    <Calendar size={18} /> Microsoft Calendar Sync Settings
-                  </h3>
-                  <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)' }}>
-                    Configure which Microsoft 365 calendar you want your events to sync to.
-                  </p>
 
-                  <div className="form-group">
-                    <label htmlFor="calendar-guid-input">Calendar GUID / ID</label>
-                    <input 
-                      id="calendar-guid-input"
-                      type="text" 
-                      className="input-control" 
-                      value={calendarGuid}
-                      onChange={(e) => setCalendarGuid(e.target.value)}
-                      placeholder="e.g. AAMkAGI2TAAA="
-                      disabled={!isSSO}
-                    />
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                      Leave this field blank to use your default <strong>M365 Calendar</strong>.
-                    </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.125rem', margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+                      <Calendar size={18} style={{ color: 'var(--primary)' }} /> Microsoft Calendar Sync Settings
+                    </h3>
+                    <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                      Choose which Microsoft 365 calendar each app calendar syncs with. Calendars left as <em>"Do Not Sync"</em> stay local only in this app.
+                    </p>
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline" 
+                    style={{ fontSize: '0.75rem', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    disabled={!isSSO}
+                    onClick={async () => {
+                      const tokenVal = localStorage.getItem('token') || '';
+                      try {
+                        const res = await fetch('/api/users/calendars', {
+                          headers: { 'Authorization': `Bearer ${tokenVal}` }
+                        });
+                        if (res.ok) {
+                          const data = await res.json();
+                          setAvailableCalendars(data.calendars || []);
+                          showToast(`Loaded ${data.calendars?.length || 0} Microsoft calendars!`, 'success');
+                        } else if (res.status === 401) {
+                          window.location.href = `/api/auth/ms-calendar/list-login?token=${encodeURIComponent(tokenVal)}`;
+                        } else {
+                          const errData = await res.json().catch(() => ({}));
+                          throw new Error(errData.error || 'Failed to load calendars');
+                        }
+                      } catch (err) {
+                        showToast('Failed to load calendars: ' + err.message, 'error');
+                      }
+                    }}
+                  >
+                    <RotateCcw size={12} /> {availableCalendars.length > 0 ? 'Refresh M365 Calendars' : 'Load Calendars from M365'}
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveCalendarSettings} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', pointerEvents: isSSO ? 'auto' : 'none' }}>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {appCalendars.map(calItem => {
+                      const currentVal = calendarSyncMappings[calItem.key] || '';
+                      const isCustomIdNotInList = currentVal && currentVal !== 'default' && !availableCalendars.some(c => c.id === currentVal);
+
+                      return (
+                        <div 
+                          key={calItem.key}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '0.875rem 1rem',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius)',
+                            background: 'var(--card)',
+                            gap: '1rem',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: '220px', flex: 1 }}>
+                            <span 
+                              style={{ 
+                                width: '14px', 
+                                height: '14px', 
+                                borderRadius: '50%', 
+                                background: calItem.color,
+                                flexShrink: 0,
+                                boxShadow: `0 0 6px ${calItem.color}88`
+                              }} 
+                            />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              <span style={{ fontWeight: '700', fontSize: '0.875rem' }}>{calItem.label}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{calItem.description}</span>
+                            </div>
+                          </div>
+
+                          <div style={{ minWidth: '240px', flex: '0 1 300px' }}>
+                            <select
+                              className="input-control"
+                              value={currentVal}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setCalendarSyncMappings(prev => ({
+                                  ...prev,
+                                  [calItem.key]: val
+                                }));
+                                if (calItem.key === 'events') {
+                                  setCalendarGuid(val);
+                                }
+                              }}
+                              disabled={!isSSO}
+                              style={{ fontSize: '0.8125rem' }}
+                            >
+                              <option value="">🚫 Do Not Sync (App Only)</option>
+                              <option value="default">📅 Default M365 Calendar</option>
+                              {availableCalendars.map(ac => (
+                                <option key={ac.id} value={ac.id}>
+                                  🗓️ {ac.name} {ac.isDefault ? '(Default)' : ''}
+                                </option>
+                              ))}
+                              {isCustomIdNotInList && (
+                                <option value={currentVal}>
+                                  🔗 Custom ID: {currentVal.substring(0, 16)}...
+                                </option>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                      Changes will take effect during the next periodic background sync or manual sync trigger.
+                    </span>
                     <button 
                       type="submit" 
                       className="btn btn-primary" 
-                      style={{ gap: '0.5rem' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                       disabled={saving || !isSSO}
                     >
-                      <Save size={16} /> {saving ? 'Saving...' : 'Save Calendar Settings'}
+                      <Save size={16} /> {saving ? 'Saving...' : 'Save Calendar Sync Settings'}
                     </button>
-                  </div>
-
-                  {/* Available Calendars Section */}
-                  <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                      <h4 style={{ fontSize: '0.95rem', margin: 0, fontWeight: '600' }}>Available M365 Calendars</h4>
-                      <button 
-                        type="button" 
-                        className="btn btn-outline" 
-                        style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem' }}
-                        disabled={!isSSO}
-                        onClick={async () => {
-                          const tokenVal = localStorage.getItem('token') || '';
-                          try {
-                            const res = await fetch('/api/users/calendars', {
-                              headers: {
-                                'Authorization': `Bearer ${tokenVal}`
-                              }
-                            });
-                            if (res.ok) {
-                              const data = await res.json();
-                              setAvailableCalendars(data.calendars || []);
-                              showToast('Successfully loaded available calendars!', 'success');
-                            } else if (res.status === 401) {
-                              // Redirect as fallback
-                              window.location.href = `/api/auth/ms-calendar/list-login?token=${encodeURIComponent(tokenVal)}`;
-                            } else {
-                              const errData = await res.json();
-                              throw new Error(errData.error || 'Failed to load calendars');
-                            }
-                          } catch (err) {
-                            showToast('Failed to load calendars: ' + err.message, 'error');
-                          }
-                        }}
-                      >
-                        {availableCalendars.length > 0 ? 'Refresh List' : 'Load Calendars from Microsoft'}
-                      </button>
-                    </div>
-
-                    {availableCalendars.length > 0 ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.25rem' }}>
-                        {availableCalendars.map(cal => (
-                          <div 
-                            key={cal.id} 
-                            style={{ 
-                              display: 'flex', 
-                              justifyContent: 'space-between', 
-                              alignItems: 'center', 
-                              padding: '0.5rem 0.75rem', 
-                              border: '1px solid var(--border)', 
-                              borderRadius: 'var(--radius)',
-                              background: 'var(--muted)',
-                              gap: '0.75rem'
-                            }}
-                          >
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.125rem', overflow: 'hidden' }}>
-                              <span style={{ fontWeight: '600', fontSize: '0.8125rem', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                                {cal.name}
-                                {cal.isDefault && (
-                                  <span className="badge badge-primary" style={{ fontSize: '0.5625rem', padding: '0.05rem 0.3rem' }}>Default</span>
-                                )}
-                              </span>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }} title={cal.id}>
-                                ID: {cal.id}
-                              </span>
-                            </div>
-                            <button 
-                              type="button" 
-                              className="btn btn-outline" 
-                              style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem', height: '1.75rem', flexShrink: 0 }}
-                              disabled={!isSSO}
-                              onClick={() => {
-                                setCalendarGuid(cal.id);
-                                showToast(`Selected "${cal.name}" calendar. Don't forget to click Save!`, 'success');
-                              }}
-                            >
-                              Select
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: '0.125rem 0' }}>
-                        Connect your Microsoft 365 account to list and select from your custom calendars.
-                      </p>
-                    )}
                   </div>
                 </form>
               </div>

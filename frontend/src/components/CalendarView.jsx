@@ -23,6 +23,7 @@ export default function CalendarView({ showToast, currentUser }) {
 
   // Label Colors
   const [eventColor, setEventColor] = useState('#3b82f6');
+  const [holidayColor, setHolidayColor] = useState('#f97316');
   const [taskColor, setTaskColor] = useState('#10b981');
   const [billColor, setBillColor] = useState('#ef4444');
   const [subColor, setSubColor] = useState('#8b5cf6');
@@ -39,6 +40,7 @@ export default function CalendarView({ showToast, currentUser }) {
   
   // Event Form states
   const [selectedEventId, setSelectedEventId] = useState(null);
+  const [eventType, setEventType] = useState('event');
   const [eventTitle, setEventTitle] = useState('');
   const [eventDesc, setEventDesc] = useState('');
   const [eventStartTime, setEventStartTime] = useState('');
@@ -121,6 +123,7 @@ export default function CalendarView({ showToast, currentUser }) {
       if (res.ok) {
         const data = await res.json();
         if (data.calendar_event_color) setEventColor(data.calendar_event_color);
+        if (data.calendar_holiday_color) setHolidayColor(data.calendar_holiday_color);
         if (data.calendar_task_color) setTaskColor(data.calendar_task_color);
         if (data.calendar_bill_color) setBillColor(data.calendar_bill_color);
         if (data.calendar_sub_color) setSubColor(data.calendar_sub_color);
@@ -145,6 +148,7 @@ export default function CalendarView({ showToast, currentUser }) {
       if (res.ok) {
         showToast('Color updated successfully!', 'success');
         if (settingKey === 'calendar_event_color') setEventColor(newColor);
+        if (settingKey === 'calendar_holiday_color') setHolidayColor(newColor);
         if (settingKey === 'calendar_task_color') setTaskColor(newColor);
         if (settingKey === 'calendar_bill_color') setBillColor(newColor);
         if (settingKey === 'calendar_sub_color') setSubColor(newColor);
@@ -214,6 +218,7 @@ export default function CalendarView({ showToast, currentUser }) {
   const openCreateModal = (dateStr) => {
     setModalMode('create');
     setSelectedDateStr(dateStr);
+    setEventType('event');
     setEventTitle('');
     setEventDesc('');
     setEventStartTime(`${dateStr}T09:00`);
@@ -226,6 +231,7 @@ export default function CalendarView({ showToast, currentUser }) {
     e.stopPropagation();
     setModalMode('edit');
     setSelectedEventId(event.id);
+    setEventType(event.event_type || 'event');
     setEventTitle(event.title);
     setEventDesc(event.description || '');
     setEventStartTime(event.start_time.substring(0, 16));
@@ -243,7 +249,9 @@ export default function CalendarView({ showToast, currentUser }) {
       description: eventDesc,
       start_time: eventStartTime,
       end_time: eventEndTime,
-      location: eventLocation
+      location: eventLocation,
+      event_type: eventType,
+      all_day: eventType === 'holiday' ? 1 : 0
     };
 
     try {
@@ -379,7 +387,10 @@ export default function CalendarView({ showToast, currentUser }) {
     const dates = getDatesSpanned(e.start_time, e.end_time);
     dates.forEach(datePart => {
       if (!eventsByDate[datePart]) eventsByDate[datePart] = [];
-      eventsByDate[datePart].push({ ...e, calendar_type: 'event' });
+      eventsByDate[datePart].push({ 
+        ...e, 
+        calendar_type: e.event_type === 'holiday' ? 'holiday' : 'event' 
+      });
     });
   });
 
@@ -547,6 +558,23 @@ export default function CalendarView({ showToast, currentUser }) {
                 {currentUser?.role_name === 'Administrator' && (
                   <input 
                     type="color" 
+                    value={holidayColor} 
+                    onChange={(e) => handleUpdateColor('calendar_holiday_color', e.target.value)}
+                    style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute', pointerEvents: 'none' }}
+                  />
+                )}
+                <span 
+                  style={{ width: '10px', height: '10px', borderRadius: '50%', background: holidayColor, display: 'inline-block' }} 
+                  title={currentUser?.role_name === 'Administrator' ? "Click to change Holidays color" : "Holidays color"}
+                />
+              </label>
+              Holidays
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', cursor: currentUser?.role_name === 'Administrator' ? 'pointer' : 'default', margin: 0, position: 'relative' }}>
+                {currentUser?.role_name === 'Administrator' && (
+                  <input 
+                    type="color" 
                     value={taskColor} 
                     onChange={(e) => handleUpdateColor('calendar_task_color', e.target.value)}
                     style={{ opacity: 0, width: 0, height: 0, padding: 0, border: 'none', position: 'absolute', pointerEvents: 'none' }}
@@ -682,7 +710,9 @@ export default function CalendarView({ showToast, currentUser }) {
                 {/* Day Events listing */}
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.25rem' }}>
                   {dateEvents.slice(0, 4).map((item, i) => {
-                    const isEvent = item.calendar_type === 'event';
+                    const isHoliday = item.calendar_type === 'holiday';
+                    const isStandardEvent = item.calendar_type === 'event';
+                    const isEvent = isStandardEvent || isHoliday;
                     const isTask = item.calendar_type === 'task';
                     const isBill = item.calendar_type === 'bill';
                     const isSub = item.calendar_type === 'subscription';
@@ -690,7 +720,10 @@ export default function CalendarView({ showToast, currentUser }) {
 
                     let colorVal = eventColor;
                     let titleText = item.title;
-                    if (isTask) {
+                    if (isHoliday) {
+                      colorVal = holidayColor;
+                      titleText = `🎉 ${item.title}`;
+                    } else if (isTask) {
                       colorVal = taskColor;
                     } else if (isBill) {
                       colorVal = billColor;
@@ -752,16 +785,29 @@ export default function CalendarView({ showToast, currentUser }) {
             
             <form onSubmit={handleSaveEvent}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0 1.5rem 1.5rem 1.5rem' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label>Event Subject / Title</label>
-                  <input 
-                    type="text" 
-                    className="input-control" 
-                    placeholder="e.g. Family Dinner" 
-                    value={eventTitle}
-                    onChange={e => setEventTitle(e.target.value)}
-                    required 
-                  />
+                <div style={{ display: 'flex', gap: '1rem', marginBottom: 0 }}>
+                  <div className="form-group" style={{ flex: 2, marginBottom: 0 }}>
+                    <label>Event Subject / Title</label>
+                    <input 
+                      type="text" 
+                      className="input-control" 
+                      placeholder="e.g. Family Dinner, or Labor Day" 
+                      value={eventTitle}
+                      onChange={e => setEventTitle(e.target.value)}
+                      required 
+                    />
+                  </div>
+                  <div className="form-group" style={{ flex: 1, minWidth: '130px', marginBottom: 0 }}>
+                    <label>Calendar Type</label>
+                    <select
+                      className="input-control"
+                      value={eventType}
+                      onChange={e => setEventType(e.target.value)}
+                    >
+                      <option value="event">📅 Event</option>
+                      <option value="holiday">🎉 Holiday</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', marginBottom: 0 }}>
