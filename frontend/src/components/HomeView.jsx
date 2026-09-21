@@ -1010,6 +1010,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
     const colors = {
       event: calendarData.colors?.event || '#3b82f6',
+      holiday: calendarData.colors?.holiday || '#f97316',
       task: calendarData.colors?.task || '#10b981',
       bill: calendarData.colors?.bill || '#ef4444',
       subscription: calendarData.colors?.subscription || '#8b5cf6',
@@ -1052,8 +1053,9 @@ export default function HomeView({ onNavigateTab, user }) {
       return dates;
     };
 
-    // 1. Events
+    // 1. Events & Holidays
     (calendarData.events || []).forEach(e => {
+      const isHoliday = e.event_type === 'holiday';
       const dates = getDatesSpanned(e.start_time, e.end_time);
       dates.forEach(dateStr => {
         let timeStr = null;
@@ -1068,16 +1070,16 @@ export default function HomeView({ onNavigateTab, user }) {
           }
         }
         addItem({
-          id: `event-${e.id}-${dateStr}`,
-          title: e.title,
-          type: 'event',
-          typeLabel: 'Event',
+          id: `${isHoliday ? 'holiday' : 'event'}-${e.id}-${dateStr}`,
+          title: isHoliday ? `🎉 ${e.title}` : e.title,
+          type: isHoliday ? 'holiday' : 'event',
+          typeLabel: isHoliday ? 'Holiday' : 'Event',
           dateStr,
           timeStr: e.all_day ? 'All Day' : timeStr,
           allDay: Boolean(e.all_day),
           location: e.location || '',
-          color: colors.event,
-          icon: '📅'
+          color: isHoliday ? colors.holiday : colors.event,
+          icon: isHoliday ? '🎉' : '📅'
         });
       });
     });
@@ -1653,6 +1655,34 @@ export default function HomeView({ onNavigateTab, user }) {
             >
               This Month
             </button>
+          </div>
+        </div>
+
+        {/* Category color dots legend */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.4rem', padding: '0.25rem 0.4rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.event || '#3b82f6' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Events</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.holiday || '#f97316' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Holidays</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.task || '#10b981' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Tasks</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.bill || '#ef4444' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Bills</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.subscription || '#8b5cf6' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Subs</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.contact_event || '#ec4899' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Contact Events</span>
           </div>
         </div>
 

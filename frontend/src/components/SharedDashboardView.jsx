@@ -1132,6 +1132,7 @@ function processCalendarData(data, targetYear, targetMonth) {
 
   const colors = {
     event: data.colors?.event || '#3b82f6',
+    holiday: data.colors?.holiday || '#f97316',
     task: data.colors?.task || '#10b981',
     bill: data.colors?.bill || '#ef4444',
     subscription: data.colors?.subscription || '#8b5cf6',
@@ -1174,8 +1175,9 @@ function processCalendarData(data, targetYear, targetMonth) {
     return dates;
   };
 
-  // 1. Events
+  // 1. Events & Holidays
   (data.events || []).forEach(e => {
+    const isHoliday = e.event_type === 'holiday';
     const dates = getDatesSpanned(e.start_time, e.end_time);
     dates.forEach(dateStr => {
       let timeStr = null;
@@ -1190,17 +1192,17 @@ function processCalendarData(data, targetYear, targetMonth) {
         }
       }
       addItem({
-        id: `event-${e.id}-${dateStr}`,
-        title: e.title,
-        type: 'event',
-        typeLabel: 'Event',
+        id: `${isHoliday ? 'holiday' : 'event'}-${e.id}-${dateStr}`,
+        title: isHoliday ? `🎉 ${e.title}` : e.title,
+        type: isHoliday ? 'holiday' : 'event',
+        typeLabel: isHoliday ? 'Holiday' : 'Event',
         dateStr,
         timeStr: e.all_day ? 'All Day' : timeStr,
         allDay: Boolean(e.all_day),
         location: e.location || '',
         description: e.description || '',
-        color: colors.event,
-        icon: '📅'
+        color: isHoliday ? colors.holiday : colors.event,
+        icon: isHoliday ? '🎉' : '📅'
       });
     });
   });
@@ -1805,6 +1807,10 @@ function CalendarMonthGridView({ data }) {
             <span style={{ color: 'var(--muted-foreground)' }}>Events</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.holiday || '#f97316' }}></span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Holidays</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.task || '#10b981' }}></span>
             <span style={{ color: 'var(--muted-foreground)' }}>Tasks</span>
           </div>
@@ -1818,7 +1824,7 @@ function CalendarMonthGridView({ data }) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem' }}>
             <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: colors.contact_event || '#ec4899' }}></span>
-            <span style={{ color: 'var(--muted-foreground)' }}>Birthdays</span>
+            <span style={{ color: 'var(--muted-foreground)' }}>Contact Events</span>
           </div>
         </div>
       </div>
