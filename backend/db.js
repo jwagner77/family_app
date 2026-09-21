@@ -1078,10 +1078,372 @@ export async function getDb() {
     await dbInstance.run("INSERT OR IGNORE INTO user_streaks (user_id, current_streak, longest_streak, last_completed_date) VALUES (?, 0, 0, NULL)", [u.id]);
   }
 
+  // Seed default recipes if not already present
+  await seedDefaultRecipes(dbInstance);
+
     return dbInstance;
   })();
 
   return dbPromise;
+}
+
+async function seedDefaultRecipes(db) {
+  const recipes = [
+    {
+      title: 'Arancini Rice Ball Casserole',
+      description: 'A comforting Italian-style baked casserole with seasoned ground beef, sweet peas, and rich tomato sauce layered between creamy Arborio rice and melted cheeses.',
+      prep_time: 40,
+      cook_time: 30,
+      servings: 6,
+      tags: 'Beef, Italian, Casserole, Dinner',
+      ingredients: [
+        { name: 'Ground Beef', amount: '1', unit: 'pound', raw_text: '1 pound Ground Beef' },
+        { name: 'Uncooked Arborio Rice', amount: '1', unit: 'cup', raw_text: '1 cup Uncooked Arborio Rice' },
+        { name: 'Eggs, beaten', amount: '2', unit: '', raw_text: '2 Eggs, beaten' },
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Olive Oil' },
+        { name: 'Tomato Sauce', amount: '3', unit: 'cups', raw_text: '3 cups Tomato Sauce' },
+        { name: 'Peas, Frozen', amount: '1', unit: 'cup', raw_text: '1 cup Peas, Frozen' },
+        { name: 'Mozzarella Cheese, shredded', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Mozzarella Cheese, shredded' },
+        { name: 'Pecorino Romano Cheese, grated', amount: '1/4', unit: 'cup', raw_text: '¼ cup Pecorino Romano Cheese, grated' },
+        { name: 'Minced Onion', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Minced Onion' },
+        { name: 'Garlic Powder', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Garlic Powder' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Cooking Spray', amount: '', unit: '', raw_text: 'Cooking Spray' }
+      ],
+      instructions: [
+        'Cook Arborio rice according to package directions and set aside to cool.',
+        'Preheat oven to 400 degrees. Coat sides and bottom of 9x13 baking dish with cooking spray.',
+        'Heat olive oil in skillet over medium-high heat. Cook ground beef until brown. Add in minced onion, garlic, salt, pepper and peas. Add one cup of sauce and remove from heat.',
+        'In a large bowl, combine rice with two eggs, half the Pecorino Romano cheese and two cups of sauce.',
+        'Spread half the rice mixture at the bottom of the baking pan. Spread the meat mixture over the rice. Sprinkle half the mozzarella cheese over the meat mix. Cover with the remaining rice mixture. Bake for 20 minutes.',
+        'Remove from oven and sprinkle with the remaining cheeses. Continue baking for an additional 10 minutes.',
+        'Serve.'
+      ]
+    },
+    {
+      title: 'Corned Beef',
+      description: 'Tender slow-cooked corned beef with garlic, sweet brown sugar, apple cider vinegar, and fragrant bay leaf.',
+      prep_time: 5,
+      cook_time: 540,
+      servings: 6,
+      tags: 'Beef, Slow Cooker, Dinner',
+      ingredients: [
+        { name: 'Corned Beef, with packet', amount: '3', unit: 'pounds', raw_text: '3 pounds Corned Beef, with packet' },
+        { name: 'Water', amount: '1', unit: 'cup', raw_text: '1 cup Water' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Garlic, minced' },
+        { name: 'Bay Leaf', amount: '1', unit: '', raw_text: '1 Bay Leaf' },
+        { name: 'Sugar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Sugar' },
+        { name: 'Apple Cider Vinegar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Apple Cider Vinegar' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' }
+      ],
+      instructions: [
+        'Add corned beef, fat side up, to the slow cooker.',
+        'Add the garlic, spice packet, sugar and pepper to the top of the meat and rub.',
+        'Add the vinegar and bay leaf to the side of the corned beef and add then add the water.',
+        'Cook on low for 8-9 hours.'
+      ]
+    },
+    {
+      title: 'Filet Mignon',
+      description: 'Perfect tender seared and oven-finished filet mignon basted in aromatic garlic, fresh rosemary, and melted butter.',
+      prep_time: 10,
+      cook_time: 90,
+      servings: 2,
+      tags: 'Beef, Steak, Dinner, Gourmet',
+      ingredients: [
+        { name: 'Filet Mignons', amount: '2', unit: '', raw_text: '2 Filet Mignons' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' },
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Olive Oil' },
+        { name: 'Butter', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Butter' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Garlic, minced' },
+        { name: 'Fresh Rosemary', amount: '4', unit: 'sprigs', raw_text: '4 sprigs Fresh Rosemary' }
+      ],
+      instructions: [
+        'Remove steaks from refrigerator 30-60 minutes before preparing. Unwrap, season with salt and pepper and let sit on a plate.',
+        'Preheat oven to 360 degrees. Place a medium cast iron skillet over high heat for 3-5 minutes. Once hot, add oil. Sear the filet mignons for 2-3 minutes per side, until brown with a nice crust. Remove skillet from heat.',
+        'Carefully add butter, garlic and rosemary to skillet. Place skillet in oven and bake for 2-8 minutes depending on desired doneness (Rule of thumb: 8 min well-done, 6-7 min medium-well, 5 min medium, 3-4 min medium-rare, 2 min rare).',
+        'Remove steak from skillet and place on a plate. Tent with foil, then rest for 5-10 minutes.',
+        'Serve with garlic and butter from skillet.'
+      ]
+    },
+    {
+      title: 'Korean BBQ Meatballs',
+      description: 'Savory seasoned beef meatballs glazed in sweet and tangy Korean BBQ sauce with spicy mayo and toasted sesame seeds.',
+      prep_time: 15,
+      cook_time: 20,
+      servings: 5,
+      tags: 'Beef, Korean, Asian, Meatballs, Appetizer, Dinner',
+      ingredients: [
+        { name: 'Ground Beef', amount: '1', unit: 'pound', raw_text: '1 pound Ground Beef' },
+        { name: 'Panko Breadcrumbs', amount: '1/2', unit: 'cup', raw_text: '½ cup Panko Breadcrumbs' },
+        { name: 'Egg, beaten', amount: '1', unit: '', raw_text: '1 Egg, beaten' },
+        { name: 'Green Onions, chopped', amount: '2', unit: '', raw_text: '2 Green Onions, chopped' },
+        { name: 'Garlic, minced', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Garlic, minced' },
+        { name: 'Ginger, grated', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Ginger, grated' },
+        { name: 'Soy Sauce', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Soy Sauce' },
+        { name: 'Sesame Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Sesame Oil' },
+        { name: 'Brown Sugar', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Brown Sugar' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' },
+        { name: 'Korean BBQ Glaze', amount: '1', unit: 'serving', raw_text: '1 serving Korean BBQ Glaze (see recipe)' },
+        { name: 'Spicy Mayonnaise', amount: '1', unit: 'serving', raw_text: '1 serving Spicy Mayonnaise (see recipe)' },
+        { name: 'Sesame Seeds', amount: '', unit: '', raw_text: 'Sesame Seeds' }
+      ],
+      instructions: [
+        'Preheat oven to 400 degrees and line a baking sheet with parchment paper.',
+        'In a bowl, combine ground meat, breadcrumbs, egg, green onions, garlic, ginger, soy sauce, sesame oil, brown sugar and pepper.',
+        'Roll mixture into 1 1/2-inch meatballs and place them on the prepared baking sheet.',
+        'Bake the meatballs for 15-18 minutes.',
+        'Make the Korean BBQ Glaze.',
+        'Once the meatballs are cooked, toss them in the Korean BBQ Glaze.',
+        'Make the Spicy Mayo.',
+        'Serve meatballs with sesame seeds and spicy Mayonnaise.'
+      ]
+    },
+    {
+      title: 'Meatball Wellington',
+      description: 'Juicy Italian-seasoned meatballs wrapped in flaky puff pastry with melted mozzarella and rich tomato sauce.',
+      prep_time: 20,
+      cook_time: 35,
+      servings: 4,
+      tags: 'Beef, Italian, Baking, Dinner, Entree',
+      ingredients: [
+        { name: 'Ground Beef', amount: '1', unit: 'pound', raw_text: '1 pound Ground Beef' },
+        { name: 'Italian Breadcrumbs', amount: '1/2', unit: 'cup', raw_text: '½ cup Italian Breadcrumbs' },
+        { name: 'Egg + 1 Egg, beaten', amount: '2', unit: '', raw_text: '1 Egg + 1 Egg, beaten' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoons Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Yellow Onion, minced', amount: '1/2', unit: '', raw_text: '½ Yellow Onion, minced' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Garlic, minced' },
+        { name: 'Parsley, chopped', amount: '1/4', unit: 'cup', raw_text: '¼ cup Parsley, chopped' },
+        { name: 'Thawed Puff Pastry, cut into 4-inch squares', amount: '1', unit: 'package', raw_text: '1 package Thawed Puff Pastry, cut into 4-inch squares' },
+        { name: 'Mozzarella Cheese, shredded', amount: '2', unit: 'cups', raw_text: '2 cups Mozzarella Cheese, shredded' },
+        { name: 'Tomato Sauce', amount: '1/4', unit: 'cup', raw_text: '¼ cup Tomato Sauce (for serving)' },
+        { name: 'Garnish Basil', amount: '', unit: '', raw_text: 'Garnish Basil' },
+        { name: 'Garnish Parmesan Cheese', amount: '', unit: '', raw_text: 'Garnish Parmesan Cheese' }
+      ],
+      instructions: [
+        'Preheat oven to 400 degrees.',
+        'In a large mixing bowl, combine ground beef, breadcrumbs, 1 egg, salt, pepper, onion, garlic, and parsley.',
+        'Shape into 1-inch balls and place on parchment lined baking sheet. Bake for 7-10 minutes. Set aside until cool enough to handle.',
+        'Flour your work surface and place puff pastry squares onto the surface. Add 1 tablespoon of shredded mozzarella onto the center of the pastry square. Place meatball on top of the cheese. Wrap puff pastry around meatball.',
+        'Place on parchment lined baking sheet, seam side down. Brush with beaten egg.',
+        'Bake for 25 minutes.',
+        'Serve over tomato sauce and garnish with basil and parmesan cheese.'
+      ]
+    },
+    {
+      title: 'Meatloaf',
+      description: "Classic tender homemade beef and pork meatloaf with sauteed mushrooms, onions, and a savory sweet ketchup-mustard glaze (Mom's Recipe).",
+      prep_time: 15,
+      cook_time: 80,
+      servings: 6,
+      tags: 'Beef, Pork, Comfort Food, Dinner, Family Favorite',
+      ingredients: [
+        { name: 'Ground Beef', amount: '2', unit: 'pounds', raw_text: '2 pounds Ground Beef' },
+        { name: 'Ground Pork', amount: '1', unit: 'pound', raw_text: '1 pound Ground Pork' },
+        { name: 'Sour Dough Bread, no crust', amount: '2 1/2', unit: 'cups', raw_text: '2 ½ cups Sour Dough Bread, no crust' },
+        { name: 'Beef Broth', amount: '1/2', unit: 'cup', raw_text: '½ cup Beef Broth' },
+        { name: 'Mushrooms, diced', amount: '1', unit: 'cup', raw_text: '1 cup Mushrooms, diced' },
+        { name: 'Onion', amount: '1', unit: '', raw_text: '1 Onion' },
+        { name: 'Eggs', amount: '2', unit: '', raw_text: '2 Eggs' },
+        { name: 'Montreal Steak Seasoning', amount: '1/2', unit: 'tablespoon', raw_text: '½ tablespoon Montreal Steak Seasoning' },
+        { name: 'Ketchup', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Ketchup' },
+        { name: 'Deli Mustard', amount: '1/4', unit: 'cup', raw_text: '¼ cup Deli Mustard' },
+        { name: 'Worcestershire Sauce', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Worcestershire Sauce' },
+        { name: 'Brown Sugar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Brown Sugar' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees.',
+        'Soak the bread in beef broth (or whole milk). The bread should be wet and sticky.',
+        'Sauté the mushrooms and onions, drain and set off to the side to cool.',
+        'Combine beef, pork, bread, mushrooms and onions. Once mixed through, add the seasoning and the eggs, then mix. Shape the mixture into a loaf and bake on a foil lined cookie sheet for one hour.',
+        'Make the glaze while the meat is in the oven: Add all of the glaze ingredients (ketchup, deli mustard, Worcestershire, brown sugar) to a bowl and whisk together. Set aside.',
+        'After baking the meat for an hour, check the internal temperature and drain the juices. Add the glaze and bake for another 15-20 minutes until cooked through.'
+      ]
+    },
+    {
+      title: 'Moussaka',
+      description: 'Traditional layered Greek casserole with seasoned meat sauce, tender fried eggplant, zucchini, and golden baked bechamel cream.',
+      prep_time: 30,
+      cook_time: 100,
+      servings: 8,
+      tags: 'Beef, Greek, Mediterranean, Casserole, Dinner',
+      ingredients: [
+        { name: 'Greek Ground Meat Sauce', amount: '1', unit: 'serving', raw_text: '1 serving Greek Ground Meat Sauce (see recipe)' },
+        { name: 'Bechamel Sauce', amount: '1', unit: 'serving', raw_text: '1 serving Bechamel Sauce (see recipe)' },
+        { name: 'Russet Potatoes', amount: '2', unit: 'pounds', raw_text: '2 pounds Russet Potatoes' },
+        { name: 'Eggplant', amount: '1.5', unit: 'pounds', raw_text: '1.5 pounds Eggplant' },
+        { name: 'Zucchini', amount: '1', unit: 'pound', raw_text: '1 pound Zucchini' },
+        { name: 'Salt', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Salt' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' },
+        { name: 'Vegetable Oil', amount: '', unit: '', raw_text: 'Vegetable Oil' }
+      ],
+      instructions: [
+        'Make the Greek Ground Meat Sauce and Bechamel Sauce.',
+        'Slice the eggplant lengthwise. Add them to a bowl with cold water to soak for a few minutes.',
+        'Slice the zucchini the same way. Season with ½ teaspoon salt and ¼ teaspoon pepper.',
+        'Peel and cut potatoes. Season with ½ teaspoon salt and ¼ teaspoon pepper.',
+        'Preheat oven to 390 degrees.',
+        'Heat vegetable oil in a sauté pan (covering at least 1/3 of the pan). Deep fry the potatoes, zucchini and eggplant, draining on paper towels.',
+        'Lay potato slices in a 9x13-inch baking dish. Layer the eggplant slices on top of the potatoes. Lay zucchini over the eggplant. Spread the Greek Ground Meat Sauce on top. Top with the bechamel cream.',
+        'Bake for 30 minutes or until the cream is golden brown.',
+        'Cool for 30 minutes and serve.'
+      ]
+    },
+    {
+      title: 'Pot Roast',
+      description: 'Melt-in-your-mouth slow cooker pot roast with tender red potatoes, carrots, and rich savory homemade beef gravy.',
+      prep_time: 15,
+      cook_time: 480,
+      servings: 6,
+      tags: 'Beef, Slow Cooker, Comfort Food, Dinner',
+      ingredients: [
+        { name: 'Rump Roast', amount: '2', unit: 'pounds', raw_text: '2 pounds Rump Roast' },
+        { name: 'Red Potatoes', amount: '1 1/2', unit: 'pounds', raw_text: '1 ½ pounds Red Potatoes' },
+        { name: 'Carrots, chopped into 1-inch pieces', amount: '1', unit: 'pound', raw_text: '1 pound Carrots, chopped into 1-inch pieces' },
+        { name: 'Onion, chopped', amount: '1/2', unit: '', raw_text: '½ Onion, chopped' },
+        { name: 'Beef Stock', amount: '4', unit: 'cups', raw_text: '4 cups Beef Stock' },
+        { name: 'Garlic, minced', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Garlic, minced' },
+        { name: 'Italian Seasoning', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Italian Seasoning' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' },
+        { name: 'Water', amount: '1/4', unit: 'cup', raw_text: '¼ cup Water' },
+        { name: 'Corn Starch', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Corn Starch' }
+      ],
+      instructions: [
+        'Add your roast to the crock pot and then place the vegetables around it.',
+        'Add all of the seasonings and beef stock.',
+        'Cover and cook on low for 8 hours or on high for five hours. Shred the beef once cooked through.',
+        '15 minutes before the meat is done, make the gravy: In a small bowl, whisk together the ¼ cup of water and the corn starch. Remove two cups of liquid from the crock pot and place it in a saucepan. Whisk in the water and corn starch mixture into the beef juice.',
+        'Bring to a boil, stirring frequently for 3-5 minutes until it begins to thicken.',
+        'Serve the pot roast covered in the gravy.'
+      ]
+    },
+    {
+      title: 'Stir-Fried Steak and Vegetables',
+      description: 'Quick and colorful sirloin steak stir fry with crisp vegetables and savory sweet ginger-soy glaze over brown rice.',
+      prep_time: 5,
+      cook_time: 20,
+      servings: 4,
+      tags: 'Beef, Asian, Quick Meals, Dinner, Healthy',
+      ingredients: [
+        { name: 'Brown Rice', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Brown Rice' },
+        { name: 'Corn Starch', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Corn Starch' },
+        { name: 'Brown Sugar', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Brown Sugar' },
+        { name: 'Ground Ginger', amount: '3/4', unit: 'teaspoon', raw_text: '¾ teaspoon Ground Ginger' },
+        { name: 'Chili Powder', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Chili Powder' },
+        { name: 'Garlic Powder', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Garlic Powder' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Water', amount: '1/2', unit: 'cup', raw_text: '½ cup Water' },
+        { name: 'Soy Sauce', amount: '1/4', unit: 'cup', raw_text: '¼ cup Soy Sauce' },
+        { name: 'Beef Top Sirloin Steak, cut 1/2-inch cubes', amount: '1', unit: 'pound', raw_text: '1 pound Beef Top Sirloin Steak, cut ½-inch cubes' },
+        { name: 'Canola Oil', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Canola Oil' },
+        { name: 'Frozen Stir-Fry Vegetable Blend, thawed', amount: '1', unit: 'package (16 oz)', raw_text: '1 package (16 ounces) Frozen Stir-Fry Vegetable Blend, thawed' }
+      ],
+      instructions: [
+        'Cook rice according to package directions.',
+        'In a small bowl, combine corn starch, brown sugar, seasonings, water and soy sauce until smooth.',
+        'Add corn starch mixture to a pan and bring to a boil. Cook and stir for two minutes or until the sauce is thickened. Set aside.',
+        'In a large nonstick skillet or wok, stir-fry beef in one tablespoon oil until no longer pink. Remove and keep warm.',
+        'Stir fry vegetables in the remaining oil until crisp tender. Add the cooked beef and heat through.',
+        'Serve over rice and top with the sauce.'
+      ]
+    },
+    {
+      title: 'Swedish Meatballs',
+      description: 'Tender spiced beef and pork meatballs with hints of nutmeg and allspice, baked and served with rich creamy gravy.',
+      prep_time: 30,
+      cook_time: 35,
+      servings: 4,
+      tags: 'Beef, Pork, Swedish, Scandinavian, Meatballs, Comfort Food, Dinner',
+      ingredients: [
+        { name: 'Butter', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Butter' },
+        { name: 'Onion, chopped', amount: '1/2', unit: '', raw_text: '½ Onion, chopped' },
+        { name: 'Salt', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Salt' },
+        { name: 'Milk', amount: '1/4', unit: 'cup', raw_text: '¼ cup Milk' },
+        { name: 'Eggs', amount: '2', unit: '', raw_text: '2 Eggs' },
+        { name: 'Breadcrumbs', amount: '1/3', unit: 'cup', raw_text: '1/3 cup breadcrumbs' },
+        { name: 'Pepper', amount: '3/4', unit: 'teaspoon', raw_text: '¾ teaspoon Pepper' },
+        { name: 'Ground Nutmeg', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Ground Nutmeg' },
+        { name: 'Ground Allspice', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Ground Allspice' },
+        { name: 'Cayenne Pepper', amount: '1', unit: 'pinch', raw_text: '1 pinch Cayenne Pepper' },
+        { name: 'Ground Beef', amount: '1', unit: 'pound', raw_text: '1 pound Ground Beef' },
+        { name: 'Ground Pork', amount: '1', unit: 'pound', raw_text: '1 pound Ground Pork' },
+        { name: 'Swedish Meatball Gravy', amount: '1', unit: 'serving', raw_text: '1 serving Swedish Meatball Gravy (see recipe)' },
+        { name: 'Cooking Spray', amount: '', unit: '', raw_text: 'Cooking Spray' }
+      ],
+      instructions: [
+        'Melt butter in a large skillet over medium heat. Stir in onion and cook until translucent.',
+        'Transfer onions to a large bowl. Stir in milk, eggs, breadcrumbs, and seasonings.',
+        'Mix beef and pork into the breadcrumb mixture. Cover with plastic wrap and refrigerate for 1 hour.',
+        'Cook one serving of Swedish Meatball Gravy 20 minutes before taking the meat out of the refrigerator.',
+        'Preheat oven to 425 degrees. Line a baking sheet with foil and lightly coat with cooking spray.',
+        'Roll mixture into two-inch meatballs. Place them on the prepared baking sheet.',
+        'Bake in the oven for 20 minutes.',
+        'Serve meatballs and gravy.'
+      ]
+    },
+    {
+      title: 'Unstuffed Cabbage Rolls',
+      description: 'Easy slow cooker unstuffed cabbage rolls with browned ground beef, onions, herbs, diced tomatoes, and tender cabbage.',
+      prep_time: 10,
+      cook_time: 495,
+      servings: 8,
+      tags: 'Beef, Slow Cooker, Low Carb, Dinner, Comfort Food',
+      ingredients: [
+        { name: 'Ground Beef', amount: '1', unit: 'pound', raw_text: '1 pound Ground Beef' },
+        { name: 'Onion, diced', amount: '1', unit: '', raw_text: '1 Onion, diced' },
+        { name: 'Thyme', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Thyme' },
+        { name: 'Parsley', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Parsley' },
+        { name: 'Red Pepper Flakes', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Red Pepper Flakes' },
+        { name: 'Salt', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Salt' },
+        { name: 'Green Cabbage', amount: '1', unit: 'head', raw_text: '1 head Green Cabbage' },
+        { name: 'Petite Diced Tomatoes', amount: '1', unit: 'can (14 oz)', raw_text: '1 can (14 ounces) Petite Diced Tomatoes' },
+        { name: 'Tomato Paste', amount: '1', unit: 'can (6 oz)', raw_text: '1 can (6 ounces) Tomato Paste' },
+        { name: 'Worcestershire Sauce', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Worcestershire Sauce' },
+        { name: 'Water', amount: '1/2', unit: 'cup', raw_text: '½ cup Water' }
+      ],
+      instructions: [
+        'In a skillet over medium-high heat, brown beef. Drain if needed. Add the diced onion, thyme, parsley, red pepper flakes and salt to the skillet. Continue to cook everything together for 3-5 minutes until onions are translucent. Add the skillet mixture to the crockpot.',
+        'Chop the cabbage into pieces about an inch in size. Add the chopped cabbage to the crockpot.',
+        'In a mixing bowl mix together the petite diced tomatoes, tomato paste, Worcestershire sauce and water. Add the sauce to the crockpot. Carefully mix all parts together.',
+        'Cook on low 6-8 hours. Stir halfway through cooking.'
+      ]
+    }
+  ];
+
+  for (const r of recipes) {
+    const existing = await db.get('SELECT id FROM recipes WHERE title = ?', [r.title]);
+    if (existing) continue;
+
+    const res = await db.run(`
+      INSERT INTO recipes (title, description, prep_time, cook_time, servings, image_path, source_url, favorite, tags)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [r.title, r.description, r.prep_time, r.cook_time, r.servings, '', '', 0, r.tags]);
+    
+    const recipeId = res.lastID;
+
+    for (const ing of r.ingredients) {
+      await db.run(`
+        INSERT INTO ingredients (recipe_id, name, amount, unit, raw_text)
+        VALUES (?, ?, ?, ?, ?)
+      `, [recipeId, ing.name, ing.amount, ing.unit, ing.raw_text]);
+    }
+
+    for (let i = 0; i < r.instructions.length; i++) {
+      await db.run(`
+        INSERT INTO instructions (recipe_id, step_number, instruction_text)
+        VALUES (?, ?, ?)
+      `, [recipeId, i + 1, r.instructions[i]]);
+    }
+
+    const tags = r.tags.split(',').map(t => t.trim());
+    for (const tag of tags) {
+      await db.run('INSERT OR IGNORE INTO reusable_tags (name) VALUES (?)', [tag]);
+    }
+  }
 }
 
 // Database helper functions
