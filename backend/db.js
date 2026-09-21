@@ -1411,6 +1411,199 @@ async function seedDefaultRecipes(db) {
         'In a mixing bowl mix together the petite diced tomatoes, tomato paste, Worcestershire sauce and water. Add the sauce to the crockpot. Carefully mix all parts together.',
         'Cook on low 6-8 hours. Stir halfway through cooking.'
       ]
+    },
+    {
+      title: 'Blueberry Muffins',
+      description: 'Delicious homemade blueberry muffins with fresh blueberries and a crunchy sanding sugar topping.',
+      prep_time: 5,
+      cook_time: 35,
+      servings: 12,
+      tags: 'Bread, Pastries, Breakfast, Baking, Muffins, Blueberries',
+      ingredients: [
+        { name: 'Butter', amount: '1/2', unit: 'cup', raw_text: '½ cup Butter' },
+        { name: 'Sugar', amount: '1 1/4', unit: 'cups', raw_text: '1 ¼ cups Sugar' },
+        { name: 'Eggs', amount: '2', unit: '', raw_text: '2 Eggs' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' },
+        { name: 'Lemon Juice', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Lemon Juice' },
+        { name: 'Buttermilk', amount: '1/2', unit: 'cup', raw_text: '½ cup Buttermilk' },
+        { name: 'Flour', amount: '2', unit: 'cups', raw_text: '2 cups Flour' },
+        { name: 'Salt', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Salt' },
+        { name: 'Baking Powder', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Baking Powder' },
+        { name: 'Blueberries', amount: '2', unit: 'cups', raw_text: '2 cups Blueberries' },
+        { name: 'Sanding Sugar', amount: '3', unit: 'teaspoons', raw_text: '3 teaspoons Sanding Sugar' }
+      ],
+      instructions: [
+        'Preheat oven to 400 degrees.',
+        'Coat half of the blueberries in 1 tablespoon of flour.',
+        'Cream together the butter and sugar until it becomes light and fluffy. Add in eggs, one by one. Mix in vanilla, lemon juice, and buttermilk. Sift in flour, salt and baking powder.',
+        'In a bowl, lightly mash the non-floured half of the blueberries with the back of a spoon and then stir them into the batter. Fold the flour coated blueberries into the batter.',
+        'Line a muffin tin with cupcake liners. Fill about 1/3 of the liner with batter.',
+        'Sprinkle sanding sugar over the top of the muffins, reduce oven heat to 375 degrees for 30-35 minutes.',
+        'Remove muffins from the tin and cool for 30 minutes.'
+      ]
+    },
+    {
+      title: 'Chocolate Chip Muffins',
+      description: 'Classic bakery-style chocolate chip muffins with buttermilk and semi-sweet chocolate chips.',
+      prep_time: 5,
+      cook_time: 30,
+      servings: 12,
+      tags: 'Bread, Pastries, Breakfast, Baking, Muffins, Chocolate',
+      ingredients: [
+        { name: 'Flour', amount: '2 1/2', unit: 'cups', raw_text: '2 ½ cups Flour' },
+        { name: 'Baking Powder', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Baking Powder' },
+        { name: 'Baking Soda', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Baking Soda' },
+        { name: 'Salt', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Salt' },
+        { name: 'Butter, melted and cooled', amount: '1/2', unit: 'cup', raw_text: '½ cup Butter, melted and cooled' },
+        { name: 'Sugar', amount: '1', unit: 'cup', raw_text: '1 cup Sugar' },
+        { name: 'Eggs', amount: '2', unit: '', raw_text: '2 Eggs' },
+        { name: 'Buttermilk', amount: '1', unit: 'cup', raw_text: '1 cup Buttermilk' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Vanilla Extract' },
+        { name: 'Semi-Sweet Chocolate Chips', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Semi-Sweet Chocolate Chips' }
+      ],
+      instructions: [
+        'Preheat oven to 425 degrees. Spray a 12 cups muffin tray with non-stick cooking spray and line with paper liners.',
+        'In a large bowl, toss together the flour, baking powder, baking soda, salt and chocolate chips. Set aside.',
+        'In a medium bowl, whisk together the melted butter, sugar, eggs, buttermilk and vanilla. Slowly mix into the dry ingredients.',
+        'Fill the prepared muffin tray with the batter and bake for 5 minutes. Reduce the oven temperature to 375 degrees and bake for an additional 12-15 minutes.',
+        'Let cool for 10 minutes and serve.'
+      ]
+    },
+    {
+      title: 'Ham and Swiss Crescent Rolls',
+      description: 'Warm and savory crescent rolls stuffed with ham and Swiss cheese, brushed with seasoned Dijon poppy seed butter.',
+      prep_time: 10,
+      cook_time: 14,
+      servings: 8,
+      tags: 'Bread, Pastries, Appetizers, Ham, Cheese, Quick',
+      ingredients: [
+        { name: 'Pillsbury Crescent Roll Dough', amount: '1', unit: 'can', raw_text: '1 can Pillsbury Crescent Roll Dough' },
+        { name: 'Ham', amount: '16', unit: 'slices', raw_text: '16 slices Ham' },
+        { name: 'Swiss Cheese', amount: '8', unit: 'slices', raw_text: '8 slices Swiss Cheese' },
+        { name: 'Butter, melted', amount: '1/4', unit: 'cup', raw_text: '¼ cup Butter, melted' },
+        { name: 'Dijon Mustard', amount: '1/2', unit: 'tablespoon', raw_text: '½ tablespoon Dijon Mustard' },
+        { name: 'Worcestershire Sauce', amount: '1/2', unit: 'tablespoon', raw_text: '½ tablespoon Worcestershire Sauce' },
+        { name: 'Poppy Seeds', amount: '1/2', unit: 'tablespoon', raw_text: '½ tablespoon Poppy Seeds' },
+        { name: 'Dried Minced Onions', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Dried Minced Onions' },
+        { name: 'Garlic Powder', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Garlic Powder' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' }
+      ],
+      instructions: [
+        'Preheat oven to 375 degrees.',
+        'Unroll the crescent roll dough and separate each of the eight triangles. Place two slices of ham and one slice of Swiss cheese on each triangle.',
+        'Roll up each crescent roll around the ham and cheese. Place them on a foil lined baking sheet. Bake them in the oven for 7 minutes.',
+        'While the rolls are in the oven prepare the seasoned butter. Add remaining ingredients to a bowl and whisk to combine.',
+        'Remove the rolls from the oven and brush them with the seasoned butter. Return them to the oven and bake for an additional 7-9 minutes until golden brown.'
+      ]
+    },
+    {
+      title: 'Pie Crust',
+      description: 'Flaky, buttery all-purpose homemade pie crust suitable for sweet or savory pies.',
+      prep_time: 15,
+      cook_time: 240,
+      servings: 8,
+      tags: 'Bread, Pastries, Baking, Pie, Crust, Basics',
+      ingredients: [
+        { name: 'Flour', amount: '1 1/4', unit: 'cups', raw_text: '1 ¼ cups Flour' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Salt' },
+        { name: 'Butter, diced and chilled', amount: '1/2', unit: 'cup', raw_text: '½ cup Butter, diced and chilled' },
+        { name: 'Ice Cold Water', amount: '1/4', unit: 'cup', raw_text: '¼ cup Ice Cold Water' }
+      ],
+      instructions: [
+        'Combine flour and salt in a large bowl. Use a pastry blender to cut in the butter until the mixture resembles coarse crumbs.',
+        'Add 1 tablespoon cold water at a time, mixing with a spatula or your hands until the dough comes together. Shape dough into a disc and wrap it in plastic wrap. Refrigerate for at least 4 hours.',
+        'Place dough on a generously floured surface and roll out to an 11-inch circle, adding more flour to your rolling pin as needed. Carefully roll the dough onto the rolling pin, then unroll over a 9-inch pie dish. Press the dough evenly into the bottom and sides of the dish. Trim any excess dough and flute the edges.',
+        'Blind bake or fill and bake as directed in your pie recipe.'
+      ]
+    },
+    {
+      title: 'Pistachio Muffins',
+      description: 'Tender pistachio pudding muffins dipped in melted butter and sugar and finished with chopped pistachios.',
+      prep_time: 10,
+      cook_time: 18,
+      servings: 12,
+      tags: 'Bread, Pastries, Breakfast, Baking, Muffins, Pistachio',
+      ingredients: [
+        { name: 'Salted Butter, melted', amount: '1/2', unit: 'cup', raw_text: '½ cup Salted Butter, melted' },
+        { name: 'Sugar', amount: '3/4', unit: 'cup', raw_text: '¾ cup Sugar' },
+        { name: 'Eggs, room temperature', amount: '2', unit: '', raw_text: '2 Eggs, room temperature' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' },
+        { name: 'Almond Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Almond Extract' },
+        { name: 'Pistachio Instant Pudding Mix', amount: '1', unit: 'box (3.4 oz)', raw_text: '1 box (3.4 ounces) Pistachio Instant Pudding Mix' },
+        { name: 'Baking Powder', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoon Baking Powder' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Milk, room temperature', amount: '1/2', unit: 'cup', raw_text: '½ cup Milk, room temperature' },
+        { name: 'Flour', amount: '1 3/4', unit: 'cups', raw_text: '1 ¾ cups Flour' },
+        { name: 'Sugar (for Buttery Topping)', amount: '1/2', unit: 'cup', raw_text: '½ cup Sugar' },
+        { name: 'Salted Butter, melted (for Buttery Topping)', amount: '1/2', unit: 'cup', raw_text: '½ cup Salted Butter, melted' },
+        { name: 'Pistachios, finely chopped', amount: '1/2', unit: 'cup', raw_text: '½ cup Pistachios, finely chopped' }
+      ],
+      instructions: [
+        'Preheat oven to 425 degrees. Prepare a muffin tin with cupcake liners.',
+        'In a large bowl, cream together sugar and melted butter. Add eggs and extracts.',
+        'Mix in the pistachio pudding mix and milk. Add flour, baking powder and salt until flour has just barely been incorporated. Fill the prepared muffin tin with the batter. Top with pistachios.',
+        'Bake for 7 minutes. Reduce the heat down to 350 degrees but do not open the oven. Bake for an additional 8-10 minutes.',
+        'Remove muffins from the oven and let cool for 10 minutes.',
+        'In two small bowls, add ½ cup melted butter to one and ½ cup sugar to the other. While the muffins are still slightly warm, dip the top of the muffin in the butter and then the sugar.'
+      ]
+    },
+    {
+      title: 'Pumpkin Bread',
+      description: 'Moist, spiced homemade pumpkin bread made with pumpkin puree, cinnamon, and olive oil.',
+      prep_time: 10,
+      cook_time: 55,
+      servings: 16,
+      tags: 'Bread, Pastries, Baking, Pumpkin, Fall, Breakfast',
+      ingredients: [
+        { name: 'Flour', amount: '2', unit: 'cups', raw_text: '2 cups Flour' },
+        { name: 'Sugar', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Sugar' },
+        { name: 'Baking Soda', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Baking Soda' },
+        { name: 'Baking Powder', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Baking Powder' },
+        { name: 'Cinnamon', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Cinnamon' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Eggs, room temperature', amount: '2', unit: '', raw_text: '2 Eggs, room temperature' },
+        { name: 'Olive Oil', amount: '1', unit: 'cup', raw_text: '1 cup Olive Oil' },
+        { name: 'Pumpkin Puree', amount: '1', unit: 'can (15 oz)', raw_text: '1 can (15 ounces) Pumpkin Puree' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees. Butter and lightly dust with flour, two 8 ½” x 4 ½” bread pans.',
+        'In a large mixing bowl, whisk together the dry ingredients.',
+        'In a second medium mixing bowl, whisk together the wet ingredients.',
+        'Pour wet ingredients into the dry ingredients and whisk together until smooth.',
+        'Divide evenly between the two prepared bread pans. Bake for 45-55 minutes. Let cool in the pans for 10-15 minutes then transfer to a wire rack to fully cool.'
+      ]
+    },
+    {
+      title: 'Pumpkin Filled Crescent Rolls',
+      description: 'Flaky crescent rolls filled with spiced sweetened pumpkin puree, brushed with egg wash and dusted with powdered sugar.',
+      prep_time: 20,
+      cook_time: 10,
+      servings: 32,
+      tags: 'Bread, Pastries, Baking, Pumpkin, Crescent Rolls, Dessert, Finger Food',
+      ingredients: [
+        { name: 'Crescent Rolls Dough', amount: '2', unit: 'tubes', raw_text: '2 tubes Crescent Rolls Dough' },
+        { name: 'Pumpkin Puree', amount: '1', unit: 'cup', raw_text: '1 cup Pumpkin Puree' },
+        { name: 'Brown Sugar', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Brown Sugar' },
+        { name: 'Sugar', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Sugar' },
+        { name: 'Pumpkin Pie Spice', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Pumpkin Pie Spice' },
+        { name: 'Egg Yolks', amount: '2', unit: '', raw_text: '2 Egg Yolks' },
+        { name: 'Egg White', amount: '1', unit: '', raw_text: '1 Egg White' },
+        { name: 'Water', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Water' },
+        { name: 'Vanilla Extract', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Vanilla Extract' },
+        { name: 'Powdered Sugar', amount: '1/4', unit: 'cup', raw_text: '¼ cup Powdered Sugar' }
+      ],
+      instructions: [
+        'Preheat oven to 375 degrees. Line a baking sheet with parchment paper and set aside.',
+        'In a bowl, whisk together the pumpkin puree, sugars, pumpkin pie spice, vanilla and egg yolks.',
+        'Open both tubes of crescent roll dough. Unroll and separate the dough into triangles. Lay each triangle flat on a cutting board.',
+        'Using a sharp knife, cut each triangle in half. Spread 1 tablespoon of the pumpkin mixture on top of each triangle.',
+        'Starting on the widest end, roll up the crescent rolls tucking the ends under to seal.',
+        'Place the crescent rolls on the baking sheet. Mix together egg white and 1 tablespoon water. Brush each roll with the mixture.',
+        'Bake for 10-12 minutes until the crescents turn golden brown.',
+        'Remove from oven and cool completely.',
+        'Dust the tops with powdered sugar and serve.'
+      ]
     }
   ];
 
