@@ -2128,6 +2128,390 @@ async function seedDefaultRecipes(db) {
         'Add all ingredients to a blender. Blend.',
         'Serve.'
       ]
+    },
+    {
+      title: 'American Goulash',
+      description: 'Hearty one-pot macaroni dish with seasoned ground beef, tomato sauce, diced tomatoes, Worcestershire sauce, and melted cheddar cheese.',
+      prep_time: 5,
+      cook_time: 30,
+      servings: 4,
+      tags: 'Pasta, Beef, One Pot, Comfort Food, Dinner',
+      ingredients: [
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Olive Oil' },
+        { name: 'Onion, chopped', amount: '1/2', unit: '', raw_text: '½ Onion, chopped' },
+        { name: 'Green Bell Pepper, chopped', amount: '1/2', unit: '', raw_text: '½ Green Bell Pepper, chopped' },
+        { name: 'Ground Beef', amount: '1', unit: 'pound', raw_text: '1 pound Ground Beef' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Garlic, minced' },
+        { name: 'Tomato Sauce', amount: '1', unit: 'can (15 oz)', raw_text: '1 can (15 ounces) Tomato Sauce' },
+        { name: 'Petite Dice Tomatoes', amount: '1', unit: 'can (15 oz)', raw_text: '1 can (15 ounces) Petite Dice Tomatoes' },
+        { name: 'Beef Broth', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Beef Broth' },
+        { name: 'Worcestershire Sauce', amount: '1 1/2', unit: 'tablespoons', raw_text: '1 ½ tablespoons Worcestershire Sauce' },
+        { name: 'Salt', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Salt' },
+        { name: 'Italian Seasoning', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Italian Seasoning' },
+        { name: 'Bay Leaves', amount: '3', unit: '', raw_text: '3 Bay Leaves' },
+        { name: 'Macaroni, uncooked', amount: '1', unit: 'cup', raw_text: '1 cup Macaroni, uncooked' },
+        { name: 'Cheddar Cheese, shredded', amount: '1/2', unit: 'cup', raw_text: '½ cup Cheddar Cheese, shredded' }
+      ],
+      instructions: [
+        'Heat olive oil over medium-high heat in a skillet. Add onion, bell pepper and ground beef. Cook until no longer pink. Drain the fat, add garlic and cook for another 30 seconds.',
+        'Stir in tomato sauce, diced tomatoes, Worcestershire sauce, salt, Italian seasoning, bay leaves, and uncooked macaroni. Bring mixture to a boil and stir occasionally until the pasta is tender, approximately 20 minutes.',
+        'Remove bay leaves and stir in cheddar cheese just before serving.'
+      ]
+    },
+    {
+      title: 'Baked Ziti',
+      description: 'Classic comforting baked ziti layered with rich homemade red sauce, parmesan, and bubbly melted mozzarella cheese.',
+      prep_time: 5,
+      cook_time: 30,
+      servings: 6,
+      tags: 'Pasta, Italian, Baked, Cheese, Casserole, Dinner',
+      ingredients: [
+        { name: 'Ziti', amount: '1', unit: 'box (16 oz)', raw_text: '1 box Ziti' },
+        { name: 'Red Sauce', amount: '1', unit: 'serving', raw_text: '1 serving Red Sauce (see recipe)' },
+        { name: 'Parmesan cheese, shredded', amount: '1', unit: 'cup', raw_text: '1 cup Parmesan cheese, shredded' },
+        { name: 'Mozzarella cheese, shredded', amount: '1', unit: 'cup', raw_text: '1 cup Mozzarella cheese, shredded' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees.',
+        'In a deep 9x13-inch casserole dish, layer sauce, ziti, parmesan and mozzarella. Starting with sauce and ending with cheese.',
+        'Bake for 20 minutes, covered with foil. Remove the foil and bake for an additional 10 minutes. Broil on low to brown cheese if needed.'
+      ]
+    },
+    {
+      title: 'Cajun Chicken Alfredo Pasta',
+      description: 'Creamy and zesty Cajun chicken pasta with farfalle bowtie noodles, fresh red bell peppers, baby spinach, parmesan, and cream cheese sauce.',
+      prep_time: 10,
+      cook_time: 25,
+      servings: 4,
+      tags: 'Pasta, Chicken, Cajun, Alfredo, Spicy, Dinner',
+      ingredients: [
+        { name: 'Farfalle Pasta', amount: '8', unit: 'ounces', raw_text: '8 ounces Farfalle Pasta' },
+        { name: 'Butter', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Butter' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ Garlic, minced' },
+        { name: 'Boneless, Skinless Chicken Breasts', amount: '1', unit: 'pound', raw_text: '1 pound Boneless, Skinless Chicken Breasts, cut into 1-inch pieces' },
+        { name: 'Cajun Seasoning', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Cajun Seasoning' },
+        { name: 'Cream Cheese, softened', amount: '4', unit: 'ounces', raw_text: '4 ounces Cream Cheese, softened and cut into small pieces' },
+        { name: 'Milk', amount: '1', unit: 'cup', raw_text: '1 cup Milk' },
+        { name: 'Corn Starch', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Corn Starch' },
+        { name: 'Parmesan Cheese, grated', amount: '3/4', unit: 'cup', raw_text: '¾ cup Parmesan Cheese, grated' },
+        { name: 'Spinach', amount: '10', unit: 'ounces', raw_text: '10 ounces Spinach' },
+        { name: 'Red Bell Pepper, chopped', amount: '1', unit: '', raw_text: '1 Red Bell Pepper, chopped' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' }
+      ],
+      instructions: [
+        'Cook pasta according to package directions. Set aside.',
+        'In a large pot, melt butter over medium heat. Sauté bell pepper. Add the garlic and cook for 30 seconds.',
+        'Add the chicken with Cajun Seasoning, salt and pepper to pot. Cook for 3-4 minutes, until chicken is nearly cooked through.',
+        'Heat milk in a microwave for 25 seconds; whisk in corn starch. Pour milk mixture and cream cheese to the pot. Gradually add parmesan cheese to the pot as well. Stir well until cheese is melted.',
+        'Stir in pasta. Set heat to low and simmer for 10 minutes.',
+        'Gradually stir in spinach, coating completely in the cream mixture.'
+      ]
+    },
+    {
+      title: 'Chicken Alfredo',
+      description: 'Classic Italian-American dinner featuring roasted sliced oregano-seasoned chicken breast tossed with fettuccine pasta and creamy homemade Alfredo sauce.',
+      prep_time: 10,
+      cook_time: 20,
+      servings: 6,
+      tags: 'Pasta, Chicken, Alfredo, Italian, Classic, Dinner',
+      ingredients: [
+        { name: 'Fettuccine', amount: '16', unit: 'ounces', raw_text: '16 ounces Fettuccine' },
+        { name: 'Chicken breast', amount: '1 1/2', unit: 'pounds', raw_text: '1 ½ pounds Chicken breast' },
+        { name: 'Parmesan Cheese, grated', amount: '1/2', unit: 'cup', raw_text: '½ cup Parmesan Cheese, grated' },
+        { name: 'Oregano', amount: '2 1/2', unit: 'teaspoons', raw_text: '2 ½ teaspoons Oregano' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Alfredo Sauce', amount: '1', unit: 'serving', raw_text: 'One Serving Alfredo Sauce (See Recipe)' },
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: 'Olive Oil' }
+      ],
+      instructions: [
+        'Cook fettuccine according to package directions. Set aside in the pot used to cook the pasta.',
+        'Preheat oven to 450 degrees. And grease a baking sheet. Coat chicken with olive oil. Season chicken with oregano, salt and pepper. Bake for 15-20 minutes. Rest chicken on a cutting board for 5 minutes. Slice chicken and set aside.',
+        'Make Alfredo Sauce (see recipe).',
+        'In the pot used to cook the pasta mix together the fettuccine, chicken and sauce.'
+      ]
+    },
+    {
+      title: 'Lemon Ricotta Pasta with Spinach',
+      description: 'Bright and refreshing pasta tossed in a creamy lemon ricotta sauce with fresh baby spinach and grated parmesan cheese.',
+      prep_time: 15,
+      cook_time: 15,
+      servings: 4,
+      tags: 'Pasta, Vegetarian, Lemon, Ricotta, Spinach, Quick, Dinner',
+      ingredients: [
+        { name: 'Pasta', amount: '1/2', unit: 'pound', raw_text: '½ pound Pasta' },
+        { name: 'Ricotta Cheese', amount: '1', unit: 'cup', raw_text: '1 cup Ricotta Cheese' },
+        { name: 'Water', amount: '1/4', unit: 'cup', raw_text: '¼ cup Water' },
+        { name: 'Corn Starch', amount: '1/2', unit: 'tablespoon', raw_text: '½ tablespoon Corn Starch' },
+        { name: 'Spinach', amount: '8', unit: 'ounces', raw_text: '8 ounces Spinach' },
+        { name: 'Parmesan Cheese, grated', amount: '1/3', unit: 'cup', raw_text: '1/3 cup Parmesan Cheese, grated' },
+        { name: 'Lemon, zest and juice', amount: '1', unit: '', raw_text: '1 Lemon, zest and juice' },
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Olive Oil' },
+        { name: 'Garlic, minced', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Garlic, minced' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' }
+      ],
+      instructions: [
+        'In a large pot, cook pasta according to package directions. Drain the pasta once it is done and add it back into the pot. Stir in the spinach and cook until wilted.',
+        'In a medium bowl, combine ricotta, olive oil, parmesan cheese, garlic, salt, lemon zest, lemon juice, salt and pepper.',
+        'Add the ricotta sauce, water and corn starch. Add more water and corn starch as needed. Stir the sauce in with the pasta and spinach.'
+      ]
+    },
+    {
+      title: 'Macaroni and Cheese',
+      description: 'Ultimate baked macaroni and cheese made with a rich homemade cheese sauce, topped with buttered crispy Panko breadcrumbs.',
+      prep_time: 20,
+      cook_time: 45,
+      servings: 6,
+      tags: 'Pasta, Cheese, Baked, Comfort Food, Dinner, Sides',
+      ingredients: [
+        { name: 'Macaroni', amount: '1/2', unit: 'pound', raw_text: '½ pound Macaroni' },
+        { name: 'Cheese Sauce', amount: '1', unit: 'serving', raw_text: 'One Serving Cheese Sauce (See Recipe)' },
+        { name: 'Butter, melted', amount: '3', unit: 'tablespoons', raw_text: '3 tablespoons Butter, melted' },
+        { name: 'Panko Breadcrumbs', amount: '1', unit: 'cup', raw_text: '1 cup Panko Breadcrumbs' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees.',
+        'Cook pasta according to package directions.',
+        'Make one serving cheese sauce (see recipe).',
+        'Fold macaroni into the cheese sauce and pour into a casserole dish.',
+        'Top the macaroni with the remaining cheese. Toss the breadcrumbs with the melted butter to coat. Sprinkle the macaroni with the breadcrumb mixture.',
+        'Bake for 30 minutes. Remove from the oven and rest for 5 minutes before serving.'
+      ]
+    },
+    {
+      title: 'Meatball Pasta Bake',
+      description: 'Cheesy baked pasta casserole with medium shells, meatballs, savory pasta sauce, dollops of ricotta, and melted mozzarella and parmesan.',
+      prep_time: 10,
+      cook_time: 40,
+      servings: 6,
+      tags: 'Pasta, Meatballs, Italian, Casserole, Baked, Dinner',
+      ingredients: [
+        { name: 'Medium Shell Pasta', amount: '16', unit: 'ounces', raw_text: '16 ounces Medium Shell Pasta' },
+        { name: 'Pasta Sauce', amount: '24', unit: 'ounces', raw_text: '24 ounces Pasta Sauce' },
+        { name: 'Frozen Meatballs', amount: '24', unit: 'ounces', raw_text: '24 ounces Frozen Meatballs' },
+        { name: 'Ricotta Cheese', amount: '12', unit: 'ounces', raw_text: '12 ounces Ricotta Cheese' },
+        { name: 'Red Bell Pepper, diced', amount: '1', unit: '', raw_text: '1 Red Bell Pepper, diced' },
+        { name: 'Mozzarella Cheese, shredded', amount: '2', unit: 'cups', raw_text: '2 cups Mozzarella Cheese, shredded' },
+        { name: 'Parmesan Cheese, shredded', amount: '1', unit: 'cup', raw_text: '1 cup Parmesan Cheese, shredded' }
+      ],
+      instructions: [
+        'Cook pasta according to package directions.',
+        'Preheat oven to 350 degrees.',
+        'Add ¼ of the sauce to the bottom of a casserole dish and spread meatballs across the dish.',
+        'Add red peppers and dollops of ricotta evenly across the casserole dish.',
+        'Sprinkle half of the mozzarella and parmesan cheese evenly across the top of the meatballs.',
+        'Mix the pasta and the rest of the sauce together. Add them to the casserole dish over the meatballs.',
+        'Spread the rest of the mozzarella and parmesan over the top of the pasta and sauce.',
+        'Cover with foil and bake for 35-40 minutes.'
+      ]
+    },
+    {
+      title: 'Pastitsio',
+      description: 'Traditional Greek baked pasta dish with seasoned spiced ground beef, ziti mixed with egg and cheese, and a creamy golden Béchamel topping.',
+      prep_time: 40,
+      cook_time: 45,
+      servings: 8,
+      tags: 'Pasta, Greek, Beef, Bechamel, Casserole, Baked, Dinner',
+      ingredients: [
+        { name: 'Bechamel Sauce', amount: '1', unit: 'serving', raw_text: 'One Serving Bechamel Sauce (See Recipe)' },
+        { name: 'Butter', amount: '4', unit: 'tablespoons', raw_text: '4 tablespoons Butter' },
+        { name: 'Onions, chopped', amount: '2', unit: '', raw_text: '2 Onions, chopped' },
+        { name: 'Ground Beef', amount: '2', unit: 'pounds', raw_text: '2 pounds Ground Beef' },
+        { name: 'Nutmeg', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Nutmeg' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Salt', amount: '2 1/2', unit: 'teaspoons', raw_text: '2 ½ teaspoons Salt' },
+        { name: 'Water', amount: '1/2', unit: 'cup', raw_text: '½ cup Water' },
+        { name: 'Tomato Paste', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Tomato Paste' },
+        { name: 'Ziti', amount: '1', unit: 'pound', raw_text: '1 pound Ziti' },
+        { name: 'Eggs, beaten', amount: '2', unit: '', raw_text: '2 Eggs, beaten' },
+        { name: 'Kasseri or Kefalotyri Cheese, grated', amount: '16', unit: 'ounces', raw_text: '16 ounces Kasseri or Kefalotyri Cheese, grated' },
+        { name: 'Cooking Spray', amount: '', unit: '', raw_text: 'Cooking Spray' }
+      ],
+      instructions: [
+        'Prepare the Bechamel Sauce (See Recipe).',
+        'Preheat oven to 350 degrees.',
+        'Melt butter in a large skillet over medium heat. Sauté onion until translucent, add beef and cook until browned. Stir in nutmeg, 1 teaspoon salt, pepper, water and tomato paste and simmer for 5 minutes. Set aside.',
+        'Cook Ziti according to package directions. Drain and rinse with cool water. When pasta is cooled down, stir in the beaten eggs and 1 ½ teaspoons salt.',
+        'Spray a deep 9x13-inch casserole dish with cooking spray. Spread half of the pasta into the bottom of the dish. Sprinkle with cheese. Spread the meat mixture over the pasta. Sprinkle with another layer of cheese. Add the remaining pasta to the top of the meat and sprinkle with another layer of cheese. Top with the Bechamel Sauce and sprinkle with the remaining cheese.',
+        'Bake 45 minutes. Rest for 20 minutes before serving.'
+      ]
+    },
+    {
+      title: 'Penne Alla Vodka',
+      description: 'Rich and velvety Penne alla Vodka in a luscious tomato-cream vodka sauce seasoned with garlic, basil, red pepper flakes, and parmesan.',
+      prep_time: 5,
+      cook_time: 35,
+      servings: 6,
+      tags: 'Pasta, Vodka Sauce, Italian, Classic, Dinner',
+      ingredients: [
+        { name: 'Penne', amount: '16', unit: 'ounces', raw_text: '16 ounces Penne' },
+        { name: 'Olive Oil', amount: '3', unit: 'tablespoons', raw_text: '3 tablespoons Olive Oil' },
+        { name: 'Yellow Onion, diced', amount: '1', unit: 'cup', raw_text: '1 cup Yellow Onion, diced' },
+        { name: 'Garlic, minced', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Garlic, minced' },
+        { name: 'Salt', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Salt' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' },
+        { name: 'Red Pepper Flakes', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Red Pepper Flakes' },
+        { name: 'Chicken Broth', amount: '1/2', unit: 'cup', raw_text: '½ cup Chicken Broth' },
+        { name: 'Vodka', amount: '1/2', unit: 'cup', raw_text: '½ cup Vodka' },
+        { name: 'Crushed Tomatoes', amount: '1', unit: 'can (28 oz)', raw_text: '1 can (28 ounces) Crushed Tomatoes' },
+        { name: 'Tomato Sauce', amount: '1', unit: 'can (16 oz)', raw_text: '1 can (16 ounces) Tomato Sauce' },
+        { name: 'Basil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Basil' },
+        { name: 'Heavy Cream', amount: '2', unit: 'cups', raw_text: '2 cups Heavy Cream' },
+        { name: 'Parmesan cheese, grated', amount: '1 3/4', unit: 'cups', raw_text: '1 ¾ Parmesan cheese, grated' }
+      ],
+      instructions: [
+        'Cook penne according to package directions.',
+        'In a pot, on medium heat, sauté diced onions, garlic, and seasonings in olive oil until translucent.',
+        'Add chicken broth and vodka and deglaze the pan.',
+        'Turn heat down to medium-low and add the crushed tomatoes, tomato sauce, and basil. Let simmer for 20 minutes, stirring occasionally.',
+        'Turn heat down to low and add heavy cream and parmesan cheese. Simmer for another 5 minutes, stirring often.',
+        'Add the pasta to the sauce. Stir to coat and simmer for another 5 minutes. Remove from heat and let rest for 10 minutes.',
+        'Serve.'
+      ]
+    },
+    {
+      title: 'Smoked Sausage Alfredo Bake',
+      description: 'Hearty rigatoni pasta baked in a rich garlic Alfredo sauce with savory smoked sausage slices and bubbly melted mozzarella.',
+      prep_time: 5,
+      cook_time: 20,
+      servings: 6,
+      tags: 'Pasta, Sausage, Alfredo, Casserole, Baked, Dinner',
+      ingredients: [
+        { name: 'Rigatoni', amount: '16', unit: 'ounces', raw_text: '16 ounces Rigatoni' },
+        { name: 'Butter', amount: '3', unit: 'tablespoons', raw_text: '3 tablespoons Butter' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Garlic, minced' },
+        { name: 'Flour', amount: '3', unit: 'tablespoons', raw_text: '3 tablespoons Flour' },
+        { name: 'Chicken Broth', amount: '1', unit: 'cup', raw_text: '1 cup Chicken Broth' },
+        { name: 'Heavy Cream', amount: '2', unit: 'cups', raw_text: '2 cups Heavy Cream' },
+        { name: 'Salt', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Cayenne Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Cayenne Pepper' },
+        { name: 'Parmesan Cheese, grated', amount: '1/2', unit: 'cup', raw_text: '½ cup Parmesan Cheese, grated' },
+        { name: 'Mozzarella Cheese, grated', amount: '2', unit: 'cups', raw_text: '2 cups Mozzarella Cheese, grated' },
+        { name: 'Cooked Smoked Sausage, sliced', amount: '1', unit: 'package (12 oz)', raw_text: '1 (12 ounce) package Cooked Smoked Sausage, sliced' }
+      ],
+      instructions: [
+        'Cook pasta according to package directions.',
+        'Melt butter in a pot over medium heat. Sauté garlic. Stir in flour.',
+        'Whisk in chicken broth and then stir in heavy whipping cream.',
+        'Add spices and simmer until sauce is thickened.',
+        'Stir in parmesan cheese and 1 cup mozzarella cheese until melted.',
+        'Add smoked sausages and pasta to sauce.',
+        'Preheat broiler. Pour the pasta mixture into a lightly greased casserole dish. Top with remaining mozzarella cheese. Broil for 3 minutes.',
+        'Serve.'
+      ]
+    },
+    {
+      title: 'Stuffed Shells',
+      description: 'Jumbo pasta shells stuffed with seasoned ricotta, egg, herbs, and cheeses, baked in rich marinara sauce with melted mozzarella.',
+      prep_time: 15,
+      cook_time: 35,
+      servings: 6,
+      tags: 'Pasta, Italian, Vegetarian, Ricotta, Baked, Dinner',
+      ingredients: [
+        { name: 'Marinara Sauce', amount: '3', unit: 'cups', raw_text: '3 cups Marinara Sauce' },
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Olive OIl' },
+        { name: 'Jumbo Shells', amount: '8', unit: 'ounces', raw_text: '8 ounces Jumbo Shells (Half a Box)' },
+        { name: 'Salt', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Salt' },
+        { name: 'Pepper', amount: '1/4', unit: 'teaspoon', raw_text: '¼ teaspoon Pepper' },
+        { name: 'Garlic Powder', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Garlic Powder' },
+        { name: 'Ricotta Cheese', amount: '15', unit: 'ounces', raw_text: '15 ounces Ricotta Cheese' },
+        { name: 'Mozzarella Cheese, shredded', amount: '2', unit: 'cups', raw_text: '2 cups Mozzarella Cheese, shredded' },
+        { name: 'Parmesan Cheese, grated', amount: '1/2', unit: 'cup', raw_text: '½ cup Parmesan Cheese, grated' },
+        { name: 'Egg', amount: '1', unit: '', raw_text: '1 Egg' },
+        { name: 'Parsley', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Parsley' },
+        { name: 'Basil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Basil' },
+        { name: 'Oregano', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Oregano' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Garlic, minced' }
+      ],
+      instructions: [
+        'Preheat oven to 350 degrees and lightly grease a casserole dish.',
+        'Cook pasta according to package directions. Toss with 1 tablespoon olive oil. Set aside until cool enough to handle.',
+        'Combine ricotta cheese, egg, herbs, garlic, parmesan cheese, 1 ¾ cups mozzarella cheese, and seasonings in a mixing bowl.',
+        'Spread 3 cups of marinara sauce over the bottom of the casserole dish evenly.',
+        'Fill each shell with 2 tablespoons of ricotta filling and place in the dish.',
+        'Sprinkle the remaining mozzarella cheese over each shell and bake for 20-25 minutes.'
+      ]
+    },
+    {
+      title: 'Tortellini Bake',
+      description: 'Simple 4-ingredient baked cheese tortellini coated in rich marinara sauce, oregano, and melted gooey mozzarella cheese.',
+      prep_time: 5,
+      cook_time: 30,
+      servings: 4,
+      tags: 'Pasta, Tortellini, Italian, Baked, Quick, Easy, Dinner',
+      ingredients: [
+        { name: 'Frozen Cheese Tortellini', amount: '1', unit: 'package (12 oz)', raw_text: '1 package (12 ounces) Frozen Cheese Tortellini' },
+        { name: 'Marinara Sauce', amount: '3', unit: 'cups', raw_text: '3 cups Marinara Sauce' },
+        { name: 'Oregano', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Oregano' },
+        { name: 'Mozzarella Cheese, shredded', amount: '2', unit: 'cups', raw_text: '2 cups Mozzarella Cheese, shredded' }
+      ],
+      instructions: [
+        'Preheat oven to 375 degrees.',
+        'Cook tortellini according to package directions.',
+        'Add marinara sauce, oregano and half the mozzarella cheese to the tortellini and coat evenly.',
+        'Add mixture to a casserole dish and top with the remaining mozzarella cheese. Bake for 20 minutes.',
+        'Let rest for 10 minutes.',
+        'Serve.'
+      ]
+    },
+    {
+      title: 'Tortellini with Tomato Cream Sauce',
+      description: 'Cheese tortellini in a rich and savory tomato cream sauce with diced tomatoes, baby spinach, garlic, basil, and parmesan.',
+      prep_time: 5,
+      cook_time: 20,
+      servings: 4,
+      tags: 'Pasta, Tortellini, Tomato Cream, Spinach, Quick, Dinner',
+      ingredients: [
+        { name: 'Frozen Cheese Tortellini', amount: '1', unit: 'package (16 oz)', raw_text: '1 package (16 ounces) Frozen Cheese Tortellini' },
+        { name: 'Onion, chopped', amount: '1', unit: '', raw_text: '1 Onion, chopped' },
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Olive Oil' },
+        { name: 'Garlic, minced', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoon Garlic, minced' },
+        { name: 'Diced Tomatoes, undrained', amount: '1', unit: 'can (14 oz)', raw_text: '1 can (14 ounces) Diced Tomatoes, undrained' },
+        { name: 'Spinach', amount: '1', unit: 'package (10 oz)', raw_text: '1 package (10 ounces) Spinach' },
+        { name: 'Basil', amount: '1 1/2', unit: 'teaspoons', raw_text: '1 ½ teaspoons Basil' },
+        { name: 'Salt', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Salt' },
+        { name: 'Pepper', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Pepper' },
+        { name: 'Heavy Whipping Cream', amount: '1 1/2', unit: 'cups', raw_text: '1 ½ cups Heavy Whipping Cream' },
+        { name: 'Parmesan Cheese, grated', amount: '1/2', unit: 'cup', raw_text: '½ cup Parmesan Cheese, grated' }
+      ],
+      instructions: [
+        'Cook tortellini according to package directions.',
+        'Heat olive oil in a skillet of medium heat. Sauté onion until translucent. Add garlic, diced tomatoes, spinach, basil, salt and pepper to the skillet. Cook until the liquid is absorbed.',
+        'Stir in heavy whipping cream and parmesan cheese. Bring to a boil. Reduce heat and simmer uncovered for 8-10 minutes or until thickened.',
+        'Toss tortellini with sauce and serve.'
+      ]
+    },
+    {
+      title: 'Tuscan Ravioli',
+      description: 'Tender cheese ravioli coated in a rich Tuscan garlic cream sauce with sun-dried tomatoes, wilted baby spinach, and fresh parmesan.',
+      prep_time: 5,
+      cook_time: 25,
+      servings: 4,
+      tags: 'Pasta, Ravioli, Tuscan, Sun Dried Tomatoes, Spinach, Cream Sauce, Dinner',
+      ingredients: [
+        { name: 'Butter', amount: '2', unit: 'tablespoons', raw_text: '2 tablespoons Butter' },
+        { name: 'Garlic, minced', amount: '2', unit: 'teaspoons', raw_text: '2 teaspoons Garlic, minced' },
+        { name: 'Onion Powder', amount: '1/2', unit: 'teaspoon', raw_text: '½ teaspoon Onion Powder' },
+        { name: 'Italian Seasoning', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Italian Seasoning' },
+        { name: 'Lemon Juice', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Lemon Juice' },
+        { name: 'Chicken Broth', amount: '1/4', unit: 'cup', raw_text: '¼ cup Chicken Broth' },
+        { name: 'Heavy Cream', amount: '1', unit: 'cup', raw_text: '1 cup Heavy Cream' },
+        { name: 'Baby Spinach', amount: '1', unit: 'cup', raw_text: '1 cup Baby Spinach' },
+        { name: 'Ravioli', amount: '2', unit: 'packages', raw_text: '2 packages Ravioli' },
+        { name: 'Sundried tomatoes, packed in oil', amount: '1/3', unit: 'cup', raw_text: '1/3 cup Sundried tomatoes, packed in oil' },
+        { name: 'Olive Oil', amount: '1', unit: 'tablespoon', raw_text: '1 tablespoon Olive Oil' },
+        { name: 'Parmesan Cheese, grated', amount: '1/2', unit: 'cup', raw_text: '½ cup Parmesan Cheese, grated' },
+        { name: 'Basil', amount: '1', unit: 'teaspoon', raw_text: '1 teaspoon Basil' }
+      ],
+      instructions: [
+        'Cook pasta according to package directions.',
+        'Add butter and olive oil in a skillet and heat over medium heat. Add garlic and cook for 30 seconds. Add onion powder, Italian seasoning, lemon juice, chicken broth, heavy cream, and sun-dried tomatoes to skillet and heat through.',
+        'Add sauce to pasta and stir to combine. Top with spinach and cover the skillet until it is wilted. Stir to combine.',
+        'Top with parmesan cheese and basil.'
+      ]
     }
   ];
 
