@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info, Layers, ExternalLink, Play, CheckCircle2 } from 'lucide-react';
+import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info, Layers, ExternalLink, Play, CheckCircle2, DollarSign, CreditCard, Receipt, AlertCircle, Check, CheckSquare, Square, RefreshCw, Landmark, ArrowRightLeft } from 'lucide-react';
 import WordTemplateExport from './WordTemplateExport';
 
 const CATEGORIES_LABELS = {
@@ -190,6 +190,17 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [githubToken, setGithubToken] = useState('');
   const [googleBooksApiKey, setGoogleBooksApiKey] = useState('');
   const [isbndbApiKey, setIsbndbApiKey] = useState('');
+  const [monarchToken, setMonarchToken] = useState('');
+  const [revealMonarchToken, setRevealMonarchToken] = useState(false);
+  const [monarchTesting, setMonarchTesting] = useState(false);
+  const [monarchConnected, setMonarchConnected] = useState(null);
+  const [monarchStatusMsg, setMonarchStatusMsg] = useState('');
+  const [monarchAccounts, setMonarchAccounts] = useState([]);
+  const [monarchEnabledAccountIds, setMonarchEnabledAccountIds] = useState([]);
+  const [monarchRecurringList, setMonarchRecurringList] = useState([]);
+  const [monarchRecurringMappings, setMonarchRecurringMappings] = useState({});
+  const [loadingMonarchData, setLoadingMonarchData] = useState(false);
+  const [syncingMonarch, setSyncingMonarch] = useState(false);
   const [savingIntegrations, setSavingIntegrations] = useState(false);
 
   const [dashboardRefreshInterval, setDashboardRefreshInterval] = useState('disabled');
@@ -411,10 +422,134 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     showToast(`${label} copied to clipboard!`, 'success');
   };
 
+  const fetchMonarchDetails = async () => {
+    setLoadingMonarchData(true);
+    try {
+      const [accRes, recRes] = await Promise.all([
+        fetch('/api/monarch/accounts'),
+        fetch('/api/monarch/recurring')
+      ]);
+
+      if (accRes.ok) {
+        const accData = await accRes.json();
+        const accs = accData.accounts || [];
+        setMonarchAccounts(accs);
+        setMonarchConnected(true);
+        if (accData.enabledAccountIds && accData.enabledAccountIds.length > 0) {
+          setMonarchEnabledAccountIds(accData.enabledAccountIds);
+        } else {
+          setMonarchEnabledAccountIds(accs.map(a => a.id));
+        }
+      } else if (accRes.status === 400) {
+        setMonarchConnected(false);
+      }
+
+      if (recRes.ok) {
+        const recData = await recRes.json();
+        setMonarchRecurringList(recData.recurring || []);
+        setMonarchRecurringMappings(recData.mappings || {});
+      }
+    } catch (err) {
+      console.error('Failed to load Monarch details:', err);
+    } finally {
+      setLoadingMonarchData(false);
+    }
+  };
+
+  const testMonarchConnection = async (tokenVal = monarchToken) => {
+    if (!tokenVal || !tokenVal.trim()) {
+      showToast('Please enter a Monarch Money token first.', 'error');
+      return;
+    }
+    setMonarchTesting(true);
+    setMonarchStatusMsg('');
+    try {
+      const res = await fetch('/api/monarch/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenVal.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setMonarchConnected(true);
+        setMonarchStatusMsg(data.message || 'Connected successfully!');
+        showToast('Monarch Money connected successfully!', 'success');
+        await fetchMonarchDetails();
+      } else {
+        setMonarchConnected(false);
+        setMonarchStatusMsg(data.error || 'Failed to connect to Monarch');
+        showToast(data.error || 'Failed to connect to Monarch', 'error');
+      }
+    } catch (err) {
+      setMonarchConnected(false);
+      setMonarchStatusMsg(err.message || 'Network error');
+      showToast('Monarch connection test error: ' + err.message, 'error');
+    } finally {
+      setMonarchTesting(false);
+    }
+  };
+
+  const handleSyncMonarch = async () => {
+    setSyncingMonarch(true);
+    try {
+      const res = await fetch('/api/monarch/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabledAccountIds: monarchEnabledAccountIds,
+          mappings: monarchRecurringMappings
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Monarch recurring items synced successfully!', 'success');
+      } else {
+        throw new Error(data.error || 'Failed to sync Monarch data');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
+    } finally {
+      setSyncingMonarch(false);
+    }
+  };
+
+  const toggleAllMonarchAccounts = (selectAll) => {
+    if (selectAll) {
+      setMonarchEnabledAccountIds(monarchAccounts.map(a => a.id));
+    } else {
+      setMonarchEnabledAccountIds([]);
+    }
+  };
+
+  const toggleMonarchAccount = (accId) => {
+    setMonarchEnabledAccountIds(prev => 
+      prev.includes(accId) ? prev.filter(id => id !== accId) : [...prev, accId]
+    );
+  };
+
+  const updateRecurringMapping = (item, type, customFields = {}) => {
+    setMonarchRecurringMappings(prev => ({
+      ...prev,
+      [item.id]: {
+        type, // 'bill' | 'subscription' | 'none'
+        name: customFields.name !== undefined ? customFields.name : (prev[item.id]?.name || item.merchantName),
+        amount: customFields.amount !== undefined ? customFields.amount : (prev[item.id]?.amount !== undefined ? prev[item.id].amount : item.amount),
+        cycle: customFields.cycle !== undefined ? customFields.cycle : (prev[item.id]?.cycle || (item.frequency === 'ANNUAL' ? 'annual' : 'monthly')),
+        nextDate: customFields.nextDate !== undefined ? customFields.nextDate : (prev[item.id]?.nextDate || item.nextDate),
+        tag: customFields.tag !== undefined ? customFields.tag : (prev[item.id]?.tag || item.categoryName || 'Utilities'),
+        category: customFields.category !== undefined ? customFields.category : (prev[item.id]?.category || item.categoryName || 'Entertainment'),
+        accountName: item.accountName || ''
+      }
+    }));
+  };
+
   useEffect(() => {
     if (activeSubTab === 'integrations' && currentUser?.role_name === 'Administrator') {
       fetchApiKey();
       fetchShareToken();
+      if (monarchToken) {
+        fetchMonarchDetails();
+      }
     }
   }, [activeSubTab]);
 
@@ -683,6 +818,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setGithubToken(data.github_token || '');
         setGoogleBooksApiKey(data.google_books_api_key || '');
         setIsbndbApiKey(data.isbndb_api_key || '');
+        setMonarchToken(data.monarch_token || '');
+        if (data.monarch_token) {
+          fetchMonarchDetails();
+        }
 
         setDashboardRefreshInterval(data.dashboard_refresh_interval || 'disabled');
         setDashboardBgType(data.dashboard_bg_type || 'theme');
@@ -794,7 +933,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         github_repo: githubRepo.trim(),
         github_token: githubToken,
         google_books_api_key: googleBooksApiKey,
-        isbndb_api_key: isbndbApiKey
+        isbndb_api_key: isbndbApiKey,
+        monarch_token: monarchToken
       };
 
       const res = await fetch('/api/settings', {
@@ -2557,6 +2697,85 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                   </div>
                 </div>
 
+                {/* Monarch Money Integration */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0, color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                      <span>💵</span> Monarch Money
+                    </h4>
+                    {monarchConnected === true && (
+                      <span style={{ fontSize: '0.7rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: '600' }}>
+                        <CheckCircle2 size={13} /> Connected
+                      </span>
+                    )}
+                    {monarchConnected === false && (
+                      <span style={{ fontSize: '0.7rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: '600' }}>
+                        <AlertCircle size={13} /> Disconnected
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '0.725rem', color: 'var(--muted-foreground)', margin: '0 0 0.25rem 0', lineHeight: '1.4' }}>
+                    Connect your Monarch Money account by entering your personal <code>monarch-token</code>.
+                  </p>
+                  <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+                    <label htmlFor="monarch-token-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Monarch API Token (monarch-token)</label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        id="monarch-token-input"
+                        type={revealMonarchToken ? "text" : "password"}
+                        className="input-control"
+                        value={monarchToken}
+                        onChange={(e) => {
+                          setMonarchToken(e.target.value);
+                          if (monarchConnected !== null) setMonarchConnected(null);
+                        }}
+                        placeholder={monarchToken ? "••••••••" : "Enter Monarch token"}
+                        style={{ paddingRight: '2.5rem' }}
+                      />
+                      {monarchToken && (
+                        <button
+                          type="button"
+                          onClick={() => setRevealMonarchToken(!revealMonarchToken)}
+                          style={{
+                            position: 'absolute',
+                            right: '0.5rem',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--muted-foreground)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '0.25rem'
+                          }}
+                          title={revealMonarchToken ? "Hide Token" : "Reveal Token"}
+                        >
+                          {revealMonarchToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      onClick={() => testMonarchConnection(monarchToken)}
+                      disabled={monarchTesting || !monarchToken}
+                    >
+                      <RotateCcw size={12} className={monarchTesting ? 'spin' : ''} />
+                      {monarchTesting ? 'Testing...' : 'Test Connection'}
+                    </button>
+                    {monarchStatusMsg && (
+                      <span style={{ fontSize: '0.7rem', color: monarchConnected ? '#10b981' : '#ef4444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {monarchStatusMsg}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
@@ -2566,6 +2785,335 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               </div>
             </form>
           </div>
+
+          {/* Monarch Integration Management Panel */}
+          {monarchToken && (monarchConnected || monarchAccounts.length > 0) && (
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '1rem' }}>
+                <div>
+                  <h3 style={{ fontSize: '1.125rem', margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}>
+                    <Landmark size={18} style={{ color: 'var(--primary)' }} /> Monarch Integration & Recurring Sync
+                  </h3>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                    Select which accounts to include in the Money overview and classify recurring transactions into Bills or Subscriptions.
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ fontSize: '0.75rem', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    onClick={fetchMonarchDetails}
+                    disabled={loadingMonarchData}
+                  >
+                    <RefreshCw size={13} className={loadingMonarchData ? 'spin' : ''} />
+                    {loadingMonarchData ? 'Refreshing...' : 'Refresh from Monarch'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.75rem', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                    onClick={handleSyncMonarch}
+                    disabled={syncingMonarch}
+                  >
+                    <Save size={13} />
+                    {syncingMonarch ? 'Syncing...' : 'Save & Sync to App'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Section 1: Included Accounts */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <div>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: '600', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CreditCard size={16} /> Accounts to Include ({monarchEnabledAccountIds.length} of {monarchAccounts.length} selected)
+                    </h4>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                      Selected accounts will be displayed in balances and transaction history on the Money page.
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                      onClick={() => toggleAllMonarchAccounts(true)}
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                      onClick={() => toggleAllMonarchAccounts(false)}
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+
+                {loadingMonarchData && monarchAccounts.length === 0 ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
+                    Loading accounts from Monarch...
+                  </div>
+                ) : monarchAccounts.length === 0 ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.875rem', border: '1px dashed var(--border)', borderRadius: 'var(--radius)' }}>
+                    No Monarch accounts found. Please test your connection.
+                  </div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+                    {monarchAccounts.map(acc => {
+                      const isEnabled = monarchEnabledAccountIds.includes(acc.id);
+                      return (
+                        <div
+                          key={acc.id}
+                          onClick={() => toggleMonarchAccount(acc.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.75rem 1rem',
+                            borderRadius: 'var(--radius)',
+                            border: isEnabled ? '1px solid var(--primary)' : '1px solid var(--border)',
+                            background: isEnabled ? 'var(--card)' : 'var(--muted)',
+                            opacity: isEnabled ? 1 : 0.65,
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                            userSelect: 'none'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', overflow: 'hidden' }}>
+                            <div style={{ color: isEnabled ? 'var(--primary)' : 'var(--muted-foreground)', display: 'flex', alignItems: 'center' }}>
+                              {isEnabled ? <CheckSquare size={18} /> : <Square size={18} />}
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                              <span style={{ fontWeight: '600', fontSize: '0.85rem', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                                {acc.displayName}
+                              </span>
+                              <span style={{ fontSize: '0.725rem', color: 'var(--muted-foreground)' }}>
+                                {acc.institutionName ? `${acc.institutionName} • ` : ''}{acc.typeDisplay || acc.type} {acc.mask ? `(••${acc.mask})` : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                            <span style={{ fontWeight: '700', fontSize: '0.875rem', color: acc.currentBalance < 0 ? '#ef4444' : 'var(--foreground)' }}>
+                              ${Number(acc.currentBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Recurring Transactions Classifier */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                <div>
+                  <h4 style={{ fontSize: '0.95rem', fontWeight: '600', margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <ArrowRightLeft size={16} /> Recurring Transactions Sync ({monarchRecurringList.length} detected)
+                  </h4>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>
+                    Classify each recurring merchant stream as a <strong>Bill</strong> or <strong>Subscription</strong> to automatically sync its details into the app. Excluded items will not sync.
+                  </p>
+                </div>
+
+                {loadingMonarchData && monarchRecurringList.length === 0 ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
+                    Loading recurring streams from Monarch...
+                  </div>
+                ) : monarchRecurringList.length === 0 ? (
+                  <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.875rem', border: '1px dashed var(--border)', borderRadius: 'var(--radius)' }}>
+                    No recurring transaction patterns detected in Monarch yet.
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                    {monarchRecurringList.map(item => {
+                      const currentMapping = monarchRecurringMappings[item.id] || { type: 'none' };
+                      const currentType = currentMapping.type || 'none';
+
+                      return (
+                        <div
+                          key={item.id}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.625rem',
+                            padding: '0.875rem 1rem',
+                            borderRadius: 'var(--radius)',
+                            border: currentType !== 'none' ? '1px solid var(--primary)' : '1px solid var(--border)',
+                            background: currentType !== 'none' ? 'var(--card)' : 'var(--muted)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: '200px' }}>
+                              <span style={{ fontWeight: '700', fontSize: '0.9rem' }}>{item.merchantName}</span>
+                              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                                {item.accountName ? `${item.accountName} • ` : ''}Category: {item.categoryName || 'General'}
+                                {item.nextDate ? ` • Next: ${item.nextDate}` : ''} • {item.frequency || 'Monthly'}
+                              </span>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                              <div style={{ fontSize: '1rem', fontWeight: 'bold' }}>
+                                ${Number(item.amount || 0).toFixed(2)}
+                              </div>
+
+                              {/* 3-Way Classification Toggle */}
+                              <div style={{ display: 'flex', background: 'var(--background)', borderRadius: 'var(--radius)', padding: '0.2rem', border: '1px solid var(--border)', gap: '0.2rem' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => updateRecurringMapping(item, 'none')}
+                                  style={{
+                                    border: 'none',
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    borderRadius: 'calc(var(--radius) - 2px)',
+                                    cursor: 'pointer',
+                                    background: currentType === 'none' ? 'var(--muted-foreground)' : 'transparent',
+                                    color: currentType === 'none' ? '#fff' : 'var(--muted-foreground)'
+                                  }}
+                                >
+                                  Excluded
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateRecurringMapping(item, 'bill')}
+                                  style={{
+                                    border: 'none',
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    borderRadius: 'calc(var(--radius) - 2px)',
+                                    cursor: 'pointer',
+                                    background: currentType === 'bill' ? '#ef4444' : 'transparent',
+                                    color: currentType === 'bill' ? '#fff' : 'var(--foreground)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}
+                                >
+                                  <Receipt size={12} /> Bill
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateRecurringMapping(item, 'subscription')}
+                                  style={{
+                                    border: 'none',
+                                    padding: '0.3rem 0.6rem',
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    borderRadius: 'calc(var(--radius) - 2px)',
+                                    cursor: 'pointer',
+                                    background: currentType === 'subscription' ? '#8b5cf6' : 'transparent',
+                                    color: currentType === 'subscription' ? '#fff' : 'var(--foreground)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}
+                                >
+                                  <CreditCard size={12} /> Subscription
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Detail inputs when classified */}
+                          {currentType !== 'none' && (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', paddingTop: '0.5rem', borderTop: '1px dashed var(--border)' }}>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '0.675rem', color: 'var(--muted-foreground)' }}>Display Name</label>
+                                <input
+                                  type="text"
+                                  className="input-control"
+                                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                  value={currentMapping.name !== undefined ? currentMapping.name : item.merchantName}
+                                  onChange={(e) => updateRecurringMapping(item, currentType, { name: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '0.675rem', color: 'var(--muted-foreground)' }}>Amount ($)</label>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className="input-control"
+                                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                  value={currentMapping.amount !== undefined ? currentMapping.amount : item.amount}
+                                  onChange={(e) => updateRecurringMapping(item, currentType, { amount: e.target.value })}
+                                />
+                              </div>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '0.675rem', color: 'var(--muted-foreground)' }}>Billing Cycle</label>
+                                <select
+                                  className="input-control"
+                                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                  value={currentMapping.cycle || (item.frequency === 'ANNUAL' ? 'annual' : 'monthly')}
+                                  onChange={(e) => updateRecurringMapping(item, currentType, { cycle: e.target.value })}
+                                >
+                                  <option value="monthly">Monthly</option>
+                                  <option value="annual">Annual</option>
+                                </select>
+                              </div>
+                              <div className="form-group" style={{ margin: 0 }}>
+                                <label style={{ fontSize: '0.675rem', color: 'var(--muted-foreground)' }}>Next Date</label>
+                                <input
+                                  type="date"
+                                  className="input-control"
+                                  style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                  value={currentMapping.nextDate || item.nextDate || ''}
+                                  onChange={(e) => updateRecurringMapping(item, currentType, { nextDate: e.target.value })}
+                                />
+                              </div>
+                              {currentType === 'bill' && (
+                                <div className="form-group" style={{ margin: 0 }}>
+                                  <label style={{ fontSize: '0.675rem', color: 'var(--muted-foreground)' }}>Bill Tag</label>
+                                  <input
+                                    type="text"
+                                    className="input-control"
+                                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                    value={currentMapping.tag || item.categoryName || 'Utilities'}
+                                    onChange={(e) => updateRecurringMapping(item, currentType, { tag: e.target.value })}
+                                  />
+                                </div>
+                              )}
+                              {currentType === 'subscription' && (
+                                <div className="form-group" style={{ margin: 0 }}>
+                                  <label style={{ fontSize: '0.675rem', color: 'var(--muted-foreground)' }}>Category</label>
+                                  <input
+                                    type="text"
+                                    className="input-control"
+                                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                    value={currentMapping.category || item.categoryName || 'Entertainment'}
+                                    onChange={(e) => updateRecurringMapping(item, currentType, { category: e.target.value })}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem', borderTop: '1px solid var(--border)' }}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  onClick={handleSyncMonarch}
+                  disabled={syncingMonarch}
+                >
+                  <Save size={15} />
+                  {syncingMonarch ? 'Syncing to Bills & Subscriptions...' : 'Save & Sync to App'}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Microsoft Calendar Sync Settings Card */}
           {(() => {

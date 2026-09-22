@@ -707,6 +707,14 @@ export async function getDb() {
     console.error('Failed to populate US Holidays on startup:', err);
   }
 
+  // Safe Migration to add monarch_recurring_id to subscriptions and recurring_bills
+  try {
+    await dbInstance.run("ALTER TABLE subscriptions ADD COLUMN monarch_recurring_id TEXT");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE recurring_bills ADD COLUMN monarch_recurring_id TEXT");
+  } catch (err) {}
+
   try {
     await dbInstance.run(`
       CREATE TABLE IF NOT EXISTS contact_important_dates (

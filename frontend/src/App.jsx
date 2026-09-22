@@ -24,6 +24,7 @@ import {
   Moon,
   Lightbulb,
   Bug,
+  DollarSign,
   CreditCard,
   Receipt,
   Gamepad2,
@@ -90,6 +91,7 @@ import RoutinesView from './components/RoutinesView';
 import HabitsView from './components/HabitsView';
 import FocusView from './components/FocusView';
 import CalendarView from './components/CalendarView';
+import MoneyView from './components/MoneyView';
 import SubscriptionsView from './components/SubscriptionsView';
 import BillsView from './components/BillsView';
 import GamesView from './components/GamesView';
@@ -262,6 +264,11 @@ export default function App() {
       "id": "calendar",
       "label": "Calendar",
       "icon": "Calendar"
+    },
+    {
+      "id": "money",
+      "label": "Money",
+      "icon": "DollarSign"
     },
     {
       "id": "subscriptions",
@@ -555,7 +562,7 @@ export default function App() {
       const tab = parts[0] || 'home';
       const subTab = parts[1] || 'general';
       
-      const validTabs = ['home', 'settings', 'features', 'bugs', 'todo', 'calendar', 'subscriptions', 'bills', 'games'];
+      const validTabs = ['home', 'settings', 'features', 'bugs', 'todo', 'calendar', 'money', 'subscriptions', 'bills', 'games'];
       if (validTabs.includes(tab)) {
         setActiveTab(tab);
         if (tab === 'settings') {
@@ -1265,6 +1272,13 @@ export default function App() {
                 {(expandedCategories.finance || isSidebarCollapsed) && (
                   <>
                     <a 
+                      className={`nav-link ${activeTab === 'money' ? 'active' : ''}`}
+                      onClick={() => { setActiveTab('money'); setIsMobileMenuOpen(false); }}
+                    >
+                      <DollarSign />
+                      <span>Money</span>
+                    </a>
+                    <a 
                       className={`nav-link ${activeTab === 'subscriptions' ? 'active' : ''}`}
                       onClick={() => { setActiveTab('subscriptions'); setIsMobileMenuOpen(false); }}
                     >
@@ -1793,6 +1807,16 @@ export default function App() {
           <CalendarView 
             showToast={showToast} 
             currentUser={user} 
+          />
+        )}
+
+        {activeTab === 'money' && (
+          <MoneyView 
+            showToast={showToast}
+            onNavigateToSettings={(subTab) => {
+              setActiveTab('settings');
+              setSettingsSubTab(subTab || 'integrations');
+            }}
           />
         )}
 

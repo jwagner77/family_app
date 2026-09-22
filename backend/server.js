@@ -1283,6 +1283,7 @@ app.get('/api/settings', authenticate, requirePermission('settings_general', 're
       delete settings.github_token;
       delete settings.isbndb_api_key;
       delete settings.google_books_api_key;
+      delete settings.monarch_token;
     }
     res.json(settings);
   } catch (error) {
@@ -1330,6 +1331,9 @@ app.post('/api/settings', authenticate, requirePermission('settings_general', 'f
     }
     if (settings.google_books_api_key === '••••••••' || settings.google_books_api_key === '') {
       delete settings.google_books_api_key;
+    }
+    if (settings.monarch_token === '••••••••' || settings.monarch_token === '') {
+      delete settings.monarch_token;
     }
 
     await saveSettings(settings);
@@ -3633,6 +3637,555 @@ app.get('/api/bills/tags', authenticate, async (req, res) => {
     const db = await getDb();
     const tags = await db.all("SELECT name FROM bill_tags ORDER BY name ASC");
     res.json(tags.map(t => t.name));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// ==========================================
+// --- MONARCH MONEY INTEGRATION API ---
+// ==========================================
+
+async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
+  let token = tokenOverride;
+  if (!token) {
+    const settings = await getSettings();
+    token = settings.monarch_token;
+  }
+  if (!token || !token.trim()) {
+    throw new Error('Monarch Money token is not configured.');
+  }
+
+  const cleanToken = token.trim();
+  const response = await fetch('https://api.monarchmoney.com/graphql', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Token ${cleanToken}`,
+      'Content-Type': 'application/json',
+      'User-Agent': 'FamilyApp/1.0 (Monarch Integration)'
+    },
+    body: JSON.stringify({ query, variables })
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    let errMsg = `Monarch API error (HTTP ${response.status})`;
+    try {
+      const errJson = JSON.parse(text);
+      if (errJson.errors && errJson.errors.length > 0) {
+        errMsg = errJson.errors.map(e => e.message).join(', ');
+      } else if (errJson.message) {
+        errMsg = errJson.message;
+      }
+    } catch (e) {}
+    throw new Error(errMsg);
+  }
+
+  const json = await response.json();
+  if (json.errors && json.errors.length > 0) {
+    throw new Error(json.errors.map(e => e.message).join(', '));
+  }
+  return json.data;
+}
+
+// 1. Test Monarch Connection
+app.post('/api/monarch/test-connection', authenticate, requirePermission('settings_general', 'read'), async (req, res) => {
+  const { token } = req.body;
+  try {
+    const query = `
+      query TestConnection {
+        accounts {
+          id
+          displayName
+          currentBalance
+        }
+      }
+    `;
+    const data = await callMonarchGraphQL(query, {}, token);
+    const accounts = data?.accounts || [];
+    res.json({
+      ok: true,
+      accountCount: accounts.length,
+      message: `Connected successfully! Found ${accounts.length} accounts.`
+    });
+  } catch (error) {
+    res.status(400).json({ ok: false, error: error.message });
+  }
+});
+
+// 2. Fetch Monarch Accounts
+app.get('/api/monarch/accounts', authenticate, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.monarch_token || !settings.monarch_token.trim()) {
+      return res.status(400).json({ error: 'Monarch token not configured' });
+    }
+
+    const query = `
+      query GetMonarchAccounts {
+        accounts {
+          id
+          displayName
+          currentBalance
+          type {
+            name
+            display
+          }
+          subtype {
+            name
+            display
+          }
+          isAsset
+          includeInNetWorth
+          updatedAt
+          mask
+          credential {
+            id
+            institution {
+              id
+              name
+            }
+          }
+        }
+      }
+    `;
+
+    let data;
+    try {
+      data = await callMonarchGraphQL(query);
+    } catch (err) {
+      // Fallback query if credential or other optional field is rejected
+      const fallbackQuery = `
+        query GetMonarchAccountsFallback {
+          accounts {
+            id
+            displayName
+            currentBalance
+            type {
+              name
+              display
+            }
+            subtype {
+              name
+              display
+            }
+            isAsset
+            includeInNetWorth
+            updatedAt
+            mask
+          }
+        }
+      `;
+      data = await callMonarchGraphQL(fallbackQuery);
+    }
+
+    let enabledIds = [];
+    if (settings.monarch_enabled_account_ids) {
+      try {
+        enabledIds = JSON.parse(settings.monarch_enabled_account_ids);
+      } catch (e) {
+        enabledIds = [];
+      }
+    }
+
+    const rawAccounts = data?.accounts || [];
+    const accounts = rawAccounts.map(acc => ({
+      id: acc.id,
+      displayName: acc.displayName || 'Unnamed Account',
+      currentBalance: typeof acc.currentBalance === 'number' ? acc.currentBalance : 0,
+      type: acc.type?.name || 'other',
+      typeDisplay: acc.type?.display || acc.type?.name || 'Other',
+      subtype: acc.subtype?.name || '',
+      subtypeDisplay: acc.subtype?.display || '',
+      isAsset: acc.isAsset !== false,
+      includeInNetWorth: acc.includeInNetWorth !== false,
+      updatedAt: acc.updatedAt,
+      mask: acc.mask || '',
+      institutionName: acc.credential?.institution?.name || ''
+    }));
+
+    res.json({
+      accounts,
+      enabledAccountIds: enabledIds
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Fetch Monarch Recurring Transactions
+app.get('/api/monarch/recurring', authenticate, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.monarch_token || !settings.monarch_token.trim()) {
+      return res.status(400).json({ error: 'Monarch token not configured' });
+    }
+
+    let mappings = {};
+    if (settings.monarch_recurring_mappings) {
+      try {
+        mappings = JSON.parse(settings.monarch_recurring_mappings);
+      } catch (e) {
+        mappings = {};
+      }
+    }
+
+    const query = `
+      query GetRecurringTransactions {
+        recurringTransactions {
+          id
+          amount
+          frequency
+          startDate
+          nextDate
+          merchant {
+            id
+            name
+          }
+          category {
+            id
+            name
+          }
+          account {
+            id
+            displayName
+          }
+        }
+      }
+    `;
+
+    let items = [];
+    try {
+      const data = await callMonarchGraphQL(query);
+      items = data?.recurringTransactions || [];
+    } catch (e) {
+      console.warn('Monarch recurringTransactions query failed, returning empty:', e.message);
+      items = [];
+    }
+
+    const recurring = items.map(item => ({
+      id: item.id,
+      merchantName: item.merchant?.name || 'Recurring Item',
+      amount: typeof item.amount === 'number' ? Math.abs(item.amount) : 0,
+      frequency: item.frequency || 'MONTHLY',
+      startDate: item.startDate || '',
+      nextDate: item.nextDate || '',
+      categoryName: item.category?.name || 'General',
+      accountName: item.account?.displayName || '',
+      accountId: item.account?.id || ''
+    }));
+
+    res.json({
+      recurring,
+      mappings
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 4. Sync Monarch Mappings & Save Settings
+app.post('/api/monarch/sync', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  const { enabledAccountIds, mappings } = req.body;
+  try {
+    const db = await getDb();
+    const settings = await getSettings();
+    const userTz = req.user?.timezone || 'America/New_York';
+    const todayStr = getTzTodayStr(userTz);
+
+    const newSettings = {};
+    if (Array.isArray(enabledAccountIds)) {
+      newSettings.monarch_enabled_account_ids = JSON.stringify(enabledAccountIds);
+    }
+    if (mappings && typeof mappings === 'object') {
+      newSettings.monarch_recurring_mappings = JSON.stringify(mappings);
+    }
+    if (Object.keys(newSettings).length > 0) {
+      await saveSettings(newSettings);
+    }
+
+    let syncedCount = 0;
+    if (mappings && typeof mappings === 'object') {
+      for (const [recId, item] of Object.entries(mappings)) {
+        const itemType = item.type; // 'bill', 'subscription', 'none'
+        const name = (item.name || item.merchantName || 'Recurring Item').trim();
+        const amount = Math.abs(parseFloat(item.amount)) || 0;
+        const cycle = (item.cycle || item.frequency || 'monthly').toLowerCase().includes('annual') ? 'annual' : 'monthly';
+        const nextBillingDate = item.nextDate || item.next_billing_date || todayStr;
+        const categoryOrTag = item.tag || item.category || 'Monarch Sync';
+        const paymentMethod = item.accountName || item.paymentMethod || 'Monarch';
+
+        if (itemType === 'bill') {
+          // Check if existing in recurring_bills
+          const existing = await db.get("SELECT id FROM recurring_bills WHERE monarch_recurring_id = ?", [recId]);
+          if (existing) {
+            await db.run(
+              "UPDATE recurring_bills SET name = ?, amount = ?, billing_cycle = ?, next_billing_date = ?, tag = ?, active = 1, payment_method = ? WHERE id = ?",
+              [name, amount, cycle, nextBillingDate, categoryOrTag, paymentMethod, existing.id]
+            );
+          } else {
+            await db.run(
+              "INSERT INTO recurring_bills (name, amount, billing_cycle, next_billing_date, tag, active, payment_method, monarch_recurring_id) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
+              [name, amount, cycle, nextBillingDate, categoryOrTag, paymentMethod, recId]
+            );
+          }
+          // Remove from subscriptions if previously synced there
+          await db.run("DELETE FROM subscriptions WHERE monarch_recurring_id = ?", [recId]);
+          syncedCount++;
+        } else if (itemType === 'subscription') {
+          // Check if existing in subscriptions
+          const existing = await db.get("SELECT id FROM subscriptions WHERE monarch_recurring_id = ?", [recId]);
+          if (existing) {
+            await db.run(
+              "UPDATE subscriptions SET name = ?, amount = ?, billing_cycle = ?, next_billing_date = ?, category = ?, active = 1, payment_method = ? WHERE id = ?",
+              [name, amount, cycle, nextBillingDate, categoryOrTag, paymentMethod, existing.id]
+            );
+          } else {
+            await db.run(
+              "INSERT INTO subscriptions (name, amount, billing_cycle, next_billing_date, category, active, payment_method, monarch_recurring_id) VALUES (?, ?, ?, ?, ?, 1, ?, ?)",
+              [name, amount, cycle, nextBillingDate, categoryOrTag, paymentMethod, recId]
+            );
+          }
+          // Remove from recurring_bills if previously synced there
+          await db.run("DELETE FROM recurring_bills WHERE monarch_recurring_id = ?", [recId]);
+          syncedCount++;
+        } else {
+          // Excluded: remove from both tables if previously synced
+          await db.run("DELETE FROM recurring_bills WHERE monarch_recurring_id = ?", [recId]);
+          await db.run("DELETE FROM subscriptions WHERE monarch_recurring_id = ?", [recId]);
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully synced ${syncedCount} items to Bills & Subscriptions.`,
+      syncedCount
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. Money Dashboard Summary API
+app.get('/api/monarch/summary', authenticate, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    if (!settings.monarch_token || !settings.monarch_token.trim()) {
+      return res.json({ connected: false });
+    }
+
+    let enabledAccountIds = [];
+    if (settings.monarch_enabled_account_ids) {
+      try {
+        enabledAccountIds = JSON.parse(settings.monarch_enabled_account_ids);
+      } catch (e) {
+        enabledAccountIds = [];
+      }
+    }
+
+    const accountsQuery = `
+      query GetMonarchAccountsSummary {
+        accounts {
+          id
+          displayName
+          currentBalance
+          type {
+            name
+            display
+          }
+          subtype {
+            name
+            display
+          }
+          isAsset
+          includeInNetWorth
+          updatedAt
+          mask
+          credential {
+            id
+            institution {
+              id
+              name
+            }
+          }
+        }
+      }
+    `;
+
+    let accountsData;
+    try {
+      accountsData = await callMonarchGraphQL(accountsQuery);
+    } catch (e) {
+      const fallbackQuery = `
+        query GetMonarchAccountsSummaryFallback {
+          accounts {
+            id
+            displayName
+            currentBalance
+            type {
+              name
+              display
+            }
+            subtype {
+              name
+              display
+            }
+            isAsset
+            includeInNetWorth
+            updatedAt
+            mask
+          }
+        }
+      `;
+      accountsData = await callMonarchGraphQL(fallbackQuery);
+    }
+
+    const allAccounts = accountsData?.accounts || [];
+    
+    // Filter to enabled accounts if user set specific accounts
+    const filteredAccounts = enabledAccountIds.length > 0
+      ? allAccounts.filter(acc => enabledAccountIds.includes(acc.id))
+      : allAccounts;
+
+    let totalCash = 0;
+    let totalCreditDebt = 0;
+    let totalInvestments = 0;
+    let totalLoanDebt = 0;
+    let totalAssets = 0;
+    let totalLiabilities = 0;
+
+    const categorizedAccounts = {
+      cash: [],
+      credit: [],
+      investments: [],
+      loans: [],
+      other: []
+    };
+
+    filteredAccounts.forEach(acc => {
+      const balance = typeof acc.currentBalance === 'number' ? acc.currentBalance : 0;
+      const typeName = (acc.type?.name || '').toLowerCase();
+      const subtypeName = (acc.subtype?.name || '').toLowerCase();
+      const isAsset = acc.isAsset !== false;
+      const includeInNetWorth = acc.includeInNetWorth !== false;
+
+      const formattedAcc = {
+        id: acc.id,
+        displayName: acc.displayName || 'Account',
+        currentBalance: balance,
+        type: acc.type?.name || 'other',
+        typeDisplay: acc.type?.display || acc.type?.name || 'Other',
+        subtype: acc.subtype?.name || '',
+        subtypeDisplay: acc.subtype?.display || '',
+        isAsset,
+        updatedAt: acc.updatedAt,
+        mask: acc.mask || '',
+        institutionName: acc.credential?.institution?.name || ''
+      };
+
+      if (typeName === 'depository' || typeName === 'cash' || subtypeName === 'checking' || subtypeName === 'savings' || subtypeName === 'cash') {
+        categorizedAccounts.cash.push(formattedAcc);
+        totalCash += balance;
+      } else if (typeName === 'credit' || subtypeName === 'credit_card' || subtypeName === 'credit') {
+        categorizedAccounts.credit.push(formattedAcc);
+        totalCreditDebt += Math.abs(balance);
+      } else if (typeName === 'investment' || typeName === 'brokerage' || subtypeName.includes('ira') || subtypeName.includes('401') || subtypeName.includes('brokerage')) {
+        categorizedAccounts.investments.push(formattedAcc);
+        totalInvestments += balance;
+      } else if (typeName === 'loan' || typeName === 'mortgage' || subtypeName.includes('loan') || subtypeName.includes('mortgage')) {
+        categorizedAccounts.loans.push(formattedAcc);
+        totalLoanDebt += Math.abs(balance);
+      } else {
+        categorizedAccounts.other.push(formattedAcc);
+      }
+
+      if (includeInNetWorth) {
+        if (isAsset) {
+          totalAssets += balance;
+        } else {
+          totalLiabilities += Math.abs(balance);
+        }
+      }
+    });
+
+    const netWorth = totalAssets - totalLiabilities;
+
+    // Fetch Recent Transactions from Monarch
+    let recentTransactions = [];
+    try {
+      const txQuery = `
+        query GetRecentTransactions($limit: Int) {
+          allTransactions(limit: $limit) {
+            results {
+              id
+              amount
+              date
+              pending
+              notes
+              merchant {
+                id
+                name
+              }
+              category {
+                id
+                name
+              }
+              account {
+                id
+                displayName
+                mask
+              }
+            }
+          }
+        }
+      `;
+      const txData = await callMonarchGraphQL(txQuery, { limit: 40 });
+      const rawTx = txData?.allTransactions?.results || [];
+      
+      const enabledSet = new Set(filteredAccounts.map(a => a.id));
+      const filteredTx = rawTx.filter(t => !t.account?.id || enabledSet.has(t.account.id));
+
+      recentTransactions = filteredTx.slice(0, 15).map(t => ({
+        id: t.id,
+        amount: typeof t.amount === 'number' ? t.amount : 0,
+        date: t.date || '',
+        merchantName: t.merchant?.name || 'Transaction',
+        categoryName: t.category?.name || 'Uncategorized',
+        accountName: t.account?.displayName || '',
+        accountMask: t.account?.mask || '',
+        pending: !!t.pending,
+        notes: t.notes || ''
+      }));
+    } catch (e) {
+      console.warn('Failed to fetch Monarch recent transactions:', e.message);
+    }
+
+    // Fetch upcoming bills and subscriptions from local SQLite
+    const db = await getDb();
+    const upcomingBills = await db.all(
+      "SELECT * FROM recurring_bills WHERE active = 1 ORDER BY next_billing_date ASC LIMIT 8"
+    );
+    const upcomingSubscriptions = await db.all(
+      "SELECT * FROM subscriptions WHERE active = 1 ORDER BY next_billing_date ASC LIMIT 8"
+    );
+
+    res.json({
+      connected: true,
+      netWorth,
+      totalAssets,
+      totalLiabilities,
+      totalCash,
+      totalCreditDebt,
+      totalInvestments,
+      totalLoanDebt,
+      accountsByCategory: categorizedAccounts,
+      totalAccountCount: filteredAccounts.length,
+      recentTransactions,
+      upcomingBills,
+      upcomingSubscriptions
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
