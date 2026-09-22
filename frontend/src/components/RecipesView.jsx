@@ -13,7 +13,8 @@ import {
   Edit2, 
   ShoppingCart, 
   X, 
-  ChevronDown 
+  ChevronDown,
+  ExternalLink 
 } from 'lucide-react';
 import RecipeForm from './RecipeForm';
 
@@ -562,6 +563,27 @@ export default function RecipesView({ showToast, user }) {
             <div className="modal-header">
               <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0, wordBreak: 'break-word' }}>{currentRecipe.title}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                {currentRecipe.source_url && (
+                  <a
+                    href={currentRecipe.source_url.startsWith('http') ? currentRecipe.source_url : `https://${currentRecipe.source_url}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-icon"
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--foreground, #fff)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textDecoration: 'none',
+                      cursor: 'pointer'
+                    }}
+                    title="Open Recipe Website in New Window"
+                  >
+                    <ExternalLink size={20} />
+                  </a>
+                )}
                 <button 
                   className="btn-icon"
                   style={{ background: 'transparent', border: 'none', color: currentRecipe.favorite ? '#f1c40f' : 'var(--text-muted)' }}
@@ -686,14 +708,7 @@ export default function RecipesView({ showToast, user }) {
               )}
             </div>
             
-            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
-              <div>
-                {currentRecipe.source_url && (
-                  <a href={currentRecipe.source_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary hover-underline">
-                    View Recipe Source Link
-                  </a>
-                )}
-              </div>
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
               <div style={{ display: 'flex', gap: '0.75rem' }}>
                 {canWrite && (
                   <button className="btn btn-secondary" style={{ color: 'var(--danger)' }} onClick={() => handleDeleteRecipe(currentRecipe.id)}>

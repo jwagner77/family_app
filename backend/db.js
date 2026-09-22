@@ -683,6 +683,11 @@ export async function getDb() {
     await dbInstance.run("ALTER TABLE users ADD COLUMN calendar_sync_mappings TEXT");
   } catch (err) {}
 
+  // Safe Migration to add source_url column to recipes if missing
+  try {
+    await dbInstance.run("ALTER TABLE recipes ADD COLUMN source_url TEXT");
+  } catch (err) {}
+
   // Safe Migration to pre-populate calendar holiday color
   try {
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('calendar_holiday_color', '#f97316')");
