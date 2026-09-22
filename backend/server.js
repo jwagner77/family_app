@@ -3658,15 +3658,38 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
   }
 
   const cleanToken = token.trim();
-  const response = await fetch('https://api.monarchmoney.com/graphql', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Token ${cleanToken}`,
-      'Content-Type': 'application/json',
-      'User-Agent': 'FamilyApp/1.0 (Monarch Integration)'
-    },
-    body: JSON.stringify({ query, variables })
-  });
+  const headers = {
+    'Authorization': `Token ${cleanToken}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'Client-Platform': 'web',
+    'User-Agent': 'MonarchMoneyAPI (https://github.com/hammem/monarchmoney)'
+  };
+
+  let response;
+  let endpoint = 'https://api.monarchmoney.com/graphql';
+  try {
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, variables })
+    });
+    if (response.status === 404 || response.status === 502) {
+      endpoint = 'https://api.monarch.com/graphql';
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ query, variables })
+      });
+    }
+  } catch (err) {
+    endpoint = 'https://api.monarch.com/graphql';
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query, variables })
+    });
+  }
 
   if (!response.ok) {
     const text = await response.text().catch(() => '');
@@ -3675,6 +3698,8 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
       const errJson = JSON.parse(text);
       if (errJson.errors && errJson.errors.length > 0) {
         errMsg = errJson.errors.map(e => e.message).join(', ');
+      } else if (errJson.detail) {
+        errMsg = errJson.detail;
       } else if (errJson.message) {
         errMsg = errJson.message;
       }
@@ -3689,7 +3714,115 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
   return json.data;
 }
 
-// 1. Test Monarch Connection
+// 1. Authenticate to Monarch and capture token
+app.post('/api/monarch/login', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  const { email, password, totp } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required to log into Monarch Money.' });
+  }
+
+  try {
+    const payload = {
+      username: email.trim(),
+      password: password,
+      supports_mfa: true,
+      trusted_device: false
+    };
+    if (totp && totp.trim()) {
+      payload.totp = totp.trim();
+    }
+
+    const headers = {
+      'Accept': 'application/json',
+      'Client-Platform': 'web',
+      'Content-Type': 'application/json',
+      'User-Agent': 'MonarchMoneyAPI (https://github.com/hammem/monarchmoney)'
+    };
+
+    let response;
+    let endpoint = 'https://api.monarchmoney.com/auth/login/';
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+      if (response.status === 404 || response.status === 502) {
+        endpoint = 'https://api.monarch.com/auth/login/';
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+      }
+    } catch (netErr) {
+      endpoint = 'https://api.monarch.com/auth/login/';
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload)
+      });
+    }
+
+    const responseText = await response.text();
+    let data = {};
+    try {
+      data = JSON.parse(responseText);
+    } catch (e) {
+      data = { text: responseText };
+    }
+
+    // Check for Multi-Factor Auth requirement
+    if (response.status === 403 || (data && (data.detail === 'Multi-Factor Auth Required' || data.error_code === 'require_mfa' || data.error_code === 'mfa_required' || data.mfa_required))) {
+      return res.json({
+        requiresMFA: true,
+        message: data.detail || 'Multi-Factor Authentication (2FA) is required. Please enter your 6-digit verification code.'
+      });
+    }
+
+    if (!response.ok) {
+      let errMsg = `Monarch login failed (HTTP ${response.status})`;
+      if (data.detail) {
+        errMsg = data.detail;
+      } else if (data.error_code) {
+        errMsg = data.error_code;
+      } else if (data.non_field_errors && Array.isArray(data.non_field_errors)) {
+        errMsg = data.non_field_errors.join(', ');
+      } else if (data.message) {
+        errMsg = data.message;
+      }
+      return res.status(400).json({ error: errMsg });
+    }
+
+    const token = data.token || data.key || data.auth_token;
+    if (!token) {
+      return res.status(400).json({ error: 'Monarch login succeeded but no token was returned in the response.' });
+    }
+
+    // Automatically save captured token to settings in DB
+    await saveSettings({ monarch_token: token });
+
+    res.json({
+      ok: true,
+      token,
+      message: 'Successfully authenticated with Monarch Money! Token captured and saved.'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Monarch authentication failed: ' + error.message });
+  }
+});
+
+// 2. Disconnect Monarch Integration
+app.post('/api/monarch/disconnect', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+  try {
+    await saveSettings({ monarch_token: '' });
+    res.json({ ok: true, message: 'Monarch Money integration disconnected.' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. Test Monarch Connection
 app.post('/api/monarch/test-connection', authenticate, requirePermission('settings_general', 'read'), async (req, res) => {
   const { token } = req.body;
   try {
