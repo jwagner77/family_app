@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info, Layers, ExternalLink, Play, CheckCircle2, DollarSign, CreditCard, Receipt, AlertCircle, Check, CheckSquare, Square, RefreshCw, Landmark, ArrowRightLeft, LogIn, LogOut, KeyRound } from 'lucide-react';
+import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info, Layers, ExternalLink, Play, CheckCircle2, DollarSign, CreditCard, Receipt, AlertCircle, Check, CheckSquare, Square, RefreshCw, Landmark, ArrowRightLeft, LogIn, LogOut, KeyRound, Radio, Bookmark, Sparkles } from 'lucide-react';
 import WordTemplateExport from './WordTemplateExport';
 
 const CATEGORIES_LABELS = {
@@ -191,15 +191,17 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [googleBooksApiKey, setGoogleBooksApiKey] = useState('');
   const [isbndbApiKey, setIsbndbApiKey] = useState('');
   const [monarchToken, setMonarchToken] = useState('');
-  const [revealMonarchToken, setRevealMonarchToken] = useState(false);
+  const [monarchPairId, setMonarchPairId] = useState('');
+  const [monarchListening, setMonarchListening] = useState(false);
+  const [monarchStartingPair, setMonarchStartingPair] = useState(false);
+  const [manualTokenInput, setManualTokenInput] = useState('');
+  const [showManualTokenInput, setShowManualTokenInput] = useState(false);
   const [monarchEmail, setMonarchEmail] = useState('');
   const [monarchPassword, setMonarchPassword] = useState('');
   const [revealMonarchPassword, setRevealMonarchPassword] = useState(false);
   const [monarchTotp, setMonarchTotp] = useState('');
   const [monarchRequiresMfa, setMonarchRequiresMfa] = useState(false);
   const [monarchAuthenticating, setMonarchAuthenticating] = useState(false);
-  const [monarchAuthMode, setMonarchAuthMode] = useState('login'); // 'login' | 'token'
-  const [monarchTesting, setMonarchTesting] = useState(false);
   const [monarchConnected, setMonarchConnected] = useState(null);
   const [monarchStatusMsg, setMonarchStatusMsg] = useState('');
   const [monarchAccounts, setMonarchAccounts] = useState([]);
@@ -463,47 +465,101 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     }
   };
 
-  const handleMonarchLogin = async (e) => {
-    if (e) e.preventDefault();
-    if (!monarchEmail.trim() || !monarchPassword) {
-      showToast('Please enter both Monarch email and password.', 'error');
-      return;
-    }
-    setMonarchAuthenticating(true);
+  const handleStartMonarchLogin = async () => {
+    setMonarchStartingPair(true);
     setMonarchStatusMsg('');
     try {
-      const res = await fetch('/api/monarch/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: monarchEmail.trim(),
-          password: monarchPassword,
-          totp: monarchTotp.trim() || undefined
-        })
-      });
+      const res = await fetch('/api/monarch/pair-init', { method: 'POST' });
       const data = await res.json();
-      if (data.requiresMFA) {
-        setMonarchRequiresMfa(true);
-        setMonarchStatusMsg(data.message || 'Please enter your 2FA verification code.');
-        showToast(data.message || '2FA Verification Required', 'info');
-      } else if (res.ok && data.ok) {
-        setMonarchToken(data.token);
-        setMonarchConnected(true);
-        setMonarchRequiresMfa(false);
-        setMonarchPassword('');
-        setMonarchTotp('');
-        setMonarchStatusMsg(data.message || 'Connected successfully!');
-        showToast('Monarch Money authenticated & token captured successfully!', 'success');
-        await fetchMonarchDetails();
+      if (res.ok && data.pairId) {
+        setMonarchPairId(data.pairId);
+        setMonarchListening(true);
+        window.open('https://app.monarchmoney.com/login', '_blank');
+        showToast('Monarch Login opened in new tab. Waiting for token pass-through...', 'info');
       } else {
-        setMonarchStatusMsg(data.error || 'Login failed');
-        showToast(data.error || 'Monarch login failed', 'error');
+        throw new Error(data.error || 'Failed to initialize Monarch login session');
       }
     } catch (err) {
-      setMonarchStatusMsg(err.message || 'Network error');
-      showToast('Monarch login error: ' + err.message, 'error');
+      showToast('Error starting Monarch login: ' + err.message, 'error');
     } finally {
-      setMonarchAuthenticating(false);
+      setMonarchStartingPair(false);
+    }
+  };
+
+  const handleStopListening = () => {
+    setMonarchListening(false);
+    setMonarchPairId('');
+  };
+
+  // Poll for pairing status and listen for window postMessage
+  useEffect(() => {
+    if (!monarchListening || !monarchPairId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/monarch/pairing-status/${monarchPairId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.paired || data.tokenReceived) {
+            clearInterval(interval);
+            setMonarchListening(false);
+            setMonarchConnected(true);
+            showToast('Monarch Money linked successfully! Token captured.', 'success');
+            await fetchMonarchDetails();
+          } else if (data.expired) {
+            clearInterval(interval);
+            setMonarchListening(false);
+            showToast('Monarch login session expired. Please click to open again.', 'info');
+          }
+        }
+      } catch (err) {
+        console.error('Error checking pairing status:', err);
+      }
+    }, 2500);
+
+    const onMessage = async (event) => {
+      if (event.data && (event.data.type === 'MONARCH_TOKEN_CAPTURED' || event.data.type === 'MONARCH_TOKEN')) {
+        clearInterval(interval);
+        setMonarchListening(false);
+        setMonarchConnected(true);
+        showToast('Monarch Money linked successfully! Token captured.', 'success');
+        await fetchMonarchDetails();
+      }
+    };
+
+    window.addEventListener('message', onMessage);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('message', onMessage);
+    };
+  }, [monarchListening, monarchPairId]);
+
+  const handleSaveManualToken = async (e) => {
+    if (e) e.preventDefault();
+    if (!manualTokenInput.trim()) {
+      showToast('Please enter a valid Monarch token.', 'error');
+      return;
+    }
+    try {
+      const res = await fetch('/api/monarch/capture-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: manualTokenInput.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setMonarchToken(manualTokenInput.trim());
+        setMonarchConnected(true);
+        setShowManualTokenInput(false);
+        setManualTokenInput('');
+        showToast('Monarch token saved and connected!', 'success');
+        await fetchMonarchDetails();
+      } else {
+        throw new Error(data.error || 'Failed to save token');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   };
 
@@ -521,39 +577,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       }
     } catch (err) {
       showToast('Failed to disconnect Monarch: ' + err.message, 'error');
-    }
-  };
-
-  const testMonarchConnection = async (tokenVal = monarchToken) => {
-    if (!tokenVal || !tokenVal.trim()) {
-      showToast('Please enter a Monarch Money token first.', 'error');
-      return;
-    }
-    setMonarchTesting(true);
-    setMonarchStatusMsg('');
-    try {
-      const res = await fetch('/api/monarch/test-connection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tokenVal.trim() })
-      });
-      const data = await res.json();
-      if (res.ok && data.ok) {
-        setMonarchConnected(true);
-        setMonarchStatusMsg(data.message || 'Connected successfully!');
-        showToast('Monarch Money connected successfully!', 'success');
-        await fetchMonarchDetails();
-      } else {
-        setMonarchConnected(false);
-        setMonarchStatusMsg(data.error || 'Failed to connect to Monarch');
-        showToast(data.error || 'Failed to connect to Monarch', 'error');
-      }
-    } catch (err) {
-      setMonarchConnected(false);
-      setMonarchStatusMsg(err.message || 'Network error');
-      showToast('Monarch connection test error: ' + err.message, 'error');
-    } finally {
-      setMonarchTesting(false);
     }
   };
 
@@ -2813,117 +2836,132 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       </div>
                     </div>
                   ) : (
-                    /* Sign In to Monarch Form */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    /* Monarch Login Link & Token Listener View */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                       <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: '1.4' }}>
-                        Sign in with your Monarch Money credentials to authenticate and automatically connect your accounts and transactions.
+                        Click below to open the Monarch Login page. Sign in to your Monarch account, and the app will monitor for your session token and automatically pass it through to complete authentication.
                       </p>
 
-                      {!monarchRequiresMfa ? (
-                        <>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label htmlFor="monarch-email-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Monarch Email</label>
-                              <input
-                                id="monarch-email-input"
-                                type="email"
-                                className="input-control"
-                                value={monarchEmail}
-                                onChange={(e) => setMonarchEmail(e.target.value)}
-                                placeholder="you@example.com"
-                                autoComplete="username"
-                              />
-                            </div>
-                            <div className="form-group" style={{ margin: 0 }}>
-                              <label htmlFor="monarch-password-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Monarch Password</label>
-                              <div style={{ position: 'relative' }}>
-                                <input
-                                  id="monarch-password-input"
-                                  type={revealMonarchPassword ? "text" : "password"}
-                                  className="input-control"
-                                  value={monarchPassword}
-                                  onChange={(e) => setMonarchPassword(e.target.value)}
-                                  placeholder="Enter your Monarch password"
-                                  autoComplete="current-password"
-                                  style={{ paddingRight: '2.25rem' }}
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setRevealMonarchPassword(!revealMonarchPassword)}
-                                  style={{
-                                    position: 'absolute',
-                                    right: '0.5rem',
-                                    top: '50%',
-                                    transform: 'translateY(-50%)',
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--muted-foreground)',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    padding: '0.25rem'
-                                  }}
-                                  title={revealMonarchPassword ? "Hide Password" : "Show Password"}
-                                >
-                                  {revealMonarchPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                                </button>
-                              </div>
-                            </div>
+                      {monarchListening ? (
+                        /* Active Monitoring Pulse Box */
+                        <div style={{
+                          background: 'rgba(59, 130, 246, 0.06)',
+                          border: '1px solid rgba(59, 130, 246, 0.25)',
+                          borderRadius: 'var(--radius)',
+                          padding: '1rem',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.75rem'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <div style={{
+                              width: '10px',
+                              height: '10px',
+                              borderRadius: '50%',
+                              background: '#3b82f6',
+                              boxShadow: '0 0 0 4px rgba(59, 130, 246, 0.2)'
+                            }} className="pulse" />
+                            <span style={{ fontWeight: '600', fontSize: '0.825rem', color: 'var(--primary)' }}>
+                              Monitoring for Monarch Authentication & Token Pass-Through...
+                            </span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
+
+                          <div style={{ fontSize: '0.75rem', color: 'var(--foreground)', lineHeight: '1.5', background: 'var(--card)', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                            <div style={{ fontWeight: '600', marginBottom: '0.25rem', color: 'var(--primary)' }}>Easy 2-Step Pass-Through:</div>
+                            <ol style={{ margin: 0, paddingLeft: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              <li>Complete your sign-in in the opened <strong>Monarch Login tab</strong>.</li>
+                              <li>Click the <strong>"Monarch Token Beam"</strong> bookmarklet from your bookmarks bar while on Monarch's tab to pass your token directly to this app.</li>
+                            </ol>
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <a
+                              href={`javascript:(function(){try{let t=null;try{const r=JSON.parse(localStorage.getItem('persist:root')||'{}');if(r&&r.auth){t=JSON.parse(r.auth).token;}}catch(e){}if(!t)t=localStorage.getItem('token')||localStorage.getItem('monarch_token')||sessionStorage.getItem('token');if(!t){alert('Please make sure you are signed into Monarch Money in this tab first.');return;}fetch('${window.location.origin}/api/monarch/capture-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairId:'${monarchPairId||''}',token:t}),mode:'cors'}).then(r=>r.json()).then(d=>{try{if(window.opener)window.opener.postMessage({type:'MONARCH_TOKEN_CAPTURED',token:t},'*');}catch(e){}alert('✅ Monarch Money token captured & linked to Family App!');}).catch(err=>{window.open('${window.location.origin}/api/monarch/callback?pairId=${monarchPairId||''}&token='+encodeURIComponent(t),'_blank');});}catch(e){alert('Error: '+e.message);}})();`}
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', cursor: 'grab' }}
+                              onClick={(e) => {
+                                showToast('Drag this button to your Bookmarks bar, then click it on the Monarch tab!', 'info');
+                              }}
+                              title="Drag this button to your Bookmarks bar"
+                            >
+                              <Sparkles size={13} /> ⭐ Monarch Token Beam (Drag to Bookmarks)
+                            </a>
                             <button
                               type="button"
-                              className="btn btn-primary"
-                              style={{ fontSize: '0.75rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
-                              onClick={handleMonarchLogin}
-                              disabled={monarchAuthenticating || !monarchEmail || !monarchPassword}
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.75rem', padding: '0.4rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                              onClick={() => window.open('https://app.monarchmoney.com/login', '_blank')}
                             >
-                              <LogIn size={14} className={monarchAuthenticating ? 'spin' : ''} />
-                              {monarchAuthenticating ? 'Signing In & Connecting...' : 'Sign In to Monarch & Connect'}
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        /* 2FA / MFA Prompt */
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                          <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '0.75rem 0.9rem', borderRadius: 'var(--radius)', fontSize: '0.75rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <Shield size={16} />
-                            <span>Two-Factor Authentication (2FA) is enabled on your Monarch account. Please enter the 6-digit code from your authenticator app:</span>
-                          </div>
-                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                            <div className="form-group" style={{ margin: 0, width: '180px' }}>
-                              <label htmlFor="monarch-totp-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>2FA / Verification Code</label>
-                              <input
-                                id="monarch-totp-input"
-                                type="text"
-                                className="input-control"
-                                value={monarchTotp}
-                                onChange={(e) => setMonarchTotp(e.target.value)}
-                                placeholder="123456"
-                                maxLength={8}
-                                inputMode="numeric"
-                                autoFocus
-                                style={{ letterSpacing: '2px', fontWeight: 'bold', fontSize: '1.05rem', textAlign: 'center' }}
-                              />
-                            </div>
-                            <button
-                              type="button"
-                              className="btn btn-primary"
-                              style={{ fontSize: '0.75rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                              onClick={handleMonarchLogin}
-                              disabled={monarchAuthenticating || !monarchTotp}
-                            >
-                              <CheckCircle2 size={14} className={monarchAuthenticating ? 'spin' : ''} />
-                              {monarchAuthenticating ? 'Verifying...' : 'Verify & Complete Sign In'}
+                              <ExternalLink size={13} /> Open Monarch Tab
                             </button>
                             <button
                               type="button"
                               className="btn btn-secondary"
-                              style={{ fontSize: '0.75rem', padding: '0.45rem 0.75rem' }}
-                              onClick={() => setMonarchRequiresMfa(false)}
+                              style={{ fontSize: '0.75rem', padding: '0.4rem 0.75rem', color: 'var(--muted-foreground)' }}
+                              onClick={handleStopListening}
                             >
-                              Back
+                              Cancel
                             </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Initial Action Button to Start Login & Listener */
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.8rem', padding: '0.5rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: '600' }}
+                              onClick={handleStartMonarchLogin}
+                              disabled={monarchStartingPair}
+                            >
+                              <ExternalLink size={15} />
+                              {monarchStartingPair ? 'Starting Listener...' : 'Sign In to Monarch (Open Login Page)'}
+                            </button>
+
+                            <a
+                              href={`javascript:(function(){try{let t=null;try{const r=JSON.parse(localStorage.getItem('persist:root')||'{}');if(r&&r.auth){t=JSON.parse(r.auth).token;}}catch(e){}if(!t)t=localStorage.getItem('token')||localStorage.getItem('monarch_token')||sessionStorage.getItem('token');if(!t){alert('Please make sure you are signed into Monarch Money in this tab first.');return;}fetch('${window.location.origin}/api/monarch/capture-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairId:'${monarchPairId||''}',token:t}),mode:'cors'}).then(r=>r.json()).then(d=>{try{if(window.opener)window.opener.postMessage({type:'MONARCH_TOKEN_CAPTURED',token:t},'*');}catch(e){}alert('✅ Monarch Money token captured & linked to Family App!');}).catch(err=>{window.open('${window.location.origin}/api/monarch/callback?pairId=${monarchPairId||''}&token='+encodeURIComponent(t),'_blank');});}catch(e){alert('Error: '+e.message);}})();`}
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.75rem', padding: '0.45rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none', cursor: 'grab' }}
+                              onClick={(e) => {
+                                showToast('Drag this button to your Bookmarks bar, then click it on the Monarch tab!', 'info');
+                              }}
+                              title="Drag this button to your Bookmarks bar"
+                            >
+                              <Bookmark size={13} /> ⭐ Monarch Token Beam (Drag to Bookmarks)
+                            </a>
+                          </div>
+
+                          <div style={{ marginTop: '0.25rem' }}>
+                            <button
+                              type="button"
+                              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--muted-foreground)', fontSize: '0.7rem', cursor: 'pointer', textDecoration: 'underline' }}
+                              onClick={() => setShowManualTokenInput(!showManualTokenInput)}
+                            >
+                              {showManualTokenInput ? 'Hide manual token input' : 'Or enter raw token manually...'}
+                            </button>
+
+                            {showManualTokenInput && (
+                              <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <input
+                                  type="password"
+                                  className="input-control"
+                                  value={manualTokenInput}
+                                  onChange={(e) => setManualTokenInput(e.target.value)}
+                                  placeholder="Paste Monarch auth token"
+                                  style={{ fontSize: '0.75rem', maxWidth: '320px' }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-secondary"
+                                  style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem' }}
+                                  onClick={handleSaveManualToken}
+                                  disabled={!manualTokenInput.trim()}
+                                >
+                                  Save & Connect
+                                </button>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}

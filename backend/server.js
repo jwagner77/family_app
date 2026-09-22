@@ -3647,6 +3647,18 @@ app.get('/api/bills/tags', authenticate, async (req, res) => {
 // --- MONARCH MONEY INTEGRATION API ---
 // ==========================================
 
+const monarchPairingSessions = new Map();
+
+// Periodic cleanup of old pairing sessions (>15 min)
+setInterval(() => {
+  const now = Date.now();
+  for (const [pairId, session] of monarchPairingSessions.entries()) {
+    if (now - session.createdAt > 15 * 60 * 1000) {
+      monarchPairingSessions.delete(pairId);
+    }
+  }
+}, 5 * 60 * 1000);
+
 async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
   let token = tokenOverride;
   if (!token) {
@@ -3714,7 +3726,111 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
   return json.data;
 }
 
-// 1. Authenticate to Monarch and capture token
+// 1. Initialize Pairing Session for Token Pass-Through
+app.post('/api/monarch/pair-init', authenticate, requirePermission('settings_general', 'full'), (req, res) => {
+  const pairId = 'monarch_pair_' + crypto.randomBytes(8).toString('hex');
+  monarchPairingSessions.set(pairId, {
+    createdAt: Date.now(),
+    paired: false,
+    token: null
+  });
+  res.json({ pairId });
+});
+
+// 2. Poll Pairing Session Status
+app.get('/api/monarch/pairing-status/:pairId', authenticate, (req, res) => {
+  const { pairId } = req.params;
+  const session = monarchPairingSessions.get(pairId);
+  if (!session) {
+    return res.json({ paired: false, expired: true });
+  }
+  res.json({
+    paired: session.paired,
+    tokenReceived: !!session.token
+  });
+});
+
+// 3. CORS Preflight & Capture Endpoint (Called from Monarch tab / bookmarklet / pass-through)
+app.options('/api/monarch/capture-token', (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.sendStatus(204);
+});
+
+app.post('/api/monarch/capture-token', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
+  const { pairId, token } = req.body;
+  if (!token || !token.trim()) {
+    return res.status(400).json({ error: 'Token is required.' });
+  }
+
+  try {
+    const cleanToken = token.trim();
+    // Validate token briefly with GraphQL or save immediately
+    await saveSettings({ monarch_token: cleanToken });
+
+    if (pairId && monarchPairingSessions.has(pairId)) {
+      const session = monarchPairingSessions.get(pairId);
+      session.paired = true;
+      session.token = cleanToken;
+    }
+
+    res.json({
+      ok: true,
+      message: 'Monarch Money session token captured and linked successfully!'
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to save captured token: ' + error.message });
+  }
+});
+
+// 4. GET Callback / Pass-Through endpoint (Image / Script beacon support)
+app.get('/api/monarch/callback', async (req, res) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+
+  const { pairId, token } = req.query;
+  if (!token || !token.trim()) {
+    return res.status(400).send('Token parameter is missing.');
+  }
+
+  try {
+    const cleanToken = token.trim();
+    await saveSettings({ monarch_token: cleanToken });
+
+    if (pairId && monarchPairingSessions.has(pairId)) {
+      const session = monarchPairingSessions.get(pairId);
+      session.paired = true;
+      session.token = cleanToken;
+    }
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>Monarch Token Linked</title></head>
+        <body style="font-family:sans-serif; text-align:center; padding:3rem; background:#0f172a; color:#f8fafc;">
+          <h2 style="color:#10b981;">✅ Monarch Money Linked Successfully!</h2>
+          <p>Your session token has been passed to Family App. You can close this window now.</p>
+          <script>
+            if (window.opener) {
+              try { window.opener.postMessage({ type: 'MONARCH_TOKEN_CAPTURED', token: "${cleanToken}" }, '*'); } catch(e){}
+            }
+            setTimeout(() => { window.close(); }, 2000);
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (error) {
+    res.status(500).send('Error saving token: ' + error.message);
+  }
+});
+
+// 5. Direct login fallback if needed
 app.post('/api/monarch/login', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
   const { email, password, totp } = req.body;
   if (!email || !password) {
@@ -3799,7 +3915,6 @@ app.post('/api/monarch/login', authenticate, requirePermission('settings_general
       return res.status(400).json({ error: 'Monarch login succeeded but no token was returned in the response.' });
     }
 
-    // Automatically save captured token to settings in DB
     await saveSettings({ monarch_token: token });
 
     res.json({
@@ -3812,7 +3927,7 @@ app.post('/api/monarch/login', authenticate, requirePermission('settings_general
   }
 });
 
-// 2. Disconnect Monarch Integration
+// 6. Disconnect Monarch Integration
 app.post('/api/monarch/disconnect', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
   try {
     await saveSettings({ monarch_token: '' });
