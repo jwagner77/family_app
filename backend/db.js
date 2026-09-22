@@ -419,6 +419,7 @@ export async function getDb() {
     INSERT OR IGNORE INTO settings (key, value) VALUES ('app_name', 'Home Hub');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('primary_color', '#3f51b5');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('isbndb_api_key', '');
+    INSERT OR IGNORE INTO settings (key, value) VALUES ('google_books_api_key', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'system');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('oidc_enabled', 'false');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('oidc_auto_provision', 'true');
@@ -643,6 +644,12 @@ export async function getDb() {
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_owner', '')");
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_repo', '')");
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('github_token', '')");
+  } catch (err) {}
+
+  // Safe Migration to pre-populate book lookup API keys
+  try {
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('google_books_api_key', '')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('isbndb_api_key', '')");
   } catch (err) {}
 
   // Safe Migration to pre-populate calendar contact events color

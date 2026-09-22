@@ -1261,6 +1261,9 @@ app.get('/api/settings', authenticate, requirePermission('settings_general', 're
       delete settings.unsplash_key;
       delete settings.unsplash_app_id;
       delete settings.unsplash_secret;
+      delete settings.github_token;
+      delete settings.isbndb_api_key;
+      delete settings.google_books_api_key;
     }
     res.json(settings);
   } catch (error) {
@@ -1302,6 +1305,12 @@ app.post('/api/settings', authenticate, requirePermission('settings_general', 'f
     }
     if (settings.github_token === '••••••••' || settings.github_token === '') {
       delete settings.github_token;
+    }
+    if (settings.isbndb_api_key === '••••••••' || settings.isbndb_api_key === '') {
+      delete settings.isbndb_api_key;
+    }
+    if (settings.google_books_api_key === '••••••••' || settings.google_books_api_key === '') {
+      delete settings.google_books_api_key;
     }
 
     await saveSettings(settings);
@@ -5553,70 +5562,189 @@ app.post('/api/books/isbn-lookup', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Invalid ISBN format' });
     }
 
+    const settings = await getSettings();
     let bookDetails = null;
 
-    // Primary: Open Library Data API
+    const sanitizeBook = (details) => {
+      if (!details || !details.title) return null;
+      return {
+        isbn: cleanIsbn,
+        title: details.title.trim(),
+        author: (details.author || '').trim(),
+        publisher: (details.publisher || '').trim(),
+        published_date: (details.published_date || '').trim(),
+        description: (details.description || '').trim(),
+        cover_url: (details.cover_url || '').trim(),
+        total_pages: parseInt(details.total_pages, 10) || 0
+      };
+    };
+
+    // Provider 1: Google Books API (Supports optional API key)
     if (!bookDetails) {
       try {
-        console.log(`Querying Open Library for ISBN: ${cleanIsbn}`);
+        console.log(`[ISBN Lookup] Querying Google Books API for ISBN: ${cleanIsbn}`);
+        const googleKey = (settings.google_books_api_key || '').trim();
+        const googleUrl = `https://www.googleapis.com/books/v1/volumes?q=isbn:${cleanIsbn}${googleKey ? `&key=${googleKey}` : ''}`;
+        const response = await fetch(googleUrl);
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.items && data.items.length > 0) {
+            const v = data.items[0].volumeInfo || {};
+            const cover = v.imageLinks?.thumbnail || v.imageLinks?.smallThumbnail || v.imageLinks?.large || '';
+            const secureCover = cover ? cover.replace(/^http:\/\//i, 'https://') : '';
+            bookDetails = sanitizeBook({
+              title: v.title,
+              author: Array.isArray(v.authors) ? v.authors.join(', ') : (v.authors || ''),
+              publisher: v.publisher || '',
+              published_date: v.publishedDate || '',
+              description: v.description || '',
+              cover_url: secureCover,
+              total_pages: v.pageCount || 0
+            });
+            if (bookDetails) {
+              console.log(`[ISBN Lookup] Found via Google Books: "${bookDetails.title}"`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[ISBN Lookup] Google Books error:', e.message);
+      }
+    }
+
+    // Provider 2: ISBNdb API (if isbndb_api_key configured in settings)
+    if (!bookDetails && settings.isbndb_api_key && settings.isbndb_api_key.trim()) {
+      try {
+        console.log(`[ISBN Lookup] Querying ISBNdb API for ISBN: ${cleanIsbn}`);
+        const response = await fetch(`https://api.isbndb.com/book/${cleanIsbn}`, {
+          headers: {
+            'Authorization': settings.isbndb_api_key.trim(),
+            'Accept': 'application/json'
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const b = data.book || data;
+          if (b && (b.title || b.title_long)) {
+            bookDetails = sanitizeBook({
+              title: b.title || b.title_long,
+              author: Array.isArray(b.authors) ? b.authors.join(', ') : (b.authors || ''),
+              publisher: b.publisher || '',
+              published_date: b.date_published || b.publish_date || '',
+              description: b.synopsis || b.overview || '',
+              cover_url: b.image || '',
+              total_pages: b.pages || 0
+            });
+            if (bookDetails) {
+              console.log(`[ISBN Lookup] Found via ISBNdb: "${bookDetails.title}"`);
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[ISBN Lookup] ISBNdb error:', e.message);
+      }
+    }
+
+    // Provider 3: Open Library Data API
+    if (!bookDetails) {
+      try {
+        console.log(`[ISBN Lookup] Querying Open Library Data API for ISBN: ${cleanIsbn}`);
         const response = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleanIsbn}&format=json&jscmd=data`);
         if (response.ok) {
           const data = await response.json();
           const bibKey = `ISBN:${cleanIsbn}`;
           if (data && data[bibKey]) {
             const b = data[bibKey];
-            bookDetails = {
-              isbn: cleanIsbn,
+            bookDetails = sanitizeBook({
               title: b.title,
               author: Array.isArray(b.authors) ? b.authors.map(a => a.name).join(', ') : '',
               publisher: Array.isArray(b.publishers) ? b.publishers.map(p => p.name).join(', ') : '',
               published_date: b.publish_date || '',
-              description: b.notes || '',
+              description: typeof b.notes === 'string' ? b.notes : (b.notes?.value || ''),
               cover_url: b.cover ? (b.cover.large || b.cover.medium || b.cover.small || '') : '',
               total_pages: b.number_of_pages || 0
-            };
+            });
+            if (bookDetails) {
+              console.log(`[ISBN Lookup] Found via Open Library Data API: "${bookDetails.title}"`);
+            }
           }
         }
       } catch (e) {
-        console.error('Error fetching from Open Library Data API:', e);
+        console.error('[ISBN Lookup] Open Library Data API error:', e.message);
       }
     }
 
-    // Fallback 2: Open Library ISBN JSON API
+    // Provider 4: Open Library ISBN JSON API
     if (!bookDetails) {
       try {
+        console.log(`[ISBN Lookup] Querying Open Library ISBN JSON API for ISBN: ${cleanIsbn}`);
         const response = await fetch(`https://openlibrary.org/isbn/${cleanIsbn}.json`);
         if (response.ok) {
           const b = await response.json();
-          bookDetails = {
-            isbn: cleanIsbn,
+          let authorName = '';
+          if (b.authors && b.authors.length > 0) {
+            const authorKey = b.authors[0].key || b.authors[0].author?.key;
+            if (authorKey) {
+              try {
+                const authorRes = await fetch(`https://openlibrary.org${authorKey}.json`);
+                if (authorRes.ok) {
+                  const authorData = await authorRes.json();
+                  authorName = authorData.name || '';
+                }
+              } catch (ae) {}
+            }
+          }
+
+          bookDetails = sanitizeBook({
             title: b.title,
-            author: '',
+            author: authorName,
             publisher: Array.isArray(b.publishers) ? b.publishers.join(', ') : '',
             published_date: b.publish_date || '',
             description: b.description ? (typeof b.description === 'string' ? b.description : b.description.value) : '',
             cover_url: b.covers && b.covers.length > 0 ? `https://covers.openlibrary.org/b/id/${b.covers[0]}-L.jpg` : '',
             total_pages: b.number_of_pages || 0
-          };
-          
-          if (b.authors && b.authors.length > 0) {
-            const authorKey = b.authors[0].key || b.authors[0].author?.key;
-            if (authorKey) {
-              const authorRes = await fetch(`https://openlibrary.org${authorKey}.json`);
-              if (authorRes.ok) {
-                const authorData = await authorRes.json();
-                bookDetails.author = authorData.name;
-              }
+          });
+          if (bookDetails) {
+            console.log(`[ISBN Lookup] Found via Open Library ISBN API: "${bookDetails.title}"`);
+          }
+        }
+      } catch (e) {
+        console.error('[ISBN Lookup] Open Library ISBN JSON API error:', e.message);
+      }
+    }
+
+    // Provider 5: Open Library Search API
+    if (!bookDetails) {
+      try {
+        console.log(`[ISBN Lookup] Querying Open Library Search API for ISBN: ${cleanIsbn}`);
+        const response = await fetch(`https://openlibrary.org/search.json?isbn=${cleanIsbn}`);
+        if (response.ok) {
+          const searchData = await response.json();
+          if (searchData && searchData.docs && searchData.docs.length > 0) {
+            const doc = searchData.docs[0];
+            const author = Array.isArray(doc.author_name) ? doc.author_name.join(', ') : (doc.author_name || '');
+            const publisher = Array.isArray(doc.publisher) ? doc.publisher[0] : (doc.publisher || '');
+            const coverUrl = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-L.jpg` : '';
+            bookDetails = sanitizeBook({
+              title: doc.title,
+              author,
+              publisher,
+              published_date: doc.first_publish_year ? String(doc.first_publish_year) : (Array.isArray(doc.publish_date) ? doc.publish_date[0] : ''),
+              description: '',
+              cover_url: coverUrl,
+              total_pages: doc.number_of_pages_median || 0
+            });
+            if (bookDetails) {
+              console.log(`[ISBN Lookup] Found via Open Library Search API: "${bookDetails.title}"`);
             }
           }
         }
       } catch (e) {
-        console.error('Error fetching from Open Library ISBN API:', e);
+        console.error('[ISBN Lookup] Open Library Search API error:', e.message);
       }
     }
 
     if (!bookDetails) {
-      return res.status(404).json({ error: 'Book details not found for this ISBN. You can still enter details manually.' });
+      return res.status(404).json({ error: 'Book details not found across any lookup service (Google Books, ISBNdb, Open Library) for this ISBN. You can still enter details manually.' });
     }
 
     res.json(bookDetails);

@@ -188,6 +188,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [githubOwner, setGithubOwner] = useState('');
   const [githubRepo, setGithubRepo] = useState('');
   const [githubToken, setGithubToken] = useState('');
+  const [googleBooksApiKey, setGoogleBooksApiKey] = useState('');
+  const [isbndbApiKey, setIsbndbApiKey] = useState('');
   const [savingIntegrations, setSavingIntegrations] = useState(false);
 
   const [dashboardRefreshInterval, setDashboardRefreshInterval] = useState('disabled');
@@ -679,6 +681,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setGithubOwner(data.github_owner || '');
         setGithubRepo(data.github_repo || '');
         setGithubToken(data.github_token || '');
+        setGoogleBooksApiKey(data.google_books_api_key || '');
+        setIsbndbApiKey(data.isbndb_api_key || '');
 
         setDashboardRefreshInterval(data.dashboard_refresh_interval || 'disabled');
         setDashboardBgType(data.dashboard_bg_type || 'theme');
@@ -788,7 +792,9 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         github_integration_enabled: githubIntegrationEnabled ? 'true' : 'false',
         github_owner: githubOwner.trim(),
         github_repo: githubRepo.trim(),
-        github_token: githubToken
+        github_token: githubToken,
+        google_books_api_key: googleBooksApiKey,
+        isbndb_api_key: isbndbApiKey
       };
 
       const res = await fetch('/api/settings', {
@@ -2515,6 +2521,38 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       onChange={(e) => setGithubToken(e.target.value)}
                       placeholder={githubToken ? "••••••••" : "Enter access token"}
                       required={githubIntegrationEnabled}
+                    />
+                  </div>
+                </div>
+
+                {/* Book Database & ISBN Lookup Services */}
+                <div style={{ border: '1px solid var(--border)', padding: '1rem', borderRadius: 'var(--radius)', background: 'var(--muted)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <h4 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '0 0 0.25rem 0', color: 'var(--primary)', fontWeight: 'bold', fontSize: '0.9rem' }}>
+                    <span>📚</span> Book Database Services
+                  </h4>
+                  <p style={{ fontSize: '0.725rem', color: 'var(--muted-foreground)', margin: '0 0 0.25rem 0', lineHeight: '1.4' }}>
+                    ISBN lookups automatically cascade across Google Books, ISBNdb, and Open Library.
+                  </p>
+                  <div className="form-group">
+                    <label htmlFor="google-books-key" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Google Books API Key (Optional)</label>
+                    <input
+                      id="google-books-key"
+                      type="password"
+                      className="input-control"
+                      value={googleBooksApiKey}
+                      onChange={(e) => setGoogleBooksApiKey(e.target.value)}
+                      placeholder={googleBooksApiKey ? "••••••••" : "Enter Google Books API key"}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label htmlFor="isbndb-key" style={{ fontSize: '0.7rem', fontWeight: '600' }}>ISBNdb API Key (Optional)</label>
+                    <input
+                      id="isbndb-key"
+                      type="password"
+                      className="input-control"
+                      value={isbndbApiKey}
+                      onChange={(e) => setIsbndbApiKey(e.target.value)}
+                      placeholder={isbndbApiKey ? "••••••••" : "Enter ISBNdb API key"}
                     />
                   </div>
                 </div>
