@@ -3669,61 +3669,88 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
     throw new Error('Monarch Money token is not configured.');
   }
 
-  const cleanToken = token.trim();
-  const headers = {
-    'Authorization': `Token ${cleanToken}`,
-    'Content-Type': 'application/json',
-    'Accept': 'application/json',
-    'Client-Platform': 'web',
-    'User-Agent': 'MonarchMoneyAPI (https://github.com/hammem/monarchmoney)'
-  };
+  let rawToken = token.trim();
+  // Strip quotes if any
+  if ((rawToken.startsWith('"') && rawToken.endsWith('"')) || (rawToken.startsWith("'") && rawToken.endsWith("'"))) {
+    rawToken = rawToken.slice(1, -1).trim();
+  }
+  // Strip leading "Token " or "Bearer " scheme prefix if captured or pasted by user
+  rawToken = rawToken.replace(/^(Token|Bearer)\s+/i, '').trim();
 
-  let response;
-  let endpoint = 'https://api.monarchmoney.com/graphql';
-  try {
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ query, variables })
-    });
-    if (response.status === 404 || response.status === 502) {
-      endpoint = 'https://api.monarch.com/graphql';
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ query, variables })
-      });
-    }
-  } catch (err) {
-    endpoint = 'https://api.monarch.com/graphql';
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ query, variables })
-    });
+  if (!rawToken) {
+    throw new Error('Monarch Money token is empty.');
   }
 
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    let errMsg = `Monarch API error (HTTP ${response.status})`;
-    try {
-      const errJson = JSON.parse(text);
-      if (errJson.errors && errJson.errors.length > 0) {
-        errMsg = errJson.errors.map(e => e.message).join(', ');
-      } else if (errJson.detail) {
-        errMsg = errJson.detail;
-      } else if (errJson.message) {
-        errMsg = errJson.message;
+  const endpoints = [
+    'https://api.monarchmoney.com/graphql',
+    'https://api.monarch.com/graphql'
+  ];
+  const authSchemes = ['Token', 'Bearer'];
+
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    for (const scheme of authSchemes) {
+      try {
+        const headers = {
+          'Authorization': `${scheme} ${rawToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Client-Platform': 'web',
+          'Origin': 'https://app.monarchmoney.com',
+          'Referer': 'https://app.monarchmoney.com/',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+        };
+
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ query, variables })
+        });
+
+        if (response.ok) {
+          const json = await response.json();
+          if (json.errors && json.errors.length > 0) {
+            const errStr = json.errors.map(e => e.message).join(', ');
+            // If GraphQL returns authentication/credential errors, try alternative scheme/endpoint
+            if (errStr.toLowerCase().includes('credential') || errStr.toLowerCase().includes('authenticat') || errStr.toLowerCase().includes('unauthorized') || errStr.toLowerCase().includes('permission')) {
+              console.warn(`[Monarch GraphQL] ${scheme} on ${endpoint} returned GraphQL error: ${errStr}. Trying next scheme/endpoint...`);
+              lastError = new Error(errStr);
+              continue;
+            }
+            throw new Error(errStr);
+          }
+          return json.data;
+        } else {
+          const text = await response.text().catch(() => '');
+          let errMsg = `Monarch API error (HTTP ${response.status}): ${text}`;
+          try {
+            const errJson = JSON.parse(text);
+            if (errJson.errors && errJson.errors.length > 0) {
+              errMsg = errJson.errors.map(e => e.message).join(', ');
+            } else if (errJson.detail) {
+              errMsg = errJson.detail;
+            } else if (errJson.message) {
+              errMsg = errJson.message;
+            }
+          } catch (_) {}
+          
+          console.warn(`[Monarch GraphQL] ${scheme} on ${endpoint} failed (HTTP ${response.status}): ${errMsg}`);
+          lastError = new Error(errMsg);
+          if (response.status === 401 || response.status === 403 || response.status === 404 || response.status === 502) {
+            continue;
+          }
+        }
+      } catch (err) {
+        lastError = err;
       }
-    } catch (e) {}
-    throw new Error(errMsg);
+    }
   }
 
-  const json = await response.json();
-  if (json.errors && json.errors.length > 0) {
-    throw new Error(json.errors.map(e => e.message).join(', '));
+  if (lastError) {
+    throw lastError;
   }
-  return json.data;
+  throw new Error('Monarch Money request failed on all endpoints.');
 }
 
 // 1. Initialize Pairing Session for Token Pass-Through

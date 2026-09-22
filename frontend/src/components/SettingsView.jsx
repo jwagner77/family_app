@@ -191,6 +191,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [googleBooksApiKey, setGoogleBooksApiKey] = useState('');
   const [isbndbApiKey, setIsbndbApiKey] = useState('');
   const [monarchToken, setMonarchToken] = useState('');
+  const [revealMonarchToken, setRevealMonarchToken] = useState(false);
+  const [editingMonarchToken, setEditingMonarchToken] = useState(false);
+  const [editedTokenInput, setEditedTokenInput] = useState('');
+  const [testingMonarchConnection, setTestingMonarchConnection] = useState(false);
   const [monarchPairId, setMonarchPairId] = useState('');
   const [monarchListening, setMonarchListening] = useState(false);
   const [monarchStartingPair, setMonarchStartingPair] = useState(false);
@@ -433,6 +437,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
   const fetchMonarchDetails = async () => {
     setLoadingMonarchData(true);
+    setMonarchStatusMsg('');
     try {
       const [accRes, recRes] = await Promise.all([
         fetch('/api/monarch/accounts'),
@@ -444,13 +449,17 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         const accs = accData.accounts || [];
         setMonarchAccounts(accs);
         setMonarchConnected(true);
+        setMonarchStatusMsg(`Successfully loaded ${accs.length} account${accs.length === 1 ? '' : 's'} from Monarch.`);
         if (accData.enabledAccountIds && accData.enabledAccountIds.length > 0) {
           setMonarchEnabledAccountIds(accData.enabledAccountIds);
         } else {
           setMonarchEnabledAccountIds(accs.map(a => a.id));
         }
-      } else if (accRes.status === 400) {
-        setMonarchConnected(false);
+      } else {
+        const err = await accRes.json().catch(() => ({}));
+        if (accRes.status === 400 || accRes.status === 401 || accRes.status === 500) {
+          setMonarchStatusMsg(err.error || 'Monarch authentication failed or token expired.');
+        }
       }
 
       if (recRes.ok) {
@@ -460,8 +469,63 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       }
     } catch (err) {
       console.error('Failed to load Monarch details:', err);
+      setMonarchStatusMsg('Connection error: ' + err.message);
     } finally {
       setLoadingMonarchData(false);
+    }
+  };
+
+  const handleTestMonarchConnection = async () => {
+    if (!monarchToken) {
+      showToast('No active Monarch token to test.', 'error');
+      return;
+    }
+    setTestingMonarchConnection(true);
+    try {
+      const res = await fetch('/api/monarch/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: monarchToken })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        showToast(data.message || `Connected! Found ${data.accountCount} accounts.`, 'success');
+        setMonarchStatusMsg(`Active connection verified: ${data.accountCount} accounts detected.`);
+        await fetchMonarchDetails();
+      } else {
+        throw new Error(data.error || 'Connection failed');
+      }
+    } catch (err) {
+      showToast('Monarch Connection Failed: ' + err.message, 'error');
+      setMonarchStatusMsg('Authentication error: ' + err.message);
+    } finally {
+      setTestingMonarchConnection(false);
+    }
+  };
+
+  const handleUpdateExistingToken = async () => {
+    if (!editedTokenInput.trim()) {
+      showToast('Please enter a valid Monarch token.', 'error');
+      return;
+    }
+    try {
+      const res = await fetch('/api/monarch/capture-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: editedTokenInput.trim() })
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setMonarchToken(editedTokenInput.trim());
+        setEditingMonarchToken(false);
+        setMonarchConnected(true);
+        showToast('Monarch token updated successfully!', 'success');
+        await fetchMonarchDetails();
+      } else {
+        throw new Error(data.error || 'Failed to update token');
+      }
+    } catch (err) {
+      showToast(err.message, 'error');
     }
   };
 
@@ -505,6 +569,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             setMonarchListening(false);
             setMonarchConnected(true);
             showToast('Monarch Money linked successfully! Token captured.', 'success');
+            // Refresh settings to get newly captured token
+            const setRes = await fetch('/api/settings');
+            if (setRes.ok) {
+              const setData = await setRes.json();
+              if (setData.monarch_token) setMonarchToken(setData.monarch_token);
+            }
             await fetchMonarchDetails();
           } else if (data.expired) {
             clearInterval(interval);
@@ -522,6 +592,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         clearInterval(interval);
         setMonarchListening(false);
         setMonarchConnected(true);
+        if (event.data.token) setMonarchToken(event.data.token);
         showToast('Monarch Money linked successfully! Token captured.', 'success');
         await fetchMonarchDetails();
       }
@@ -2810,10 +2881,101 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
                   {monarchConnected ? (
                     /* Connected State */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                       <p style={{ fontSize: '0.8rem', color: 'var(--foreground)', margin: 0, lineHeight: '1.5' }}>
-                        Your Monarch Money account is securely connected. Balances, transactions, and recurring streams are automatically synced with the app.
+                        Your Monarch Money account is securely connected. Balances, transactions, and recurring streams are synchronized with the app.
                       </p>
+
+                      {/* Active Token Display Box */}
+                      <div style={{
+                        background: 'var(--card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        padding: '0.75rem 0.85rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.35rem', margin: 0 }}>
+                            <Key size={13} style={{ color: 'var(--primary)' }} /> Active Monarch Token
+                          </label>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              onClick={() => setRevealMonarchToken(!revealMonarchToken)}
+                              title={revealMonarchToken ? 'Hide token' : 'Reveal token'}
+                            >
+                              {revealMonarchToken ? <EyeOff size={12} /> : <Eye size={12} />}
+                              {revealMonarchToken ? 'Hide' : 'Reveal'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              onClick={() => handleCopyText(monarchToken, 'Monarch Token')}
+                              disabled={!monarchToken}
+                              title="Copy token to clipboard"
+                            >
+                              <Copy size={12} /> Copy
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
+                              onClick={() => {
+                                setEditingMonarchToken(!editingMonarchToken);
+                                setEditedTokenInput(monarchToken);
+                              }}
+                              title="Update token manually"
+                            >
+                              <Edit2 size={12} /> {editingMonarchToken ? 'Cancel' : 'Edit'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {!editingMonarchToken ? (
+                          <div style={{
+                            fontFamily: 'monospace',
+                            fontSize: '0.75rem',
+                            padding: '0.4rem 0.6rem',
+                            background: 'var(--background)',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border)',
+                            color: 'var(--foreground)',
+                            wordBreak: 'break-all',
+                            userSelect: 'all'
+                          }}>
+                            {revealMonarchToken 
+                              ? (monarchToken || '(No token captured)')
+                              : (monarchToken ? (monarchToken.length > 16 ? monarchToken.slice(0, 6) + '••••••••••••••••••••••••' + monarchToken.slice(-6) : '••••••••••••••••') : '(No token)')
+                            }
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginTop: '0.25rem' }}>
+                            <input
+                              type={revealMonarchToken ? "text" : "password"}
+                              className="input-control"
+                              value={editedTokenInput}
+                              onChange={(e) => setEditedTokenInput(e.target.value)}
+                              placeholder="Enter updated Monarch token"
+                              style={{ fontSize: '0.75rem', flex: 1 }}
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem' }}
+                              onClick={handleUpdateExistingToken}
+                              disabled={!editedTokenInput.trim()}
+                            >
+                              Update
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.25rem' }}>
                         <button
                           type="button"
@@ -2824,6 +2986,16 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         >
                           <RefreshCw size={13} className={loadingMonarchData ? 'spin' : ''} />
                           {loadingMonarchData ? 'Refreshing...' : 'Refresh Monarch Data'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                          onClick={handleTestMonarchConnection}
+                          disabled={testingMonarchConnection || !monarchToken}
+                        >
+                          <CheckCircle2 size={13} />
+                          {testingMonarchConnection ? 'Testing...' : 'Test Connection'}
                         </button>
                         <button
                           type="button"
@@ -2876,7 +3048,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                             <a
-                              href={`javascript:(function(){try{let t=null;try{const r=JSON.parse(localStorage.getItem('persist:root')||'{}');if(r&&r.auth){t=JSON.parse(r.auth).token;}}catch(e){}if(!t)t=localStorage.getItem('token')||localStorage.getItem('monarch_token')||sessionStorage.getItem('token');if(!t){alert('Please make sure you are signed into Monarch Money in this tab first.');return;}fetch('${window.location.origin}/api/monarch/capture-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairId:'${monarchPairId||''}',token:t}),mode:'cors'}).then(r=>r.json()).then(d=>{try{if(window.opener)window.opener.postMessage({type:'MONARCH_TOKEN_CAPTURED',token:t},'*');}catch(e){}alert('✅ Monarch Money token captured & linked to Family App!');}).catch(err=>{window.open('${window.location.origin}/api/monarch/callback?pairId=${monarchPairId||''}&token='+encodeURIComponent(t),'_blank');});}catch(e){alert('Error: '+e.message);}})();`}
+                              href={`javascript:(function(){try{let t=null;try{const root=JSON.parse(localStorage.getItem('persist:root')||'{}');for(const k of['auth','user','session']){if(root[k]){try{const p=typeof root[k]==='string'?JSON.parse(root[k]):root[k];if(p.token){t=p.token;break;}if(p.accessToken){t=p.accessToken;break;}if(p.sessionToken){t=p.sessionToken;break;}}catch(e){}}}}catch(e){}if(!t){const directKeys=['monarch_token','token','authToken','accessToken','session_token','jwt'];for(const k of directKeys){const v=localStorage.getItem(k)||sessionStorage.getItem(k);if(v&&v.length>15){t=v;break;}}}if(!t){for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);const val=localStorage.getItem(k);if(val&&(val.includes('token')||val.includes('Token'))){try{const p=JSON.parse(val);if(p.token){t=p.token;break;}}catch(e){}}}}if(!t){alert('Please make sure you are signed into Monarch Money in this tab first.');return;}fetch('${window.location.origin}/api/monarch/capture-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairId:'${monarchPairId||''}',token:t}),mode:'cors'}).then(r=>r.json()).then(d=>{try{if(window.opener)window.opener.postMessage({type:'MONARCH_TOKEN_CAPTURED',token:t},'*');}catch(e){}alert('✅ Monarch Money token captured & linked to Family App!');}).catch(err=>{window.open('${window.location.origin}/api/monarch/callback?pairId=${monarchPairId||''}&token='+encodeURIComponent(t),'_blank');});}catch(e){alert('Error: '+e.message);}})();`}
                               className="btn btn-primary"
                               style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', textDecoration: 'none', cursor: 'grab' }}
                               onClick={(e) => {
@@ -2920,7 +3092,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                             </button>
 
                             <a
-                              href={`javascript:(function(){try{let t=null;try{const r=JSON.parse(localStorage.getItem('persist:root')||'{}');if(r&&r.auth){t=JSON.parse(r.auth).token;}}catch(e){}if(!t)t=localStorage.getItem('token')||localStorage.getItem('monarch_token')||sessionStorage.getItem('token');if(!t){alert('Please make sure you are signed into Monarch Money in this tab first.');return;}fetch('${window.location.origin}/api/monarch/capture-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairId:'${monarchPairId||''}',token:t}),mode:'cors'}).then(r=>r.json()).then(d=>{try{if(window.opener)window.opener.postMessage({type:'MONARCH_TOKEN_CAPTURED',token:t},'*');}catch(e){}alert('✅ Monarch Money token captured & linked to Family App!');}).catch(err=>{window.open('${window.location.origin}/api/monarch/callback?pairId=${monarchPairId||''}&token='+encodeURIComponent(t),'_blank');});}catch(e){alert('Error: '+e.message);}})();`}
+                              href={`javascript:(function(){try{let t=null;try{const root=JSON.parse(localStorage.getItem('persist:root')||'{}');for(const k of['auth','user','session']){if(root[k]){try{const p=typeof root[k]==='string'?JSON.parse(root[k]):root[k];if(p.token){t=p.token;break;}if(p.accessToken){t=p.accessToken;break;}if(p.sessionToken){t=p.sessionToken;break;}}catch(e){}}}}catch(e){}if(!t){const directKeys=['monarch_token','token','authToken','accessToken','session_token','jwt'];for(const k of directKeys){const v=localStorage.getItem(k)||sessionStorage.getItem(k);if(v&&v.length>15){t=v;break;}}}if(!t){for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);const val=localStorage.getItem(k);if(val&&(val.includes('token')||val.includes('Token'))){try{const p=JSON.parse(val);if(p.token){t=p.token;break;}}catch(e){}}}}if(!t){alert('Please make sure you are signed into Monarch Money in this tab first.');return;}fetch('${window.location.origin}/api/monarch/capture-token',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pairId:'${monarchPairId||''}',token:t}),mode:'cors'}).then(r=>r.json()).then(d=>{try{if(window.opener)window.opener.postMessage({type:'MONARCH_TOKEN_CAPTURED',token:t},'*');}catch(e){}alert('✅ Monarch Money token captured & linked to Family App!');}).catch(err=>{window.open('${window.location.origin}/api/monarch/callback?pairId=${monarchPairId||''}&token='+encodeURIComponent(t),'_blank');});}catch(e){alert('Error: '+e.message);}})();`}
                               className="btn btn-secondary"
                               style={{ fontSize: '0.75rem', padding: '0.45rem 0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none', cursor: 'grab' }}
                               onClick={(e) => {
