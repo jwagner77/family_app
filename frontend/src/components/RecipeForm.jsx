@@ -270,72 +270,92 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-      <div className="dual-pane" style={{ gap: '2rem' }}>
-        {/* Left Side Metadata */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1.5 1 320px' }}>
-          <div className="form-group">
-            <label htmlFor="title">Recipe Title *</label>
-            <input 
-              id="title"
-              type="text" 
-              className="input-control" 
-              placeholder="e.g. Grandma's Famous Lasagna" 
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-          </div>
+    <form 
+      onSubmit={handleSubmit} 
+      style={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        flex: 1, 
+        minHeight: 0, 
+        overflow: 'hidden' 
+      }}
+    >
+      {/* Scrollable Form Body */}
+      <div 
+        style={{ 
+          flex: 1, 
+          overflowY: 'auto', 
+          padding: '1.5rem', 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '1.5rem' 
+        }}
+      >
+        <div className="dual-pane" style={{ gap: '2rem' }}>
+          {/* Left Side Metadata */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1.5 1 320px' }}>
+            <div className="form-group">
+              <label htmlFor="title">Recipe Title *</label>
+              <input 
+                id="title"
+                type="text" 
+                className="input-control" 
+                placeholder="e.g. Grandma's Famous Lasagna" 
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+              />
+            </div>
 
-          <div className="form-group">
-            <label htmlFor="description">Description</label>
-            <textarea 
-              id="description"
-              className="input-control" 
-              placeholder="Provide a brief summary of the dish, background story, or notes..." 
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
+            <div className="form-group">
+              <label htmlFor="description">Description</label>
+              <textarea 
+                id="description"
+                className="input-control" 
+                placeholder="Provide a brief summary of the dish, background story, or notes..." 
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
 
-          <div className="grid-3-col">
-            <div className="form-group">
-              <label htmlFor="prep-time">Prep Time (mins)</label>
-              <input 
-                id="prep-time"
-                type="number" 
-                className="input-control" 
-                placeholder="e.g. 15"
-                value={prepTime}
-                onChange={(e) => setPrepTime(e.target.value)}
-                min="0"
-              />
+            <div className="grid-3-col">
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label htmlFor="prep-time" style={{ minHeight: '2.5rem', display: 'flex', alignItems: 'flex-end' }}>Prep Time (mins)</label>
+                <input 
+                  id="prep-time"
+                  type="number" 
+                  className="input-control" 
+                  placeholder="e.g. 15"
+                  value={prepTime}
+                  onChange={(e) => setPrepTime(e.target.value)}
+                  min="0"
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label htmlFor="cook-time" style={{ minHeight: '2.5rem', display: 'flex', alignItems: 'flex-end' }}>Cook Time (mins)</label>
+                <input 
+                  id="cook-time"
+                  type="number" 
+                  className="input-control" 
+                  placeholder="e.g. 45"
+                  value={cookTime}
+                  onChange={(e) => setCookTime(e.target.value)}
+                  min="0"
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label htmlFor="servings" style={{ minHeight: '2.5rem', display: 'flex', alignItems: 'flex-end' }}>Servings</label>
+                <input 
+                  id="servings"
+                  type="number" 
+                  className="input-control" 
+                  placeholder="e.g. 6"
+                  value={servings}
+                  onChange={(e) => setServings(e.target.value)}
+                  min="0"
+                />
+              </div>
             </div>
-            <div className="form-group">
-              <label htmlFor="cook-time">Cook Time (mins)</label>
-              <input 
-                id="cook-time"
-                type="number" 
-                className="input-control" 
-                placeholder="e.g. 45"
-                value={cookTime}
-                onChange={(e) => setCookTime(e.target.value)}
-                min="0"
-              />
-            </div>
-            <div className="form-group">
-              <label htmlFor="servings">Servings</label>
-              <input 
-                id="servings"
-                type="number" 
-                className="input-control" 
-                placeholder="e.g. 6"
-                value={servings}
-                onChange={(e) => setServings(e.target.value)}
-                min="0"
-              />
-            </div>
-          </div>
 
           <div className="form-group">
             <label htmlFor="source-url">Recipe Source Website URL</label>
@@ -557,16 +577,19 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
           </div>
         </div>
       </div>
+      </div>
 
-      {/* Buttons Actions */}
+      {/* Sticky / Always Present Modal Footer */}
       <div 
+        className="modal-footer"
         style={{ 
           display: 'flex', 
           justifyContent: 'flex-end', 
-          gap: '1rem', 
-          marginTop: '2rem', 
-          paddingTop: '1.25rem', 
-          borderTop: '1px solid var(--border-color)' 
+          gap: '0.75rem', 
+          padding: '1rem 1.5rem', 
+          borderTop: '1px solid var(--border)', 
+          background: 'var(--card, var(--bg-card))',
+          flexShrink: 0
         }}
       >
         <button type="button" className="btn btn-outline" onClick={onCancel} disabled={loading}>

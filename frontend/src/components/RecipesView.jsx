@@ -725,19 +725,21 @@ export default function RecipesView({ showToast, user }) {
       {/* Recipe Create/Edit Form Modal */}
       {isFormOpen && (
         <div className="modal-overlay" onClick={() => setIsFormOpen(false)}>
-          <div className="modal-content recipe-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>{editRecipe ? 'Edit Recipe' : 'Add New Recipe'}</h2>
+          <div 
+            className="modal-content recipe-modal" 
+            onClick={(e) => e.stopPropagation()}
+            style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden', padding: 0 }}
+          >
+            <div className="modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+              <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700 }}>{editRecipe ? 'Edit Recipe' : 'Add New Recipe'}</h2>
               <button className="btn-icon close-btn" style={{ background: 'transparent', border: 'none' }} onClick={() => setIsFormOpen(false)} title="Close"><X size={20} /></button>
             </div>
-            <div className="modal-body" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
-              <RecipeForm 
-                recipe={editRecipe} 
-                onSuccess={handleFormSuccess} 
-                onCancel={() => setIsFormOpen(false)}
-                showToast={showToast} 
-              />
-            </div>
+            <RecipeForm 
+              recipe={editRecipe} 
+              onSuccess={handleFormSuccess} 
+              onCancel={() => setIsFormOpen(false)}
+              showToast={showToast} 
+            />
           </div>
         </div>
       )}
