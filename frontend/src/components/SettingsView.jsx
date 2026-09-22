@@ -2773,83 +2773,55 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                     </h4>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       {monarchConnected === true && (
-                        <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: '600', background: 'rgba(16, 185, 129, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: '600', background: 'rgba(16, 185, 129, 0.1)', padding: '0.25rem 0.6rem', borderRadius: '4px' }}>
                           <CheckCircle2 size={13} /> Connected {monarchAccounts.length > 0 ? `(${monarchAccounts.length} accounts)` : ''}
                         </span>
                       )}
                       {monarchConnected === false && (
-                        <span style={{ fontSize: '0.75rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: '600', background: 'rgba(239, 68, 68, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem', fontWeight: '600', background: 'rgba(239, 68, 68, 0.1)', padding: '0.25rem 0.6rem', borderRadius: '4px' }}>
                           <AlertCircle size={13} /> Disconnected
                         </span>
-                      )}
-                      {monarchToken && (
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
-                          onClick={handleDisconnectMonarch}
-                          title="Disconnect Monarch Integration"
-                        >
-                          <LogOut size={11} style={{ marginRight: '0.25rem' }} /> Disconnect
-                        </button>
                       )}
                     </div>
                   </div>
 
-                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: '1.4' }}>
-                    Authenticate with your Monarch Money credentials to automatically capture your session token, or enter a token manually.
-                  </p>
+                  {monarchConnected ? (
+                    /* Connected State */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--foreground)', margin: 0, lineHeight: '1.5' }}>
+                        Your Monarch Money account is securely connected. Balances, transactions, and recurring streams are automatically synced with the app.
+                      </p>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.25rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                          onClick={fetchMonarchDetails}
+                          disabled={loadingMonarchData}
+                        >
+                          <RefreshCw size={13} className={loadingMonarchData ? 'spin' : ''} />
+                          {loadingMonarchData ? 'Refreshing...' : 'Refresh Monarch Data'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#ef4444', borderColor: 'rgba(239, 68, 68, 0.3)' }}
+                          onClick={handleDisconnectMonarch}
+                        >
+                          <LogOut size={13} /> Sign Out / Disconnect
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Sign In to Monarch Form */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--background)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: '1.4' }}>
+                        Sign in with your Monarch Money credentials to authenticate and automatically connect your accounts and transactions.
+                      </p>
 
-                  {/* Mode Selector Tabs */}
-                  <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--background)', padding: '0.2rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', width: 'fit-content' }}>
-                    <button
-                      type="button"
-                      onClick={() => { setMonarchAuthMode('login'); setMonarchRequiresMfa(false); }}
-                      style={{
-                        padding: '0.3rem 0.65rem',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        background: monarchAuthMode === 'login' ? 'var(--primary)' : 'transparent',
-                        color: monarchAuthMode === 'login' ? '#fff' : 'var(--muted-foreground)',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <LogIn size={13} /> Log In with Monarch
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMonarchAuthMode('token')}
-                      style={{
-                        padding: '0.3rem 0.65rem',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        background: monarchAuthMode === 'token' ? 'var(--primary)' : 'transparent',
-                        color: monarchAuthMode === 'token' ? '#fff' : 'var(--muted-foreground)',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <KeyRound size={13} /> Manual Token Entry
-                    </button>
-                  </div>
-
-                  {monarchAuthMode === 'login' ? (
-                    /* In-App Direct Login Form */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', background: 'var(--background)', padding: '0.85rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                       {!monarchRequiresMfa ? (
                         <>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.65rem' }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
                             <div className="form-group" style={{ margin: 0 }}>
                               <label htmlFor="monarch-email-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Monarch Email</label>
                               <input
@@ -2902,25 +2874,25 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                             <button
                               type="button"
                               className="btn btn-primary"
-                              style={{ fontSize: '0.75rem', padding: '0.4rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                              style={{ fontSize: '0.75rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}
                               onClick={handleMonarchLogin}
                               disabled={monarchAuthenticating || !monarchEmail || !monarchPassword}
                             >
-                              <LogIn size={13} className={monarchAuthenticating ? 'spin' : ''} />
-                              {monarchAuthenticating ? 'Authenticating & Capturing Token...' : 'Log In & Capture Token'}
+                              <LogIn size={14} className={monarchAuthenticating ? 'spin' : ''} />
+                              {monarchAuthenticating ? 'Signing In & Connecting...' : 'Sign In to Monarch & Connect'}
                             </button>
                           </div>
                         </>
                       ) : (
                         /* 2FA / MFA Prompt */
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                          <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius)', fontSize: '0.75rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <div style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '0.75rem 0.9rem', borderRadius: 'var(--radius)', fontSize: '0.75rem', color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Shield size={16} />
-                            <span>Two-Factor Authentication (2FA) is enabled on your Monarch account. Enter the 6-digit code from your authenticator app below:</span>
+                            <span>Two-Factor Authentication (2FA) is enabled on your Monarch account. Please enter the 6-digit code from your authenticator app:</span>
                           </div>
                           <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                             <div className="form-group" style={{ margin: 0, width: '180px' }}>
-                              <label htmlFor="monarch-totp-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>2FA / TOTP Code</label>
+                              <label htmlFor="monarch-totp-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>2FA / Verification Code</label>
                               <input
                                 id="monarch-totp-input"
                                 type="text"
@@ -2931,23 +2903,23 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                                 maxLength={8}
                                 inputMode="numeric"
                                 autoFocus
-                                style={{ letterSpacing: '2px', fontWeight: 'bold', fontSize: '1rem', textAlign: 'center' }}
+                                style={{ letterSpacing: '2px', fontWeight: 'bold', fontSize: '1.05rem', textAlign: 'center' }}
                               />
                             </div>
                             <button
                               type="button"
                               className="btn btn-primary"
-                              style={{ fontSize: '0.75rem', padding: '0.45rem 0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                              style={{ fontSize: '0.75rem', padding: '0.45rem 1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                               onClick={handleMonarchLogin}
                               disabled={monarchAuthenticating || !monarchTotp}
                             >
-                              <CheckCircle2 size={13} className={monarchAuthenticating ? 'spin' : ''} />
-                              {monarchAuthenticating ? 'Verifying...' : 'Verify & Capture Token'}
+                              <CheckCircle2 size={14} className={monarchAuthenticating ? 'spin' : ''} />
+                              {monarchAuthenticating ? 'Verifying...' : 'Verify & Complete Sign In'}
                             </button>
                             <button
                               type="button"
                               className="btn btn-secondary"
-                              style={{ fontSize: '0.75rem', padding: '0.45rem 0.65rem' }}
+                              style={{ fontSize: '0.75rem', padding: '0.45rem 0.75rem' }}
                               onClick={() => setMonarchRequiresMfa(false)}
                             >
                               Back
@@ -2956,72 +2928,16 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         </div>
                       )}
                     </div>
-                  ) : (
-                    /* Manual Token Entry Form */
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', background: 'var(--background)', padding: '0.85rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                      <div className="form-group" style={{ margin: 0 }}>
-                        <label htmlFor="monarch-token-input" style={{ fontSize: '0.7rem', fontWeight: '600' }}>Monarch API Token (monarch-token)</label>
-                        <div style={{ position: 'relative' }}>
-                          <input
-                            id="monarch-token-input"
-                            type={revealMonarchToken ? "text" : "password"}
-                            className="input-control"
-                            value={monarchToken}
-                            onChange={(e) => {
-                              setMonarchToken(e.target.value);
-                              if (monarchConnected !== null) setMonarchConnected(null);
-                            }}
-                            placeholder={monarchToken ? "••••••••" : "Enter Monarch token"}
-                            style={{ paddingRight: '2.5rem' }}
-                          />
-                          {monarchToken && (
-                            <button
-                              type="button"
-                              onClick={() => setRevealMonarchToken(!revealMonarchToken)}
-                              style={{
-                                position: 'absolute',
-                                right: '0.5rem',
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                background: 'none',
-                                border: 'none',
-                                color: 'var(--muted-foreground)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                padding: '0.25rem'
-                              }}
-                              title={revealMonarchToken ? "Hide Token" : "Reveal Token"}
-                            >
-                              {revealMonarchToken ? <EyeOff size={14} /> : <Eye size={14} />}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          className="btn btn-secondary"
-                          style={{ fontSize: '0.75rem', padding: '0.35rem 0.65rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                          onClick={() => testMonarchConnection(monarchToken)}
-                          disabled={monarchTesting || !monarchToken}
-                        >
-                          <RotateCcw size={12} className={monarchTesting ? 'spin' : ''} />
-                          {monarchTesting ? 'Testing...' : 'Test Connection'}
-                        </button>
-                      </div>
-                    </div>
                   )}
 
                   {monarchStatusMsg && (
                     <div style={{
                       fontSize: '0.75rem',
-                      padding: '0.4rem 0.65rem',
+                      padding: '0.45rem 0.75rem',
                       borderRadius: 'var(--radius)',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.35rem',
+                      gap: '0.4rem',
                       background: monarchConnected ? 'rgba(16, 185, 129, 0.08)' : 'rgba(239, 68, 68, 0.08)',
                       color: monarchConnected ? '#10b981' : '#ef4444',
                       border: `1px solid ${monarchConnected ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
