@@ -1072,15 +1072,26 @@ app.get('/api/relationships', authenticate, async (req, res) => {
 
 app.post('/api/relationships', authenticate, async (req, res) => {
   try {
-    const { from_person_type, from_person_id, to_person_type, to_person_id, relationship_type } = req.body;
+    const { from_person_type, from_person_id, to_person_type, to_person_id, relationship_type, reciprocal_type } = req.body;
     if (!from_person_type || !from_person_id || !to_person_type || !to_person_id || !relationship_type) {
       return res.status(400).json({ error: 'All relationship fields are required' });
     }
     const db = await getDb();
+    
+    // Insert primary relationship
     await db.run(
       'INSERT OR REPLACE INTO relationships (from_person_type, from_person_id, to_person_type, to_person_id, relationship_type) VALUES (?, ?, ?, ?, ?)',
-      [from_person_type, from_person_id, to_person_type, to_person_id, relationship_type]
+      [from_person_type, from_person_id, to_person_type, to_person_id, relationship_type.trim()]
     );
+
+    // If reciprocal_type is provided, insert or update the reverse relationship
+    if (reciprocal_type && reciprocal_type.trim()) {
+      await db.run(
+        'INSERT OR REPLACE INTO relationships (from_person_type, from_person_id, to_person_type, to_person_id, relationship_type) VALUES (?, ?, ?, ?, ?)',
+        [to_person_type, to_person_id, from_person_type, from_person_id, reciprocal_type.trim()]
+      );
+    }
+
     const savedRel = await db.get(
       'SELECT * FROM relationships WHERE from_person_type = ? AND from_person_id = ? AND to_person_type = ? AND to_person_id = ?',
       [from_person_type, from_person_id, to_person_type, to_person_id]
@@ -1095,7 +1106,15 @@ app.delete('/api/relationships/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const db = await getDb();
-    await db.run('DELETE FROM relationships WHERE id = ?', [id]);
+    const rel = await db.get('SELECT * FROM relationships WHERE id = ?', [id]);
+    if (rel) {
+      // Also delete reciprocal relationship if present
+      await db.run(
+        'DELETE FROM relationships WHERE from_person_type = ? AND from_person_id = ? AND to_person_type = ? AND to_person_id = ?',
+        [rel.to_person_type, rel.to_person_id, rel.from_person_type, rel.from_person_id]
+      );
+      await db.run('DELETE FROM relationships WHERE id = ?', [id]);
+    }
     res.json({ message: 'Relationship deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -3,6 +3,75 @@ import { Search, UserPlus, Phone, Mail, Calendar, Heart, MessageSquare, Trash2, 
 
 const RELATIONSHIP_OPTIONS = ['Family', 'Friend', 'Work', 'Spouse', 'Child', 'Parent', 'Sibling', 'Other'];
 
+const COMMON_CONNECTION_ROLES = [
+  'Spouse', 'Husband', 'Wife', 'Partner',
+  'Son', 'Daughter', 'Child',
+  'Father', 'Mother', 'Parent',
+  'Brother', 'Sister', 'Sibling',
+  'Grandfather', 'Grandmother', 'Grandson', 'Granddaughter',
+  'Uncle', 'Aunt', 'Nephew', 'Niece',
+  'Cousin', 'Friend', 'In-Law'
+];
+
+const RECIPROCAL_MAP = {
+  'spouse': 'Spouse',
+  'husband': 'Wife',
+  'wife': 'Husband',
+  'partner': 'Partner',
+  'fiancé': 'Fiancée',
+  'fiancée': 'Fiancé',
+  'significant other': 'Significant Other',
+  
+  'son': 'Father',
+  'daughter': 'Father',
+  'child': 'Parent',
+  'kid': 'Parent',
+  
+  'father': 'Child',
+  'dad': 'Child',
+  'mother': 'Child',
+  'mom': 'Child',
+  'parent': 'Child',
+  
+  'brother': 'Brother',
+  'sister': 'Brother',
+  'sibling': 'Sibling',
+  
+  'grandfather': 'Grandchild',
+  'grandpa': 'Grandchild',
+  'grandmother': 'Grandchild',
+  'grandma': 'Grandchild',
+  'grandparent': 'Grandchild',
+  'grandson': 'Grandparent',
+  'granddaughter': 'Grandparent',
+  'grandchild': 'Grandparent',
+  
+  'uncle': 'Nephew',
+  'aunt': 'Nephew',
+  'nephew': 'Uncle',
+  'niece': 'Uncle',
+  
+  'cousin': 'Cousin',
+  'friend': 'Friend',
+  'colleague': 'Colleague',
+  'coworker': 'Coworker',
+  'roommate': 'Roommate',
+  'boyfriend': 'Girlfriend',
+  'girlfriend': 'Boyfriend',
+  
+  'stepfather': 'Stepchild',
+  'stepmother': 'Stepchild',
+  'stepson': 'Step-parent',
+  'stepdaughter': 'Step-parent',
+  'stepchild': 'Step-parent'
+};
+
+function getReciprocalRole(role) {
+  if (!role) return '';
+  const r = role.trim().toLowerCase();
+  return RECIPROCAL_MAP[r] || role;
+}
+
 export default function ContactsView({ showToast }) {
   const [contacts, setContacts] = useState([]);
   const [selectedContactIds, setSelectedContactIds] = useState([]);
@@ -14,6 +83,7 @@ export default function ContactsView({ showToast }) {
   const [relationships, setRelationships] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [newRelType, setNewRelType] = useState('');
+  const [newReciprocalType, setNewReciprocalType] = useState('');
   const [newRelTargetType, setNewRelTargetType] = useState('contact');
   const [newRelTargetId, setNewRelTargetId] = useState('');
 
@@ -90,13 +160,52 @@ export default function ContactsView({ showToast }) {
   };
 
   const getContactRelationships = (contact) => {
-    return relationships.filter(rel => {
+    if (!contact) return [];
+    
+    const relMap = new Map();
+    
+    // 1. Outgoing direct relationships from this contact or user
+    relationships.forEach(rel => {
       const isFromContact = rel.from_person_type === 'contact' && rel.from_person_id === contact.id;
-      const isToContact = rel.to_person_type === 'contact' && rel.to_person_id === contact.id;
       const isFromUser = contact.user_id && rel.from_person_type === 'user' && rel.from_person_id === contact.user_id;
-      const isToUser = contact.user_id && rel.to_person_type === 'user' && rel.to_person_id === contact.user_id;
-      return isFromContact || isToContact || isFromUser || isToUser;
+      
+      if (isFromContact || isFromUser) {
+        const targetKey = `${rel.to_person_type}_${rel.to_person_id}`;
+        const otherName = getPersonName(rel.to_person_type, rel.to_person_id);
+        relMap.set(targetKey, {
+          id: rel.id,
+          otherName,
+          otherType: rel.to_person_type,
+          otherId: rel.to_person_id,
+          relationshipType: rel.relationship_type,
+          isDirect: true
+        });
+      }
     });
+
+    // 2. Incoming relationships to this contact or user (if not already mapped by a direct edge)
+    relationships.forEach(rel => {
+      const isToContact = rel.to_person_type === 'contact' && rel.to_person_id === contact.id;
+      const isToUser = contact.user_id && rel.to_person_type === 'user' && rel.to_person_id === contact.user_id;
+      
+      if (isToContact || isToUser) {
+        const sourceKey = `${rel.from_person_type}_${rel.from_person_id}`;
+        if (!relMap.has(sourceKey)) {
+          const otherName = getPersonName(rel.from_person_type, rel.from_person_id);
+          const reciprocalRole = getReciprocalRole(rel.relationship_type);
+          relMap.set(sourceKey, {
+            id: rel.id,
+            otherName,
+            otherType: rel.from_person_type,
+            otherId: rel.from_person_id,
+            relationshipType: reciprocalRole,
+            isDirect: false
+          });
+        }
+      }
+    });
+
+    return Array.from(relMap.values());
   };
 
   const getPersonName = (type, id) => {
@@ -128,6 +237,11 @@ export default function ContactsView({ showToast }) {
     }
   };
 
+  const handleRelTypeChange = (val) => {
+    setNewRelType(val);
+    setNewReciprocalType(getReciprocalRole(val));
+  };
+
   const handleAddRelationship = async () => {
     if (!newRelType.trim() || !newRelTargetId) {
       showToast('Please specify a relationship type and target person', 'error');
@@ -140,7 +254,8 @@ export default function ContactsView({ showToast }) {
         from_person_id: selectedContact.id,
         to_person_type: newRelTargetType,
         to_person_id: parseInt(newRelTargetId),
-        relationship_type: newRelType.trim()
+        relationship_type: newRelType.trim(),
+        reciprocal_type: newReciprocalType.trim() || getReciprocalRole(newRelType.trim())
       };
 
       const res = await fetch('/api/relationships', {
@@ -152,6 +267,7 @@ export default function ContactsView({ showToast }) {
       if (res.ok) {
         showToast('Relationship added successfully!', 'success');
         setNewRelType('');
+        setNewReciprocalType('');
         setNewRelTargetId('');
         fetchRelationships();
       } else {
@@ -653,33 +769,20 @@ export default function ContactsView({ showToast }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: '0.25rem' }}>
                   <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Relationships:</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    {getContactRelationships(contact).map(rel => {
-                      const isSource = (rel.from_person_type === 'contact' && rel.from_person_id === contact.id) ||
-                                       (contact.user_id && rel.from_person_type === 'user' && rel.from_person_id === contact.user_id);
-                      
-                      const otherType = isSource ? rel.to_person_type : rel.from_person_type;
-                      const otherId = isSource ? rel.to_person_id : rel.from_person_id;
-                      const otherName = getPersonName(otherType, otherId);
-                      
-                      return (
-                        <div key={rel.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', background: 'var(--accent)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
-                          <span>
-                            {isSource ? (
-                              <><strong>{rel.relationship_type}</strong> of {otherName}</>
-                            ) : (
-                              <>{otherName}'s <strong>{rel.relationship_type}</strong></>
-                            )}
-                          </span>
-                          <button 
-                            onClick={() => handleDeleteRelationship(rel.id)}
-                            style={{ background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center' }}
-                            title="Delete relationship"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      );
-                    })}
+                    {getContactRelationships(contact).map(rel => (
+                      <div key={`${rel.id}_${rel.otherType}_${rel.otherId}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', background: 'var(--accent)', padding: '0.25rem 0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                        <span>
+                          <span style={{ fontWeight: '500' }}>{rel.otherName}</span> <span style={{ color: 'var(--muted-foreground)' }}>-</span> <strong style={{ color: 'var(--primary)' }}>{rel.relationshipType}</strong>
+                        </span>
+                        <button 
+                          onClick={() => handleDeleteRelationship(rel.id)}
+                          style={{ background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: '0 2px', display: 'flex', alignItems: 'center' }}
+                          title="Delete relationship"
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -813,18 +916,7 @@ export default function ContactsView({ showToast }) {
                       Define relationships between this contact and other family contacts or household users.
                     </p>
                     
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', alignItems: 'end' }}>
-                      <div className="form-group" style={{ margin: 0 }}>
-                        <label htmlFor="new-rel-type" style={{ fontSize: '0.6875rem' }}>Connection Role</label>
-                        <input 
-                          id="new-rel-type"
-                          type="text" 
-                          className="input-control" 
-                          placeholder="e.g. Spouse, Sibling" 
-                          value={newRelType}
-                          onChange={(e) => setNewRelType(e.target.value)}
-                        />
-                      </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.2fr', gap: '0.5rem' }}>
                       <div className="form-group" style={{ margin: 0 }}>
                         <label htmlFor="new-rel-target-type" style={{ fontSize: '0.6875rem' }}>Target Person Type</label>
                         <select 
@@ -835,20 +927,23 @@ export default function ContactsView({ showToast }) {
                             setNewRelTargetType(e.target.value);
                             setNewRelTargetId('');
                           }}
+                          style={{ height: '32px', fontSize: '0.75rem' }}
                         >
                           <option value="contact">Contact</option>
                           <option value="user">User</option>
                         </select>
                       </div>
+
                       <div className="form-group" style={{ margin: 0 }}>
-                        <label htmlFor="new-rel-target" style={{ fontSize: '0.6875rem' }}>Select Target *</label>
+                        <label htmlFor="new-rel-target" style={{ fontSize: '0.6875rem' }}>Select Target Person *</label>
                         <select 
                           id="new-rel-target"
                           className="input-control"
                           value={newRelTargetId}
                           onChange={(e) => setNewRelTargetId(e.target.value)}
+                          style={{ height: '32px', fontSize: '0.75rem' }}
                         >
-                          <option value="">-- Choose --</option>
+                          <option value="">-- Choose Person --</option>
                           {newRelTargetType === 'contact' ? (
                             contacts.filter(c => c.id !== selectedContact?.id).map(c => (
                               <option key={c.id} value={c.id}>{c.name}</option>
@@ -861,14 +956,74 @@ export default function ContactsView({ showToast }) {
                         </select>
                       </div>
                     </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label htmlFor="new-rel-type" style={{ fontSize: '0.6875rem' }}>Relationship (Target is my)</label>
+                        <input 
+                          id="new-rel-type"
+                          type="text" 
+                          list="connection-role-suggestions"
+                          className="input-control" 
+                          placeholder="e.g. Spouse, Son" 
+                          value={newRelType}
+                          onChange={(e) => handleRelTypeChange(e.target.value)}
+                          style={{ height: '32px', fontSize: '0.75rem' }}
+                        />
+                        <datalist id="connection-role-suggestions">
+                          {COMMON_CONNECTION_ROLES.map(role => (
+                            <option key={role} value={role} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      <div className="form-group" style={{ margin: 0 }}>
+                        <label htmlFor="new-reciprocal-type" style={{ fontSize: '0.6875rem' }}>Reciprocal (I am their)</label>
+                        <input 
+                          id="new-reciprocal-type"
+                          type="text" 
+                          list="connection-role-suggestions"
+                          className="input-control" 
+                          placeholder="e.g. Spouse, Father" 
+                          value={newReciprocalType}
+                          onChange={(e) => setNewReciprocalType(e.target.value)}
+                          style={{ height: '32px', fontSize: '0.75rem' }}
+                        />
+                      </div>
+                    </div>
+
                     <button 
                       type="button" 
                       className="btn btn-outline" 
                       onClick={handleAddRelationship}
-                      style={{ fontSize: '0.75rem', gap: '0.25rem', padding: '0.5rem' }}
+                      style={{ fontSize: '0.75rem', gap: '0.25rem', padding: '0.45rem', alignSelf: 'flex-start' }}
                     >
                       <Plus size={12} /> Add Relationship
                     </button>
+
+                    {/* List of current relationships for this contact */}
+                    {selectedContact && getContactRelationships(selectedContact).length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+                        <label style={{ fontSize: '0.6875rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Current Relationships:</label>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {getContactRelationships(selectedContact).map(rel => (
+                            <div key={`${rel.id}_${rel.otherType}_${rel.otherId}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem', background: 'var(--muted)', padding: '0.35rem 0.5rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                              <span>
+                                <strong style={{ color: 'var(--foreground)' }}>{rel.otherName}</strong> <span style={{ color: 'var(--muted-foreground)' }}>-</span> <span style={{ color: 'var(--primary)', fontWeight: '600' }}>{rel.relationshipType}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRelationship(rel.id)}
+                                style={{ background: 'none', border: 'none', color: 'var(--destructive)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+                                title="Delete relationship"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
