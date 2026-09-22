@@ -623,6 +623,9 @@ export async function getDb() {
   try {
     await dbInstance.run("ALTER TABLE users ADD COLUMN picture_url TEXT");
   } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE users ADD COLUMN hide_from_contacts INTEGER DEFAULT 0");
+  } catch (err) {}
 
   // Safe Migration to add user_id to contacts if missing
   try {
@@ -1664,37 +1667,49 @@ export async function getUserById(id) {
 export async function getAllUsers() {
   const db = await getDb();
   return await db.all(`
-    SELECT u.id, u.username, u.role_id, u.display_name, u.auth_provider, u.timezone, u.created_at, r.name as role_name 
+    SELECT u.id, u.username, u.role_id, u.display_name, u.auth_provider, u.timezone, u.hide_from_contacts, u.created_at, r.name as role_name 
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
     ORDER BY u.username ASC
   `);
 }
 
-export async function createUser(username, password, roleId, displayName = null, authProvider = 'local') {
+export async function createUser(username, password, roleId, displayName = null, authProvider = 'local', hideFromContacts = 0) {
   const db = await getDb();
   const hashedPassword = hashPassword(password);
+  const hideVal = (hideFromContacts === 1 || hideFromContacts === '1' || hideFromContacts === true) ? 1 : 0;
   const result = await db.run(
-    "INSERT INTO users (username, password, role_id, display_name, auth_provider) VALUES (?, ?, ?, ?, ?)",
-    [username, hashedPassword, roleId || null, displayName, authProvider]
+    "INSERT INTO users (username, password, role_id, display_name, auth_provider, hide_from_contacts) VALUES (?, ?, ?, ?, ?, ?)",
+    [username, hashedPassword, roleId || null, displayName, authProvider, hideVal]
   );
   return result.lastID;
 }
 
-export async function updateUser(id, username, password, roleId) {
+export async function updateUser(id, username, password, roleId, displayName = undefined, hideFromContacts = undefined) {
   const db = await getDb();
+  const updates = ['username = ?', 'role_id = ?'];
+  const params = [username, roleId || null];
+
   if (password && password.trim()) {
     const hashedPassword = hashPassword(password);
-    await db.run(
-      "UPDATE users SET username = ?, password = ?, role_id = ? WHERE id = ?",
-      [username, hashedPassword, roleId || null, id]
-    );
-  } else {
-    await db.run(
-      "UPDATE users SET username = ?, role_id = ? WHERE id = ?",
-      [username, roleId || null, id]
-    );
+    updates.push('password = ?');
+    params.push(hashedPassword);
   }
+  if (displayName !== undefined) {
+    updates.push('display_name = ?');
+    params.push(displayName);
+  }
+  if (hideFromContacts !== undefined) {
+    const hideVal = (hideFromContacts === 1 || hideFromContacts === '1' || hideFromContacts === true) ? 1 : 0;
+    updates.push('hide_from_contacts = ?');
+    params.push(hideVal);
+  }
+
+  params.push(id);
+  await db.run(
+    `UPDATE users SET ${updates.join(', ')} WHERE id = ?`,
+    params
+  );
   return true;
 }
 

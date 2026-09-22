@@ -818,6 +818,11 @@ app.get('/api/auth/me', authenticate, (req, res) => {
 
 async function syncUserAsContact(user) {
   const db = await getDb();
+  const isHidden = user.hide_from_contacts === 1 || user.hide_from_contacts === '1' || user.hide_from_contacts === true;
+  if (isHidden) {
+    await db.run('DELETE FROM contacts WHERE user_id = ?', [user.id]);
+    return;
+  }
   const contact = await db.get('SELECT id FROM contacts WHERE user_id = ?', [user.id]);
   if (!contact) {
     await db.run(
@@ -1161,11 +1166,16 @@ app.get('/api/users', authenticate, requirePermission('users', 'read'), async (r
 
 app.post('/api/users', authenticate, requirePermission('users', 'full'), async (req, res) => {
   try {
-    const { username, password, role_id, display_name } = req.body;
+    const { username, password, role_id, display_name, hide_from_contacts } = req.body;
     if (!username || !password || !role_id) {
       return res.status(400).json({ error: 'Username, password, and role are required' });
     }
-    const id = await createUser(username.trim(), password, role_id, display_name ? display_name.trim() : null);
+    const hideVal = (hide_from_contacts === 1 || hide_from_contacts === '1' || hide_from_contacts === true) ? 1 : 0;
+    const id = await createUser(username.trim(), password, role_id, display_name ? display_name.trim() : null, 'local', hideVal);
+    const newUser = await getUserById(id);
+    if (newUser) {
+      await syncUserAsContact(newUser);
+    }
     sendNotification('User Created', `A new user account was created: "${username}".`, 'User Managed');
     res.status(201).json({ id, message: 'User created successfully' });
   } catch (error) {
@@ -1175,8 +1185,12 @@ app.post('/api/users', authenticate, requirePermission('users', 'full'), async (
 
 app.put('/api/users/:id', authenticate, requirePermission('users', 'full'), async (req, res) => {
   try {
-    const { username, password, role_id } = req.body;
-    await updateUser(req.params.id, username, password, role_id);
+    const { username, password, role_id, display_name, hide_from_contacts } = req.body;
+    await updateUser(req.params.id, username, password, role_id, display_name, hide_from_contacts);
+    const updatedUser = await getUserById(req.params.id);
+    if (updatedUser) {
+      await syncUserAsContact(updatedUser);
+    }
     res.json({ message: 'User updated successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });

@@ -132,6 +132,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [roleSelectInput, setRoleSelectInput] = useState('');
+  const [hideFromContactsInput, setHideFromContactsInput] = useState(false);
 
   // Role Management states
   const [roleFormOpen, setRoleFormOpen] = useState(false);
@@ -1384,7 +1385,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       const method = editUser ? 'PUT' : 'POST';
       const body = {
         username: usernameInput.trim(),
-        role_id: roleSelectInput ? Number(roleSelectInput) : null
+        role_id: roleSelectInput ? Number(roleSelectInput) : null,
+        hide_from_contacts: hideFromContactsInput
       };
       if (passwordInput.trim()) {
         body.password = passwordInput.trim();
@@ -1404,6 +1406,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       setUsernameInput('');
       setPasswordInput('');
       setRoleSelectInput('');
+      setHideFromContactsInput(false);
       
       // Reload users list
       const usersRes = await fetch('/api/users');
@@ -1418,6 +1421,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     setUsernameInput(user.username);
     setPasswordInput('');
     setRoleSelectInput(user.role_id || '');
+    setHideFromContactsInput(user.hide_from_contacts === 1 || user.hide_from_contacts === true);
     setUserFormOpen(true);
   };
 
@@ -1929,6 +1933,19 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       </select>
                     </div>
                     
+                    <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.25rem' }}>
+                      <label htmlFor="user-hide-contacts" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        <input
+                          id="user-hide-contacts"
+                          type="checkbox"
+                          checked={hideFromContactsInput}
+                          onChange={(e) => setHideFromContactsInput(e.target.checked)}
+                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                        />
+                        <span>Hide user from Contact List</span>
+                      </label>
+                    </div>
+                    
                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
                       <button type="submit" className="btn btn-primary">
                         {editUser ? 'Save Changes' : 'Create User'}
@@ -1936,7 +1953,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       <button 
                         type="button" 
                         className="btn btn-outline" 
-                        onClick={() => { setUserFormOpen(false); setEditUser(null); setUsernameInput(''); setPasswordInput(''); setRoleSelectInput(''); }}
+                        onClick={() => { setUserFormOpen(false); setEditUser(null); setUsernameInput(''); setPasswordInput(''); setRoleSelectInput(''); setHideFromContactsInput(false); }}
                       >
                         Cancel
                       </button>
@@ -1952,6 +1969,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       setUsernameInput('');
                       setPasswordInput('');
                       setRoleSelectInput('');
+                      setHideFromContactsInput(false);
                       setUserFormOpen(true);
                     }}
                   >
@@ -1968,6 +1986,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       <th>Display Name</th>
                       <th>Auth Method</th>
                       <th>Assigned Role</th>
+                      <th>Contact List</th>
                       <th>Created Date</th>
                       <th style={{ textAlign: 'right', width: '120px' }}>Actions</th>
                     </tr>
@@ -1985,6 +2004,11 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         <td>
                           <span className="badge badge-secondary">
                             {u.role_name || 'No Role Assigned'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge ${u.hide_from_contacts ? 'badge-secondary' : 'badge-primary'}`} style={{ fontSize: '0.75rem' }}>
+                            {u.hide_from_contacts ? 'Hidden' : 'Visible'}
                           </span>
                         </td>
                         <td>{new Date(u.created_at).toLocaleDateString()}</td>

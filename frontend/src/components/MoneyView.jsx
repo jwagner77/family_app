@@ -167,7 +167,18 @@ export default function MoneyView({ showToast, onNavigateToSettings }) {
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <a
+            href="https://app.monarchmoney.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8125rem', textDecoration: 'none' }}
+            title="Open Monarch Money in a new tab"
+          >
+            <ExternalLink size={14} /> Open Monarch Money
+          </a>
+
           <button
             type="button"
             className="btn btn-outline"
