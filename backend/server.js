@@ -3696,8 +3696,8 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
   }
 
   const endpoints = [
-    'https://api.monarchmoney.com/graphql',
-    'https://api.monarch.com/graphql'
+    'https://api.monarch.com/graphql',
+    'https://api.monarchmoney.com/graphql'
   ];
   const authSchemes = ['Token', 'Bearer'];
 
@@ -3711,8 +3711,8 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Client-Platform': 'web',
-          'Origin': 'https://app.monarchmoney.com',
-          'Referer': 'https://app.monarchmoney.com/',
+          'Origin': 'https://app.monarch.com',
+          'Referer': 'https://app.monarch.com/',
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
         };
 
@@ -3728,10 +3728,11 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
             const errStr = json.errors.map(e => e.message).join(', ');
             // If GraphQL returns authentication/credential errors, try alternative scheme/endpoint
             if (errStr.toLowerCase().includes('credential') || errStr.toLowerCase().includes('authenticat') || errStr.toLowerCase().includes('unauthorized') || errStr.toLowerCase().includes('permission')) {
-              console.warn(`[Monarch GraphQL] ${scheme} on ${endpoint} returned GraphQL error: ${errStr}. Trying next scheme/endpoint...`);
+              console.warn(`[Monarch GraphQL] ${scheme} on ${endpoint} returned auth error: ${errStr}. Trying next scheme/endpoint...`);
               lastError = new Error(errStr);
               continue;
             }
+            console.warn(`[Monarch GraphQL] Query validation error: ${errStr}`);
             throw new Error(errStr);
           }
           return json.data;
@@ -3751,11 +3752,20 @@ async function callMonarchGraphQL(query, variables = {}, tokenOverride = null) {
           
           console.warn(`[Monarch GraphQL] ${scheme} on ${endpoint} failed (HTTP ${response.status}): ${errMsg}`);
           lastError = new Error(errMsg);
+
+          // If HTTP 400, it is a query syntax / schema validation error from Monarch's GraphQL engine
+          if (response.status === 400) {
+            throw new Error(errMsg);
+          }
+
           if (response.status === 401 || response.status === 403 || response.status === 404 || response.status === 502) {
             continue;
           }
         }
       } catch (err) {
+        if (err.message && (err.message.includes('Cannot query field') || err.message.includes('Unknown argument') || err.message.includes('Field') || err.message.includes('Variable') || err.message.includes('processing: None'))) {
+          throw err;
+        }
         lastError = err;
       }
     }
@@ -4111,6 +4121,9 @@ app.get('/api/monarch/recurring', authenticate, async (req, res) => {
       return res.status(400).json({ error: 'Monarch token not configured' });
     }
 
+    const userTz = req.user?.timezone || 'America/New_York';
+    const todayStr = getTzTodayStr(userTz);
+
     let mappings = {};
     if (settings.monarch_recurring_mappings) {
       try {
@@ -4120,49 +4133,237 @@ app.get('/api/monarch/recurring', authenticate, async (req, res) => {
       }
     }
 
-    const query = `
-      query GetRecurringTransactions {
-        recurringTransactions {
-          id
-          amount
-          frequency
-          startDate
-          nextDate
-          merchant {
-            id
-            name
-          }
-          category {
-            id
-            name
-          }
-          account {
-            id
-            displayName
+    let items = [];
+
+    // Strategy 1: recurringTransactionItems (official upcoming recurring query with date window)
+    try {
+      const now = new Date();
+      const startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      const endDate = new Date(now.getTime() + 120 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+      const query1 = `
+        query Web_GetUpcomingRecurringTransactionItems($startDate: Date!, $endDate: Date!) {
+          recurringTransactionItems(startDate: $startDate, endDate: $endDate) {
+            stream {
+              id
+              frequency
+              amount
+              isApproximate
+              merchant {
+                id
+                name
+                logoUrl
+              }
+            }
+            date
+            isPast
+            transactionId
+            amount
+            category {
+              id
+              name
+            }
+            account {
+              id
+              displayName
+            }
           }
         }
-      }
-    `;
+      `;
+      const data1 = await callMonarchGraphQL(query1, { startDate, endDate });
+      const rawItems = data1?.recurringTransactionItems || [];
 
-    let items = [];
-    try {
-      const data = await callMonarchGraphQL(query);
-      items = data?.recurringTransactions || [];
-    } catch (e) {
-      console.warn('Monarch recurringTransactions query failed, returning empty:', e.message);
-      items = [];
+      if (rawItems.length > 0) {
+        const streamMap = new Map();
+        rawItems.forEach(item => {
+          const streamId = item.stream?.id || item.merchant?.id || item.merchant?.name || item.transactionId || String(Math.random());
+          const merchantName = item.stream?.merchant?.name || item.merchant?.name || 'Recurring Item';
+          const amount = typeof item.stream?.amount === 'number' ? item.stream.amount : (typeof item.amount === 'number' ? item.amount : 0);
+          const frequency = item.stream?.frequency || 'MONTHLY';
+          const nextDate = item.date || '';
+          const categoryName = item.category?.name || 'General';
+          const accountName = item.account?.displayName || '';
+          const accountId = item.account?.id || '';
+
+          if (!streamMap.has(streamId)) {
+            streamMap.set(streamId, {
+              id: streamId,
+              merchantName,
+              amount: Math.abs(amount),
+              frequency,
+              startDate: nextDate,
+              nextDate,
+              categoryName,
+              accountName,
+              accountId
+            });
+          } else {
+            const existing = streamMap.get(streamId);
+            if (nextDate && (!existing.nextDate || (nextDate >= todayStr && (existing.nextDate < todayStr || nextDate < existing.nextDate)))) {
+              existing.nextDate = nextDate;
+            }
+          }
+        });
+        items = Array.from(streamMap.values());
+      }
+    } catch (e1) {
+      console.warn('Monarch recurringTransactionItems query failed:', e1.message);
+    }
+
+    // Strategy 2: recurringTransactionStreams
+    if (items.length === 0) {
+      try {
+        const query2 = `
+          query GetRecurringStreams {
+            recurringTransactionStreams {
+              id
+              frequency
+              amount
+              isApproximate
+              merchant {
+                id
+                name
+              }
+              category {
+                id
+                name
+              }
+              account {
+                id
+                displayName
+              }
+            }
+          }
+        `;
+        const data2 = await callMonarchGraphQL(query2);
+        const streams = data2?.recurringTransactionStreams || [];
+        if (streams.length > 0) {
+          items = streams.map(s => ({
+            id: s.id,
+            merchantName: s.merchant?.name || 'Recurring Stream',
+            amount: typeof s.amount === 'number' ? Math.abs(s.amount) : 0,
+            frequency: s.frequency || 'MONTHLY',
+            startDate: todayStr,
+            nextDate: todayStr,
+            categoryName: s.category?.name || 'General',
+            accountName: s.account?.displayName || '',
+            accountId: s.account?.id || ''
+          }));
+        }
+      } catch (e2) {
+        console.warn('Monarch recurringTransactionStreams query failed:', e2.message);
+      }
+    }
+
+    // Strategy 3: recurrenceGroups
+    if (items.length === 0) {
+      try {
+        const query3 = `
+          query GetRecurrenceGroups {
+            recurrenceGroups {
+              id
+              name
+              amount
+              frequency
+              startDate
+              nextDate
+              merchant {
+                id
+                name
+              }
+              category {
+                id
+                name
+              }
+              account {
+                id
+                displayName
+              }
+            }
+          }
+        `;
+        const data3 = await callMonarchGraphQL(query3);
+        const groups = data3?.recurrenceGroups || [];
+        if (groups.length > 0) {
+          items = groups.map(g => ({
+            id: g.id,
+            merchantName: g.merchant?.name || g.name || 'Recurring Item',
+            amount: typeof g.amount === 'number' ? Math.abs(g.amount) : 0,
+            frequency: g.frequency || 'MONTHLY',
+            startDate: g.startDate || todayStr,
+            nextDate: g.nextDate || todayStr,
+            categoryName: g.category?.name || 'General',
+            accountName: g.account?.displayName || '',
+            accountId: g.account?.id || ''
+          }));
+        }
+      } catch (e3) {
+        console.warn('Monarch recurrenceGroups query failed:', e3.message);
+      }
+    }
+
+    // Strategy 4: Fallback to scanning allTransactions with isRecurring = true
+    if (items.length === 0) {
+      try {
+        const query4 = `
+          query GetRecurringTransactionsFromList {
+            allTransactions {
+              results(limit: 100) {
+                id
+                amount
+                date
+                isRecurring
+                merchant {
+                  id
+                  name
+                }
+                category {
+                  id
+                  name
+                }
+                account {
+                  id
+                  displayName
+                }
+              }
+            }
+          }
+        `;
+        const data4 = await callMonarchGraphQL(query4);
+        const txs = (data4?.allTransactions?.results || []).filter(t => t.isRecurring);
+        const txMap = new Map();
+        txs.forEach(t => {
+          const name = t.merchant?.name || 'Recurring Transaction';
+          if (!txMap.has(name)) {
+            txMap.set(name, {
+              id: 'tx_rec_' + t.id,
+              merchantName: name,
+              amount: typeof t.amount === 'number' ? Math.abs(t.amount) : 0,
+              frequency: 'MONTHLY',
+              startDate: t.date || todayStr,
+              nextDate: t.date || todayStr,
+              categoryName: t.category?.name || 'General',
+              accountName: t.account?.displayName || '',
+              accountId: t.account?.id || ''
+            });
+          }
+        });
+        items = Array.from(txMap.values());
+      } catch (e4) {
+        console.warn('Monarch recurring from transactions query failed:', e4.message);
+      }
     }
 
     const recurring = items.map(item => ({
       id: item.id,
-      merchantName: item.merchant?.name || 'Recurring Item',
+      merchantName: item.merchantName || item.merchant?.name || 'Recurring Item',
       amount: typeof item.amount === 'number' ? Math.abs(item.amount) : 0,
       frequency: item.frequency || 'MONTHLY',
-      startDate: item.startDate || '',
-      nextDate: item.nextDate || '',
-      categoryName: item.category?.name || 'General',
-      accountName: item.account?.displayName || '',
-      accountId: item.account?.id || ''
+      startDate: item.startDate || todayStr,
+      nextDate: item.nextDate || todayStr,
+      categoryName: item.categoryName || item.category?.name || 'General',
+      accountName: item.accountName || item.account?.displayName || '',
+      accountId: item.accountId || item.account?.id || ''
     }));
 
     res.json({
@@ -4404,39 +4605,106 @@ app.get('/api/monarch/summary', authenticate, async (req, res) => {
     // Fetch Recent Transactions from Monarch
     let recentTransactions = [];
     try {
-      const txQuery = `
-        query GetRecentTransactions($limit: Int) {
-          allTransactions(limit: $limit) {
-            results {
-              id
-              amount
-              date
-              pending
-              notes
-              merchant {
+      let rawTx = [];
+      try {
+        const txQuery1 = `
+          query GetTransactionsList($offset: Int, $limit: Int, $orderBy: TransactionOrdering) {
+            allTransactions {
+              totalCount
+              results(offset: $offset, limit: $limit, orderBy: $orderBy) {
                 id
-                name
-              }
-              category {
-                id
-                name
-              }
-              account {
-                id
-                displayName
-                mask
+                amount
+                pending
+                date
+                hideFromReports
+                plaidName
+                notes
+                isRecurring
+                category {
+                  id
+                  name
+                }
+                merchant {
+                  name
+                  id
+                }
+                account {
+                  id
+                  displayName
+                  mask
+                }
               }
             }
           }
+        `;
+        const txData = await callMonarchGraphQL(txQuery1, { offset: 0, limit: 40, orderBy: "date" });
+        rawTx = txData?.allTransactions?.results || [];
+      } catch (err1) {
+        console.warn('Primary Monarch transactions query failed, trying fallback 1:', err1.message);
+        try {
+          const txQuery2 = `
+            query GetTransactionsListFallback($offset: Int, $limit: Int) {
+              allTransactions {
+                results(offset: $offset, limit: $limit) {
+                  id
+                  amount
+                  pending
+                  date
+                  notes
+                  category {
+                    id
+                    name
+                  }
+                  merchant {
+                    name
+                    id
+                  }
+                  account {
+                    id
+                    displayName
+                    mask
+                  }
+                }
+              }
+            }
+          `;
+          const txData2 = await callMonarchGraphQL(txQuery2, { offset: 0, limit: 40 });
+          rawTx = txData2?.allTransactions?.results || [];
+        } catch (err2) {
+          console.warn('Fallback 1 Monarch transactions query failed, trying simple query:', err2.message);
+          const txQuery3 = `
+            query GetTransactionsSimple {
+              allTransactions {
+                results {
+                  id
+                  amount
+                  pending
+                  date
+                  merchant {
+                    name
+                  }
+                  category {
+                    name
+                  }
+                  account {
+                    id
+                    displayName
+                  }
+                }
+              }
+            }
+          `;
+          const txData3 = await callMonarchGraphQL(txQuery3);
+          rawTx = txData3?.allTransactions?.results || [];
         }
-      `;
-      const txData = await callMonarchGraphQL(txQuery, { limit: 40 });
-      const rawTx = txData?.allTransactions?.results || [];
+      }
       
       const enabledSet = new Set(filteredAccounts.map(a => a.id));
-      const filteredTx = rawTx.filter(t => !t.account?.id || enabledSet.has(t.account.id));
+      const filteredTx = (enabledAccountIds.length > 0)
+        ? rawTx.filter(t => !t.account?.id || enabledSet.has(t.account.id))
+        : rawTx;
 
-      recentTransactions = filteredTx.slice(0, 15).map(t => ({
+      recentTransactions = filteredTx.slice(0, 25).map(t => ({
         id: t.id,
         amount: typeof t.amount === 'number' ? t.amount : 0,
         date: t.date || '',
