@@ -1879,11 +1879,12 @@ export default function HomeView({ onNavigateTab, user }) {
           flexDirection: 'column',
           gap: '1.5rem',
           position: 'relative',
-          overflow: 'visible'
+          overflow: 'visible',
+          zIndex: isNotificationsOpen ? 100 : 1
         }}
       >
         {/* Welcome Section / Header of merged card */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '1.25rem', flexWrap: 'wrap', gap: '1rem', position: 'relative', zIndex: isNotificationsOpen ? 101 : 1 }}>
           <div>
             <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, letterSpacing: '-0.5px', color: 'var(--foreground)' }}>
               {getGreeting()}, {user?.display_name || user?.username}!
@@ -1940,7 +1941,7 @@ export default function HomeView({ onNavigateTab, user }) {
               )}
             </button>
 
-            <div ref={notificationsRef} style={{ position: 'relative' }}>
+            <div ref={notificationsRef} style={{ position: 'relative', zIndex: isNotificationsOpen ? 102 : 1 }}>
               <button 
                 type="button" 
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
