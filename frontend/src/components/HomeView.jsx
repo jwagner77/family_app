@@ -80,6 +80,22 @@ export default function HomeView({ onNavigateTab, user }) {
 
   const [resizingCard, setResizingCard] = useState(null);
   const gridRef = useRef(null);
+  const notificationsRef = useRef(null);
+
+  useEffect(() => {
+    if (!isNotificationsOpen) return;
+    const handleClickOutside = (e) => {
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isNotificationsOpen]);
 
   useEffect(() => {
     if (!resizingCard) return;
@@ -222,6 +238,17 @@ export default function HomeView({ onNavigateTab, user }) {
       }
     } catch (err) {
       console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const res = await fetch('/api/notifications/read-all', { method: 'POST' });
+      if (res.ok) {
+        setUnreadNotifications([]);
+      }
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
     }
   };
 
@@ -1852,7 +1879,7 @@ export default function HomeView({ onNavigateTab, user }) {
           flexDirection: 'column',
           gap: '1.5rem',
           position: 'relative',
-          overflow: 'hidden'
+          overflow: 'visible'
         }}
       >
         {/* Welcome Section / Header of merged card */}
@@ -1866,7 +1893,7 @@ export default function HomeView({ onNavigateTab, user }) {
             </p>
           </div>
 
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
             {isEditMode && (
               <button 
                 type="button" 
@@ -1913,109 +1940,125 @@ export default function HomeView({ onNavigateTab, user }) {
               )}
             </button>
 
-            <button 
-              type="button" 
-              onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
-              className="btn btn-outline"
-              style={{ 
-                position: 'relative', 
-                padding: '0.6rem 0.85rem', 
-                borderRadius: 'var(--radius)', 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem',
-                border: '1px solid var(--border)',
-                background: 'rgba(255, 255, 255, 0.02)',
-                cursor: 'pointer'
-              }}
-            >
-              <Bell size={18} style={{ color: unreadNotifications.length > 0 ? 'var(--primary)' : 'var(--muted-foreground)' }} />
-              {unreadNotifications.length > 0 && (
-                <span style={{ 
-                  background: 'var(--destructive, #ef4444)', 
-                  color: '#ffffff', 
-                  borderRadius: '10px', 
-                  padding: '2px 6px', 
-                  fontSize: '0.7rem', 
-                  fontWeight: '800', 
-                  lineHeight: '1',
-                  minWidth: '15px',
-                  textAlign: 'center'
-                }}>
-                  {unreadNotifications.length}
-                </span>
-              )}
-            </button>
-
-            {/* Notifications Popout Dropdown */}
-            {isNotificationsOpen && (
-              <div 
-                className="animate-slide-up"
-                style={{
-                  position: 'absolute',
-                  top: '115%',
-                  right: 0,
-                  width: '320px',
-                  background: 'color-mix(in srgb, var(--card) 95%, black)',
-                  backdropFilter: 'blur(16px)',
-                  WebkitBackdropFilter: 'blur(16px)',
+            <div ref={notificationsRef} style={{ position: 'relative' }}>
+              <button 
+                type="button" 
+                onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+                className="btn btn-outline"
+                style={{ 
+                  padding: '0.6rem 0.85rem', 
+                  borderRadius: 'var(--radius)', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem',
                   border: '1px solid var(--border)',
-                  borderRadius: 'var(--radius)',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 200,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column'
+                  background: isNotificationsOpen ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
+                  cursor: 'pointer'
                 }}
+                title="Notifications"
               >
-                <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <strong style={{ fontSize: '0.875rem' }}>Notifications</strong>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>{unreadNotifications.length} unread</span>
-                </div>
-                
-                <div style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                  {unreadNotifications.length > 0 ? (
-                    unreadNotifications.map(n => (
-                      <div 
-                        key={n.id} 
-                        style={{ 
-                          padding: '0.75rem 1rem', 
-                          borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          justifyContent: 'space-between',
-                          gap: '0.5rem',
-                          background: 'rgba(255, 255, 255, 0.01)'
-                        }}
-                      >
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '0.8125rem', fontWeight: 'bold', color: 'var(--foreground)' }}>{n.title}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.15rem', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{n.body}</div>
-                          <div style={{ fontSize: '0.625rem', color: 'var(--muted-foreground)', marginTop: '0.35rem' }}>
-                            {new Date(n.created_at).toLocaleDateString()} {new Date(n.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-                        </div>
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMarkAsRead(n.id);
-                          }}
-                          className="btn btn-outline"
-                          style={{ padding: '0.25rem', minWidth: 'auto', border: 'none', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                          title="Mark as Read"
-                        >
-                          <Check size={14} strokeWidth={3} />
-                        </button>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.8125rem' }}>
-                      No Unread Notifications
+                <Bell size={18} style={{ color: unreadNotifications.length > 0 ? 'var(--primary)' : 'var(--muted-foreground)' }} />
+                {unreadNotifications.length > 0 && (
+                  <span style={{ 
+                    background: 'var(--destructive, #ef4444)', 
+                    color: '#ffffff', 
+                    borderRadius: '10px', 
+                    padding: '2px 6px', 
+                    fontSize: '0.7rem', 
+                    fontWeight: '800', 
+                    lineHeight: '1',
+                    minWidth: '15px',
+                    textAlign: 'center'
+                  }}>
+                    {unreadNotifications.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Notifications Popout Dropdown */}
+              {isNotificationsOpen && (
+                <div 
+                  className="animate-slide-up"
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 8px)',
+                    right: 0,
+                    width: '380px',
+                    maxWidth: 'calc(100vw - 32px)',
+                    background: 'color-mix(in srgb, var(--card) 98%, black)',
+                    backdropFilter: 'blur(20px)',
+                    WebkitBackdropFilter: 'blur(20px)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    boxShadow: '0 20px 30px -5px rgba(0, 0, 0, 0.5), 0 10px 15px -5px rgba(0, 0, 0, 0.4)',
+                    zIndex: 1000,
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.03)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <strong style={{ fontSize: '0.875rem' }}>Notifications</strong>
+                      <span className="badge badge-secondary" style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem' }}>
+                        {unreadNotifications.length} unread
+                      </span>
                     </div>
-                  )}
+                    {unreadNotifications.length > 0 && (
+                      <button 
+                        onClick={handleMarkAllAsRead}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer', padding: '0.2rem 0.4rem' }}
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div style={{ maxHeight: '380px', overflowY: 'auto' }}>
+                    {unreadNotifications.length > 0 ? (
+                      unreadNotifications.map(n => (
+                        <div 
+                          key={n.id} 
+                          style={{ 
+                            padding: '0.75rem 1rem', 
+                            borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: '0.75rem',
+                            background: 'rgba(255, 255, 255, 0.01)'
+                          }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.8125rem', fontWeight: 'bold', color: 'var(--foreground)' }}>{n.title}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginTop: '0.2rem', wordBreak: 'break-word', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{n.body}</div>
+                            <div style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', marginTop: '0.35rem' }}>
+                              {new Date(n.created_at).toLocaleDateString()} {new Date(n.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMarkAsRead(n.id);
+                            }}
+                            className="btn btn-outline"
+                            style={{ padding: '0.25rem', minWidth: '26px', height: '26px', border: '1px solid var(--border)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', borderRadius: '4px', flexShrink: 0 }}
+                            title="Mark as Read"
+                          >
+                            <Check size={14} strokeWidth={3} />
+                          </button>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.8125rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                        <Bell size={24} style={{ opacity: 0.3 }} />
+                        <span>No Unread Notifications</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 

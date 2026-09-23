@@ -1565,6 +1565,16 @@ app.post('/api/notifications/:id/read', authenticate, async (req, res) => {
   }
 });
 
+app.post('/api/notifications/read-all', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    await db.run('UPDATE notification_logs SET is_read = 1 WHERE is_read = 0');
+    res.json({ success: true, message: 'All notifications marked as read' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/notifications/clear', authenticate, async (req, res) => {
   try {
     if (req.user.role_name !== 'Administrator') {
