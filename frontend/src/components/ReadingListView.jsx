@@ -284,7 +284,7 @@ export default function ReadingListView({ showToast, permissions }) {
             value={activeListId} 
             onChange={(e) => setActiveListId(Number(e.target.value))} 
             className="input-control" 
-            style={{ width: '220px', background: 'var(--bg-app)', color: 'var(--text-main)', padding: '0.4rem 0.75rem', fontSize: '0.9rem' }}
+            style={{ width: '220px', fontSize: '0.9rem' }}
           >
             {lists.map(list => (
               <option key={list.id} value={list.id}>

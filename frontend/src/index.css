@@ -5,6 +5,7 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Shadcn Light Theme variables */
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #0f172a; /* slate-900 */
   
@@ -41,6 +42,19 @@
   
   --radius: 0.5rem; /* 8px - Shadcn default */
   
+  /* Legacy compatibility aliases */
+  --bg-app: var(--background);
+  --text-main: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --border-color: var(--border);
+  --bg-card: var(--card);
+  --bg-surface: var(--card);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --danger: var(--destructive);
+  --font-body: var(--font-sans);
+  
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -53,6 +67,7 @@
 @media (prefers-color-scheme: dark) {
   :root:not(.theme-light) {
     /* Shadcn Dark Theme variables */
+    color-scheme: dark;
     --background: #09090b; /* zinc-950 */
     --foreground: #fafafa; /* zinc-50 */
     
@@ -84,6 +99,19 @@
     --input: #27272a;
     --ring: #d4d4d8; /* zinc-300 */
     
+    /* Legacy compatibility aliases */
+    --bg-app: var(--background);
+    --text-main: var(--foreground);
+    --text-muted: var(--muted-foreground);
+    --border-color: var(--border);
+    --bg-card: var(--card);
+    --bg-surface: var(--card);
+    --radius-sm: calc(var(--radius) - 2px);
+    --radius-md: var(--radius);
+    --radius-lg: calc(var(--radius) + 4px);
+    --danger: var(--destructive);
+    --font-body: var(--font-sans);
+    
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
@@ -91,6 +119,7 @@
 }
 
 .theme-light {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #0f172a;
   --card: #f4f4f5; /* light gray instead of white */
@@ -113,12 +142,27 @@
   --border: #e2e8f0;
   --input: #e2e8f0;
   --ring: #94a3b8;
+  
+  /* Legacy compatibility aliases */
+  --bg-app: var(--background);
+  --text-main: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --border-color: var(--border);
+  --bg-card: var(--card);
+  --bg-surface: var(--card);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --danger: var(--destructive);
+  --font-body: var(--font-sans);
+
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }
 
 .theme-dark {
+  color-scheme: dark;
   --background: #09090b;
   --foreground: #fafafa;
   --card: #1f1f23; /* dark gray instead of black */
@@ -141,6 +185,20 @@
   --border: #27272a;
   --input: #27272a;
   --ring: #d4d4d8;
+  
+  /* Legacy compatibility aliases */
+  --bg-app: var(--background);
+  --text-main: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --border-color: var(--border);
+  --bg-card: var(--card);
+  --bg-surface: var(--card);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 4px);
+  --danger: var(--destructive);
+  --font-body: var(--font-sans);
+
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
@@ -594,13 +652,38 @@ textarea.input-control {
 }
 
 /* Custom Select Dropdowns */
+select,
 select.input-control {
   appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: var(--card);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%2364748b' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
   background-position: right 0.5rem center;
   background-repeat: no-repeat;
   background-size: 1.25rem;
   padding-right: 2rem;
+  cursor: pointer;
+}
+
+.theme-dark select,
+.theme-dark select.input-control,
+@media (prefers-color-scheme: dark) {
+  :root:not(.theme-light) select,
+  :root:not(.theme-light) select.input-control {
+    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23a1a1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  }
+}
+
+select option,
+select.input-control option,
+optgroup {
+  background-color: var(--card);
+  color: var(--foreground);
+  padding: 0.5rem;
 }
 
 /* File Upload Component (Shadcn style) */

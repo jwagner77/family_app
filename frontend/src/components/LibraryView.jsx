@@ -647,7 +647,7 @@ export default function LibraryView({ showToast, permissions, currentUser }) {
               value={selectedTag} 
               onChange={(e) => setSelectedTag(e.target.value)} 
               className="input-control" 
-              style={{ width: '150px', background: 'var(--bg-app)', color: 'var(--text-main)' }}
+              style={{ width: '160px' }}
             >
               <option value="">All Tags</option>
               {uniqueTags.map(tag => (
@@ -660,7 +660,7 @@ export default function LibraryView({ showToast, permissions, currentUser }) {
               value={statusFilter} 
               onChange={(e) => setStatusFilter(e.target.value)} 
               className="input-control" 
-              style={{ width: '150px', background: 'var(--bg-app)', color: 'var(--text-main)' }}
+              style={{ width: '160px' }}
             >
               <option value="library">Library Only</option>
               <option value="reference">Reference Only</option>
@@ -991,7 +991,6 @@ export default function LibraryView({ showToast, permissions, currentUser }) {
                     value={bulkTagAction} 
                     onChange={(e) => setBulkTagAction(e.target.value)} 
                     className="input-control"
-                    style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                   >
                     <option value="add">Add tags to books</option>
                     <option value="remove">Remove tags from books</option>
@@ -1295,7 +1294,6 @@ export default function LibraryView({ showToast, permissions, currentUser }) {
                     value={formStatus} 
                     onChange={(e) => setFormStatus(e.target.value)} 
                     className="input-control"
-                    style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                   >
                     <option value="library">Library catalogue (active)</option>
                     <option value="reference">Reference</option>
@@ -1403,7 +1401,7 @@ export default function LibraryView({ showToast, permissions, currentUser }) {
                       value={recommendToUserId}
                       onChange={(e) => setRecommendToUserId(e.target.value)}
                       className="input-control"
-                      style={{ flex: 1, minWidth: '180px', background: 'var(--bg-app)', color: 'var(--text-main)' }}
+                      style={{ flex: 1, minWidth: '180px' }}
                     >
                       <option value="">-- Select Member --</option>
                       {usersList

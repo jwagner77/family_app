@@ -642,7 +642,6 @@ export default function ReadingLogView({ showToast, permissions }) {
                       setSelectedBookId('');
                     }}
                     className="input-control"
-                    style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                   >
                     <option value="library">Library book catalog</option>
                     <option value="reading_list">My Reading list books</option>
@@ -658,7 +657,6 @@ export default function ReadingLogView({ showToast, permissions }) {
                       value={selectedBookId}
                       onChange={(e) => setSelectedBookId(e.target.value)}
                       className="input-control"
-                      style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                       required
                     >
                       <option value="">-- Choose Book --</option>
@@ -677,7 +675,6 @@ export default function ReadingLogView({ showToast, permissions }) {
                       value={selectedBookId}
                       onChange={(e) => setSelectedBookId(e.target.value)}
                       className="input-control"
-                      style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                       required
                     >
                       <option value="">-- Choose Item --</option>

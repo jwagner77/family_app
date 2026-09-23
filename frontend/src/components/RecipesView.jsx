@@ -323,15 +323,9 @@ export default function RecipesView({ showToast, user }) {
               onChange={(e) => setSelectedTagFilter(e.target.value)}
               className="input-control"
               style={{ 
-                padding: '0.4rem 0.75rem', 
-                borderRadius: 'var(--radius-sm)', 
-                border: '1px solid var(--border-color)', 
-                background: 'var(--bg-app)', 
-                color: 'var(--text-main)',
-                fontSize: '0.9rem',
-                outline: 'none',
-                cursor: 'pointer',
-                minWidth: '130px'
+                minWidth: '140px',
+                height: '2.25rem',
+                fontSize: '0.875rem'
               }}
             >
               <option value="">All Tags</option>

@@ -876,7 +876,6 @@ export default function ShoppingList({ showToast, user }) {
                       value={shareUserId}
                       onChange={(e) => setShareUserId(e.target.value)}
                       required
-                      style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                     >
                       <option value="">Select user...</option>
                       {sharingUsers.map(su => (
@@ -891,7 +890,6 @@ export default function ShoppingList({ showToast, user }) {
                       className="input-control"
                       value={sharePermission}
                       onChange={(e) => setSharePermission(e.target.value)}
-                      style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                     >
                       <option value="view">View</option>
                       <option value="edit">Edit</option>

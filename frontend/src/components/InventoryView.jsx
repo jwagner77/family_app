@@ -1171,7 +1171,6 @@ export default function InventoryView({ showToast, user }) {
                     className="input-control" 
                     value={selectedListId}
                     onChange={(e) => setSelectedListId(e.target.value)}
-                    style={{ background: 'var(--bg-app)', color: 'var(--text-main)' }}
                   >
                     {shoppingLists.map(list => (
                       <option key={list.id} value={list.id}>{list.name}</option>
