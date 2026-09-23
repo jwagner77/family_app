@@ -588,8 +588,6 @@ export default function MoneyView({ showToast, onNavigateToSettings }) {
 
         </div>
 
-        </div>
-
         {/* Right Column: Recent Transactions */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
