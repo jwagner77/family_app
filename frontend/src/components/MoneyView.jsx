@@ -282,12 +282,98 @@ export default function MoneyView({ showToast, onNavigateToSettings }) {
 
       </div>
 
-      {/* Main Grid: Left (Account Balances) & Right (Recent Transactions + Upcoming) */}
+      {/* Main Grid: Left (Upcoming & Account Balances) & Right (Recent Transactions) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '1.5rem', alignItems: 'start' }}>
         
-        {/* Left Column: Account Balances Breakdown */}
+        {/* Left Column: Upcoming Bills & Subscriptions, then Account Balances */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           
+          {/* Upcoming Schedule (Bills & Subscriptions) */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
+              <Calendar size={18} style={{ color: 'var(--primary)' }} /> Upcoming Bills & Subscriptions
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+              
+              {/* Upcoming Bills Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Receipt size={14} /> Upcoming Bills
+                </span>
+                {upcomingBills.length === 0 ? (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>No upcoming bills due soon.</span>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {upcomingBills.slice(0, 5).map(b => (
+                      <div
+                        key={b.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--muted)',
+                          fontSize: '0.8125rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: '600' }}>{b.name}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
+                            Due: {formatDate(b.next_billing_date)} • {b.tag || 'Bill'}
+                          </span>
+                        </div>
+                        <span style={{ fontWeight: '700', color: '#ef4444' }}>
+                          {formatCurrency(b.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Upcoming Subscriptions Column */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <CreditCard size={14} /> Upcoming Subscriptions
+                </span>
+                {upcomingSubscriptions.length === 0 ? (
+                  <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>No subscriptions due soon.</span>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    {upcomingSubscriptions.slice(0, 5).map(s => (
+                      <div
+                        key={s.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '0.5rem 0.75rem',
+                          borderRadius: 'var(--radius)',
+                          background: 'var(--muted)',
+                          fontSize: '0.8125rem'
+                        }}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: '600' }}>{s.name}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
+                            Renews: {formatDate(s.next_billing_date)} • {s.category || 'Sub'}
+                          </span>
+                        </div>
+                        <span style={{ fontWeight: '700', color: '#8b5cf6' }}>
+                          {formatCurrency(s.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+
+          {/* Account Balances Breakdown */}
           <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -500,90 +586,7 @@ export default function MoneyView({ showToast, onNavigateToSettings }) {
 
           </div>
 
-          {/* Upcoming Schedule (Bills & Subscriptions) */}
-          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: '700', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem' }}>
-              <Calendar size={18} style={{ color: 'var(--primary)' }} /> Upcoming Bills & Subscriptions
-            </h3>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-              
-              {/* Upcoming Bills Column */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Receipt size={14} /> Upcoming Bills
-                </span>
-                {upcomingBills.length === 0 ? (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>No upcoming bills due soon.</span>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {upcomingBills.slice(0, 5).map(b => (
-                      <div
-                        key={b.id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '0.5rem 0.75rem',
-                          borderRadius: 'var(--radius)',
-                          background: 'var(--muted)',
-                          fontSize: '0.8125rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: '600' }}>{b.name}</span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
-                            Due: {formatDate(b.next_billing_date)} • {b.tag || 'Bill'}
-                          </span>
-                        </div>
-                        <span style={{ fontWeight: '700', color: '#ef4444' }}>
-                          {formatCurrency(b.amount)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Upcoming Subscriptions Column */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <CreditCard size={14} /> Upcoming Subscriptions
-                </span>
-                {upcomingSubscriptions.length === 0 ? (
-                  <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>No subscriptions due soon.</span>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    {upcomingSubscriptions.slice(0, 5).map(s => (
-                      <div
-                        key={s.id}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          padding: '0.5rem 0.75rem',
-                          borderRadius: 'var(--radius)',
-                          background: 'var(--muted)',
-                          fontSize: '0.8125rem'
-                        }}
-                      >
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontWeight: '600' }}>{s.name}</span>
-                          <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
-                            Renews: {formatDate(s.next_billing_date)} • {s.category || 'Sub'}
-                          </span>
-                        </div>
-                        <span style={{ fontWeight: '700', color: '#8b5cf6' }}>
-                          {formatCurrency(s.amount)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-            </div>
-          </div>
+        </div>
 
         </div>
 
