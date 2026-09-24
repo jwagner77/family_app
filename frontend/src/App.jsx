@@ -45,7 +45,8 @@ import {
   Sparkles,
   PawPrint,
   Home,
-  Folder
+  Folder,
+  Info
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -1460,6 +1461,14 @@ export default function App() {
                   <span>Word Templates</span>
                 </a>
               )}
+              <a 
+                className={`nav-link ${settingsSubTab === 'about' ? 'active' : ''}`}
+                onClick={() => { setSettingsSubTab('about'); setIsMobileMenuOpen(false); }}
+                title="About Family Hub"
+              >
+                <Info />
+                <span>About</span>
+              </a>
             </>
           )}
         </nav>

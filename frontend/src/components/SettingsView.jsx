@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, Cpu, Bell, Mail, MessageSquare, Webhook, Info, Layers, ExternalLink, Play, CheckCircle2, DollarSign, CreditCard, Receipt, AlertCircle, Check, CheckSquare, Square, RefreshCw, Landmark, ArrowRightLeft, LogIn, LogOut, KeyRound, Radio, Bookmark, Sparkles } from 'lucide-react';
+import { 
+  Settings, Save, RotateCcw, Palette, Laptop, Sun, Moon, Users, Shield, Plus, 
+  Trash2, Edit2, Calendar, Lock, User, Clock, Key, Copy, Eye, EyeOff, Code, 
+  Cpu, Bell, Mail, MessageSquare, Webhook, Info, Layers, ExternalLink, Play, 
+  CheckCircle2, DollarSign, CreditCard, Receipt, AlertCircle, Check, CheckSquare, 
+  Square, RefreshCw, Landmark, ArrowRightLeft, LogIn, LogOut, KeyRound, Radio, 
+  Bookmark, Sparkles, Github, GitBranch, ChevronDown, ChevronRight, Search, 
+  ChefHat, ShoppingCart, ListTodo, BookOpen, Heart, Terminal, FileText, Database,
+  Sliders
+} from 'lucide-react';
 import WordTemplateExport from './WordTemplateExport';
 
 const CATEGORIES_LABELS = {
@@ -173,6 +182,42 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [shareToken, setShareToken] = useState('');
   const [revealShareToken, setRevealShareToken] = useState(false);
   const [loadingShareToken, setLoadingShareToken] = useState(false);
+
+  // About Page & API Documentation states
+  const [versionInfo, setVersionInfo] = useState({
+    version: '1.0.0',
+    commit: '',
+    build: '',
+    repository: 'https://github.com/jwagner77/family_app',
+    node_version: ''
+  });
+  const [loadingVersion, setLoadingVersion] = useState(false);
+  const [isApiDocsOpen, setIsApiDocsOpen] = useState(false);
+  const [apiDocsFilter, setApiDocsFilter] = useState('all');
+  const [apiDocsSearch, setApiDocsSearch] = useState('');
+  const [expandedEndpoints, setExpandedEndpoints] = useState({});
+
+  const toggleEndpointExpand = (idx) => {
+    setExpandedEndpoints(prev => ({
+      ...prev,
+      [idx]: !prev[idx]
+    }));
+  };
+
+  const fetchVersionInfo = async () => {
+    setLoadingVersion(true);
+    try {
+      const res = await fetch('/api/version');
+      if (res.ok) {
+        const data = await res.json();
+        setVersionInfo(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch app version:', err);
+    } finally {
+      setLoadingVersion(false);
+    }
+  };
 
   const [mtgUrl, setMtgUrl] = useState('');
   const [mtgKey, setMtgKey] = useState('');
@@ -712,6 +757,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       fetchShareToken();
       if (monarchToken) {
         fetchMonarchDetails();
+      }
+    }
+    if (activeSubTab === 'about') {
+      fetchVersionInfo();
+      if (currentUser?.role_name === 'Administrator' && !apiKey) {
+        fetchApiKey();
       }
     }
   }, [activeSubTab]);
@@ -4103,142 +4154,6 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               </div>
             </div>
           )}
-
-          {/* Documentation Card */}
-          <div className="card">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-              <Code size={20} />
-              <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>API Documentation</h3>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', margin: 0, lineHeight: '1.5' }}>
-                Integrations authenticate via standard HTTP requests. You can pass the API key using either the 
-                <code>X-API-Key</code> request header, or the <code>api_key</code> query parameter.
-              </p>
-
-              {/* API Endpoints */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                
-                {/* Endpoint 1: List Users */}
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/users</code>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List all users</span>
-                  </div>
-                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Retrieves a list of all user accounts, display names, authentication providers, and assigned role IDs.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/users`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/users`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={10} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 2: Create User */}
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>POST</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/users</code>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>Create user account</span>
-                  </div>
-                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Creates a new local user credentials account. The `role_id` should correspond to an active role.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"username": "johndoe", "password": "securepassword", "role_id": 2}' ${window.location.origin}/api/users`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"username": "johndoe", "password": "securepassword", "role_id": 2}' ${window.location.origin}/api/users`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={10} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 3: List Roles */}
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#10b981', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>GET</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/roles</code>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>List roles</span>
-                  </div>
-                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Retrieves all configured access control roles and their permission matrix mappings.
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/roles`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" ${window.location.origin}/api/roles`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={10} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Endpoint 4: Toggle Notification Rule */}
-                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0.75rem', background: 'var(--muted)', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
-                    <span style={{ background: '#3b82f6', color: '#fff', fontSize: '0.625rem', fontWeight: 'bold', padding: '0.125rem 0.35rem', borderRadius: 'var(--radius)' }}>POST</span>
-                    <code style={{ fontWeight: 'bold', fontSize: '0.8125rem' }}>/api/notifications/toggle</code>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>Toggle notification event</span>
-                  </div>
-                  <div style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)' }}>
-                      Enables or disables a specific notification event rule (e.g. Subscription Due Today, Bill Due Today).
-                    </p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                      <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>Example Request:</span>
-                      <div style={{ display: 'flex', position: 'relative' }}>
-                        <pre style={{ margin: 0, padding: '0.5rem 0.75rem', background: '#1e1e2e', color: '#cdd6f4', borderRadius: 'var(--radius)', width: '100%', overflowX: 'auto', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>
-                          {`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Subscription Due Today", "enabled": true}' ${window.location.origin}/api/notifications/toggle`}
-                        </pre>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(`curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"event": "Subscription Due Today", "enabled": true}' ${window.location.origin}/api/notifications/toggle`, 'curl command')}
-                          style={{ position: 'absolute', right: '0.35rem', top: '50%', transform: 'translateY(-50%)', background: 'var(--background)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--foreground)', cursor: 'pointer', padding: '0.125rem 0.35rem', fontSize: '0.6875rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          <Copy size={10} /> Copy
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -4934,6 +4849,941 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       {activeSubTab === 'templates' && currentUser?.permissions?.recipes !== 'none' && (
         <WordTemplateExport showToast={showToast} user={currentUser} />
+      )}
+
+      {/* ABOUT TAB */}
+      {activeSubTab === 'about' && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Main App & Build Version Card */}
+          <div className="card" style={{
+            background: 'linear-gradient(135deg, var(--card) 0%, var(--muted) 100%)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius)',
+            padding: '1.75rem',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1.25rem' }}>
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', minWidth: '280px' }}>
+                <div style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '16px',
+                  background: 'var(--primary)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '2rem',
+                  boxShadow: '0 8px 16px -4px rgba(0,0,0,0.2)'
+                }}>
+                  {brandingIcon || '🏡'}
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <h2 style={{ fontSize: '1.5rem', fontWeight: '700', margin: 0, color: 'var(--foreground)' }}>
+                      {appName || 'Family Hub'}
+                    </h2>
+                    <span style={{
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      color: '#3b82f6',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '9999px',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      letterSpacing: '0.03em'
+                    }}>
+                      v{versionInfo.version || '1.0.0'}
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--muted-foreground)', margin: '0.25rem 0 0 0' }}>
+                    Your all-in-one self-hosted family management, recipes, planning, and finance hub.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <a
+                  href={versionInfo.repository || 'https://github.com/jwagner77/family_app'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-secondary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    textDecoration: 'none',
+                    fontWeight: '600',
+                    fontSize: '0.85rem',
+                    padding: '0.5rem 0.9rem'
+                  }}
+                >
+                  <Github size={16} />
+                  <span>GitHub Repository</span>
+                  <ExternalLink size={13} style={{ opacity: 0.7 }} />
+                </a>
+              </div>
+
+            </div>
+
+            {/* Build & Metadata Details */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '1rem',
+              marginTop: '1.5rem',
+              paddingTop: '1.25rem',
+              borderTop: '1px solid var(--border)'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Release Version
+                </span>
+                <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--foreground)' }}>
+                  {versionInfo.version ? `v${versionInfo.version}` : '1.0.0 (Release)'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Git Commit / Build
+                </span>
+                <span style={{ fontSize: '0.85rem', fontFamily: 'var(--font-mono)', fontWeight: '500', color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <GitBranch size={13} style={{ color: 'var(--primary)' }} />
+                  {versionInfo.commit ? versionInfo.commit.substring(0, 7) : 'main'}
+                  {versionInfo.build ? ` (#${versionInfo.build})` : ''}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Runtime Environment
+                </span>
+                <span style={{ fontSize: '0.85rem', fontWeight: '500', color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Database size={13} style={{ color: '#10b981' }} />
+                  Node.js {versionInfo.node_version || 'v18'} • SQLite
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Authors, Credits & Technology Grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+            
+            {/* Author Credit Card */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{
+                  padding: '0.45rem',
+                  borderRadius: '10px',
+                  background: 'rgba(244, 63, 94, 0.1)',
+                  color: '#f43f5e',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Heart size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', margin: 0 }}>Author & Creator</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>Development & Project Lead</p>
+                </div>
+              </div>
+              <div style={{ padding: '0.75rem', background: 'var(--muted)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--foreground)', lineHeight: '1.5' }}>
+                  Designed and created by <strong>Joshua Wagner</strong>, with help from <strong>Google's Gemini</strong> AI assistant.
+                </p>
+              </div>
+            </div>
+
+            {/* Antigravity Powered Card */}
+            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                <div style={{
+                  padding: '0.45rem',
+                  borderRadius: '10px',
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  color: '#6366f1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: '600', margin: 0 }}>Built With Google Antigravity</h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: 0 }}>Agentic Pair-Programming</p>
+                </div>
+              </div>
+              <div style={{ padding: '0.75rem', background: 'var(--muted)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--foreground)', lineHeight: '1.5' }}>
+                  Engineered and continuously enhanced using <strong>Google Antigravity</strong> agentic coding workflows and tooling.
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          {/* COLLAPSIBLE API DOCUMENTATION SUB-SECTION */}
+          <div className="card" style={{ border: '1px solid var(--border)', padding: 0, overflow: 'hidden' }}>
+            
+            {/* Collapsible Accordion Header */}
+            <div
+              onClick={() => setIsApiDocsOpen(!isApiDocsOpen)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '1.25rem 1.5rem',
+                cursor: 'pointer',
+                background: isApiDocsOpen ? 'var(--muted)' : 'var(--card)',
+                borderBottom: isApiDocsOpen ? '1px solid var(--border)' : 'none',
+                transition: 'background 0.2s ease'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'rgba(16, 185, 129, 0.1)',
+                  color: '#10b981',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Code size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, color: 'var(--foreground)' }}>
+                    API Documentation
+                  </h3>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: '0.15rem 0 0 0' }}>
+                    REST API endpoints for Recipes, Shopping, Tasks, Calendar, Bills, Subscriptions, Inventory, Books, and Settings
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: '500' }}>
+                  {isApiDocsOpen ? 'Collapse' : 'Expand API Docs'}
+                </span>
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'var(--background)',
+                  border: '1px solid var(--border)'
+                }}>
+                  {isApiDocsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </div>
+              </div>
+            </div>
+
+            {/* Collapsible Content */}
+            {isApiDocsOpen && (
+              <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                
+                {/* Authentication Overview */}
+                <div style={{
+                  background: 'var(--muted)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius)',
+                  padding: '1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Key size={18} style={{ color: 'var(--primary)' }} />
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: '600', margin: 0 }}>Authentication Methods</h4>
+                  </div>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--foreground)', margin: 0, lineHeight: '1.5' }}>
+                    All endpoints require authentication. You can authenticate HTTP requests using one of the following methods:
+                  </p>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.75rem' }}>
+                    <div style={{ background: 'var(--background)', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                      <strong style={{ fontSize: '0.75rem', color: 'var(--primary)', display: 'block', marginBottom: '0.25rem' }}>1. HTTP Header (Recommended)</strong>
+                      <code style={{ fontSize: '0.75rem', color: 'var(--foreground)' }}>X-API-Key: YOUR_API_KEY</code>
+                    </div>
+                    <div style={{ background: 'var(--background)', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                      <strong style={{ fontSize: '0.75rem', color: 'var(--primary)', display: 'block', marginBottom: '0.25rem' }}>2. Query Parameter</strong>
+                      <code style={{ fontSize: '0.75rem', color: 'var(--foreground)' }}>?api_key=YOUR_API_KEY</code>
+                    </div>
+                    <div style={{ background: 'var(--background)', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                      <strong style={{ fontSize: '0.75rem', color: 'var(--primary)', display: 'block', marginBottom: '0.25rem' }}>3. JWT Bearer Token</strong>
+                      <code style={{ fontSize: '0.75rem', color: 'var(--foreground)' }}>Authorization: Bearer &lt;token&gt;</code>
+                    </div>
+                  </div>
+
+                  {currentUser?.role_name === 'Administrator' && apiKey && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.75rem',
+                      background: 'var(--card)',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid var(--border)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: '600' }}>Your Active Admin API Key:</span>
+                        <code style={{ fontSize: '0.75rem', background: 'var(--background)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                          {revealKey ? apiKey : '••••••••••••••••••••••••'}
+                        </code>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                          onClick={() => setRevealKey(!revealKey)}
+                        >
+                          {revealKey ? <EyeOff size={12} /> : <Eye size={12} />}
+                          <span style={{ marginLeft: '0.25rem' }}>{revealKey ? 'Hide' : 'Reveal'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                          onClick={() => handleCopyText(apiKey, 'API Key')}
+                        >
+                          <Copy size={12} />
+                          <span style={{ marginLeft: '0.25rem' }}>Copy Key</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Filter and Search Bar */}
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+                  
+                  {/* Category Pills */}
+                  <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'all', label: 'All Endpoints' },
+                      { id: 'recipes', label: 'Recipes' },
+                      { id: 'shopping', label: 'Shopping Lists' },
+                      { id: 'todos', label: 'Tasks & Todos' },
+                      { id: 'calendar', label: 'Calendar' },
+                      { id: 'money', label: 'Money & Monarch' },
+                      { id: 'kitchen', label: 'Kitchen & Inventory' },
+                      { id: 'library', label: 'Books & Library' },
+                      { id: 'contacts', label: 'Contacts' },
+                      { id: 'focus', label: 'Focus & Projects' },
+                      { id: 'system', label: 'System & Admin' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setApiDocsFilter(cat.id)}
+                        className={`btn ${apiDocsFilter === cat.id ? 'btn-primary' : 'btn-secondary'}`}
+                        style={{
+                          fontSize: '0.725rem',
+                          padding: '0.25rem 0.6rem',
+                          borderRadius: '9999px'
+                        }}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Search input */}
+                  <div style={{ position: 'relative', width: '220px' }}>
+                    <Search size={14} style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }} />
+                    <input
+                      type="text"
+                      className="input-control"
+                      value={apiDocsSearch}
+                      onChange={(e) => setApiDocsSearch(e.target.value)}
+                      placeholder="Search endpoints..."
+                      style={{ fontSize: '0.75rem', paddingLeft: '1.8rem', height: '1.85rem' }}
+                    />
+                  </div>
+
+                </div>
+
+                {/* Endpoints List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                  {[
+                    // RECIPES
+                    {
+                      categoryKey: 'recipes',
+                      categoryName: 'Recipes & Cookbooks',
+                      method: 'GET',
+                      path: '/api/recipes',
+                      title: 'List Recipes',
+                      desc: 'Retrieve all recipes in the cookbook, including title, tags, favorite flag, notes, prep/cook times, and ratings.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/recipes"`
+                    },
+                    {
+                      categoryKey: 'recipes',
+                      categoryName: 'Recipes & Cookbooks',
+                      method: 'POST',
+                      path: '/api/recipes',
+                      title: 'Create Recipe',
+                      desc: 'Create a new recipe with ingredients, instructions, notes, cooking times, tags, and servings.',
+                      payload: JSON.stringify({
+                        title: "Homemade Lasagna",
+                        prep_time: "30 mins",
+                        cook_time: "45 mins",
+                        servings: 6,
+                        tags: ["Italian", "Dinner", "Pasta"],
+                        ingredients: [{ item: "Lasagna noodles", amount: "12", unit: "sheets" }],
+                        instructions: [{ step: "Boil noodles until al dente." }],
+                        notes: [{ note: "Can be prepared ahead of time and refrigerated overnight." }]
+                      }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Homemade Lasagna","prep_time":"30 mins","cook_time":"45 mins","servings":6,"tags":["Italian"],"ingredients":[{"item":"Noodles","amount":"12","unit":"sheets"}],"instructions":[{"step":"Boil noodles."}],"notes":[{"note":"Preheat oven to 375°F."}]}' "${window.location.origin}/api/recipes"`
+                    },
+                    {
+                      categoryKey: 'recipes',
+                      categoryName: 'Recipes & Cookbooks',
+                      method: 'GET',
+                      path: '/api/recipes/:id',
+                      title: 'Get Recipe Details',
+                      desc: 'Retrieve full recipe details including structured ingredients, instructions, tags, and bulleted notes.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/recipes/1"`
+                    },
+                    {
+                      categoryKey: 'recipes',
+                      categoryName: 'Recipes & Cookbooks',
+                      method: 'PUT',
+                      path: '/api/recipes/:id',
+                      title: 'Update Recipe',
+                      desc: 'Update an existing recipe including its title, ingredients, instructions, notes, and metadata.',
+                      payload: JSON.stringify({
+                        title: "Updated Recipe Title",
+                        notes: [{ note: "Add fresh chopped basil right before serving." }]
+                      }, null, 2),
+                      curl: `curl -X PUT -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Updated Recipe Title","notes":[{"note":"Add fresh chopped basil."}]}' "${window.location.origin}/api/recipes/1"`
+                    },
+                    {
+                      categoryKey: 'recipes',
+                      categoryName: 'Recipes & Cookbooks',
+                      method: 'DELETE',
+                      path: '/api/recipes/:id',
+                      title: 'Delete Recipe',
+                      desc: 'Delete a recipe permanently from the cookbook database.',
+                      curl: `curl -X DELETE -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/recipes/1"`
+                    },
+                    {
+                      categoryKey: 'recipes',
+                      categoryName: 'Recipes & Cookbooks',
+                      method: 'POST',
+                      path: '/api/recipes/:id/favorite',
+                      title: 'Toggle Recipe Favorite',
+                      desc: 'Toggle the favorite status for a recipe in the user cookbook.',
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/recipes/1/favorite"`
+                    },
+                    {
+                      categoryKey: 'recipes',
+                      categoryName: 'Recipes & Cookbooks',
+                      method: 'GET',
+                      path: '/api/recipes/:id/export',
+                      title: 'Export Recipe to Word (.docx)',
+                      desc: 'Export a recipe to a Microsoft Word document including ingredients, instructions, and notes.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -O -J "${window.location.origin}/api/recipes/1/export"`
+                    },
+
+                    // SHOPPING LISTS
+                    {
+                      categoryKey: 'shopping',
+                      categoryName: 'Shopping Lists & Items',
+                      method: 'GET',
+                      path: '/api/shopping-lists',
+                      title: 'List Shopping Lists',
+                      desc: 'Retrieve all shopping lists for the authenticated user and any lists shared with them.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/shopping-lists"`
+                    },
+                    {
+                      categoryKey: 'shopping',
+                      categoryName: 'Shopping Lists & Items',
+                      method: 'POST',
+                      path: '/api/shopping-lists',
+                      title: 'Create Shopping List',
+                      desc: 'Create a new custom shopping list.',
+                      payload: JSON.stringify({ name: "Costco Weekly Run" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"name":"Costco Weekly Run"}' "${window.location.origin}/api/shopping-lists"`
+                    },
+                    {
+                      categoryKey: 'shopping',
+                      categoryName: 'Shopping Lists & Items',
+                      method: 'GET',
+                      path: '/api/shopping-lists/:id',
+                      title: 'Get Shopping List Items',
+                      desc: 'Retrieve all items inside a shopping list categorized by store aisle / department.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/shopping-lists/1"`
+                    },
+                    {
+                      categoryKey: 'shopping',
+                      categoryName: 'Shopping Lists & Items',
+                      method: 'POST',
+                      path: '/api/shopping-lists/:id/items',
+                      title: 'Add Item to Shopping List',
+                      desc: 'Add an item with department, quantity, unit, and item name to a shopping list.',
+                      payload: JSON.stringify({ name: "Organic Whole Milk", quantity: 2, unit: "gallons", department: "Dairy" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"name":"Organic Whole Milk","quantity":2,"unit":"gallons","department":"Dairy"}' "${window.location.origin}/api/shopping-lists/1/items"`
+                    },
+                    {
+                      categoryKey: 'shopping',
+                      categoryName: 'Shopping Lists & Items',
+                      method: 'PUT',
+                      path: '/api/shopping-lists/:id/items/:itemId',
+                      title: 'Update Shopping Item',
+                      desc: 'Update item name, quantity, unit, or toggle checked status.',
+                      payload: JSON.stringify({ checked: true, quantity: 3 }, null, 2),
+                      curl: `curl -X PUT -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"checked":true}' "${window.location.origin}/api/shopping-lists/1/items/10"`
+                    },
+                    {
+                      categoryKey: 'shopping',
+                      categoryName: 'Shopping Lists & Items',
+                      method: 'DELETE',
+                      path: '/api/shopping-lists/:id/items/:itemId',
+                      title: 'Delete Shopping Item',
+                      desc: 'Remove an item from a shopping list.',
+                      curl: `curl -X DELETE -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/shopping-lists/1/items/10"`
+                    },
+
+                    // TODOS & TASKS
+                    {
+                      categoryKey: 'todos',
+                      categoryName: 'Todo Lists & Tasks',
+                      method: 'GET',
+                      path: '/api/todos/lists',
+                      title: 'List Todo Lists',
+                      desc: 'List all task lists and groups created by or shared with the user.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/todos/lists"`
+                    },
+                    {
+                      categoryKey: 'todos',
+                      categoryName: 'Todo Lists & Tasks',
+                      method: 'GET',
+                      path: '/api/todos/tasks',
+                      title: 'List Tasks',
+                      desc: 'Retrieve tasks with optional filters for list_id, completed status, priority, and date range.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/todos/tasks?completed=false"`
+                    },
+                    {
+                      categoryKey: 'todos',
+                      categoryName: 'Todo Lists & Tasks',
+                      method: 'POST',
+                      path: '/api/todos/tasks',
+                      title: 'Create Task',
+                      desc: 'Create a new task with due date, priority, category, and list assignment.',
+                      payload: JSON.stringify({ title: "Replace furnace filter", due_date: "2026-10-01", priority: "high", list_id: 1 }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Replace furnace filter","due_date":"2026-10-01","priority":"high","list_id":1}' "${window.location.origin}/api/todos/tasks"`
+                    },
+                    {
+                      categoryKey: 'todos',
+                      categoryName: 'Todo Lists & Tasks',
+                      method: 'PUT',
+                      path: '/api/todos/tasks/:id',
+                      title: 'Update / Complete Task',
+                      desc: 'Update task properties or toggle task completion status.',
+                      payload: JSON.stringify({ completed: 1 }, null, 2),
+                      curl: `curl -X PUT -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"completed":1}' "${window.location.origin}/api/todos/tasks/1"`
+                    },
+
+                    // CALENDAR & EVENTS
+                    {
+                      categoryKey: 'calendar',
+                      categoryName: 'Calendar & Events',
+                      method: 'GET',
+                      path: '/api/calendar/events',
+                      title: 'Get Calendar Events',
+                      desc: 'Retrieve calendar events, holidays, task deadlines, and bill due dates across date ranges.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/calendar/events?start=2026-09-01&end=2026-09-30"`
+                    },
+                    {
+                      categoryKey: 'calendar',
+                      categoryName: 'Calendar & Events',
+                      method: 'POST',
+                      path: '/api/calendar/events',
+                      title: 'Create Calendar Event',
+                      desc: 'Create a calendar event with start/end time, location, notes, and reminders.',
+                      payload: JSON.stringify({ title: "Dentist Appointment", start_time: "2026-09-28T14:00:00Z", end_time: "2026-09-28T15:00:00Z", location: "Downtown Dental" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Dentist Appointment","start_time":"2026-09-28T14:00:00Z","end_time":"2026-09-28T15:00:00Z"}' "${window.location.origin}/api/calendar/events"`
+                    },
+                    {
+                      categoryKey: 'calendar',
+                      categoryName: 'Calendar & Events',
+                      method: 'GET',
+                      path: '/api/users/profile/important-dates',
+                      title: 'List Important Family Dates',
+                      desc: 'List personal and family important dates (birthdays, anniversaries, special events).',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/users/profile/important-dates"`
+                    },
+
+                    // MONEY & MONARCH
+                    {
+                      categoryKey: 'money',
+                      categoryName: 'Money, Bills & Monarch',
+                      method: 'GET',
+                      path: '/api/money/bills',
+                      title: 'Get Upcoming Bills',
+                      desc: 'Retrieve upcoming and recurring bills with due dates, amounts, and paid status.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/money/bills"`
+                    },
+                    {
+                      categoryKey: 'money',
+                      categoryName: 'Money, Bills & Monarch',
+                      method: 'POST',
+                      path: '/api/money/bills',
+                      title: 'Create Bill',
+                      desc: 'Add an upcoming bill entry.',
+                      payload: JSON.stringify({ title: "Electric Utility", amount: 145.50, due_date: "2026-10-05", category: "Utilities" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Electric Utility","amount":145.50,"due_date":"2026-10-05","category":"Utilities"}' "${window.location.origin}/api/money/bills"`
+                    },
+                    {
+                      categoryKey: 'money',
+                      categoryName: 'Money, Bills & Monarch',
+                      method: 'GET',
+                      path: '/api/money/subscriptions',
+                      title: 'Get Subscriptions',
+                      desc: 'List all recurring subscriptions, renewal cadences, and monthly costs.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/money/subscriptions"`
+                    },
+                    {
+                      categoryKey: 'money',
+                      categoryName: 'Money, Bills & Monarch',
+                      method: 'GET',
+                      path: '/api/monarch/accounts',
+                      title: 'Get Monarch Accounts & Balances',
+                      desc: 'Retrieve synchronized accounts, bank balances, and asset/liability summaries from Monarch Money.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/monarch/accounts"`
+                    },
+
+                    // KITCHEN & INVENTORY
+                    {
+                      categoryKey: 'kitchen',
+                      categoryName: 'Kitchen, Pantry & Meal Planner',
+                      method: 'GET',
+                      path: '/api/inventory',
+                      title: 'Get Pantry Inventory',
+                      desc: 'List all pantry, refrigerator, freezer, and spice items with quantities and expiration dates.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/inventory"`
+                    },
+                    {
+                      categoryKey: 'kitchen',
+                      categoryName: 'Kitchen, Pantry & Meal Planner',
+                      method: 'POST',
+                      path: '/api/inventory',
+                      title: 'Add Inventory Item',
+                      desc: 'Add an item to pantry, freezer, or fridge inventory.',
+                      payload: JSON.stringify({ item_name: "Olive Oil", location: "Pantry", quantity: 2, unit: "bottles", expires_at: "2027-01-01" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"item_name":"Olive Oil","location":"Pantry","quantity":2,"unit":"bottles"}' "${window.location.origin}/api/inventory"`
+                    },
+                    {
+                      categoryKey: 'kitchen',
+                      categoryName: 'Kitchen, Pantry & Meal Planner',
+                      method: 'GET',
+                      path: '/api/leftovers',
+                      title: 'Get Leftovers',
+                      desc: 'Retrieve active refrigerated leftovers and safe consumption dates.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/leftovers"`
+                    },
+                    {
+                      categoryKey: 'kitchen',
+                      categoryName: 'Kitchen, Pantry & Meal Planner',
+                      method: 'GET',
+                      path: '/api/menu',
+                      title: 'Get Weekly Meal Plan',
+                      desc: 'Retrieve scheduled breakfast, lunch, and dinner recipes for each day of the week.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/menu"`
+                    },
+
+                    // LIBRARY & BOOKS
+                    {
+                      categoryKey: 'library',
+                      categoryName: 'Library, Books & Reading',
+                      method: 'GET',
+                      path: '/api/books',
+                      title: 'Get Books Catalog',
+                      desc: 'Retrieve books in the family catalog with search, tags, genre, and reading status.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/books?search=tolkien"`
+                    },
+                    {
+                      categoryKey: 'library',
+                      categoryName: 'Library, Books & Reading',
+                      method: 'POST',
+                      path: '/api/books',
+                      title: 'Add Book to Catalog',
+                      desc: 'Add a new book manually or with ISBN metadata.',
+                      payload: JSON.stringify({ title: "The Hobbit", author: "J.R.R. Tolkien", isbn: "9780547928227", total_pages: 310, status: "completed", rating: 5 }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"The Hobbit","author":"J.R.R. Tolkien","isbn":"9780547928227","total_pages":310}' "${window.location.origin}/api/books"`
+                    },
+                    {
+                      categoryKey: 'library',
+                      categoryName: 'Library, Books & Reading',
+                      method: 'GET',
+                      path: '/api/reading-lists',
+                      title: 'Get Reading Lists',
+                      desc: 'Retrieve custom reading lists for family members.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/reading-lists"`
+                    },
+
+                    // CONTACTS
+                    {
+                      categoryKey: 'contacts',
+                      categoryName: 'Contacts & Family Relationships',
+                      method: 'GET',
+                      path: '/api/contacts',
+                      title: 'List Contacts',
+                      desc: 'Retrieve family and friend contacts, phone numbers, emails, addresses, and birthdays.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/contacts"`
+                    },
+                    {
+                      categoryKey: 'contacts',
+                      categoryName: 'Contacts & Family Relationships',
+                      method: 'POST',
+                      path: '/api/contacts',
+                      title: 'Create Contact',
+                      desc: 'Add a new contact entry with contact details and birthday.',
+                      payload: JSON.stringify({ name: "Jane Smith", email: "jane@example.com", phone: "555-123-4567", birthday: "1990-05-12" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"name":"Jane Smith","email":"jane@example.com","phone":"555-123-4567"}' "${window.location.origin}/api/contacts"`
+                    },
+                    {
+                      categoryKey: 'contacts',
+                      categoryName: 'Contacts & Family Relationships',
+                      method: 'GET',
+                      path: '/api/relationships',
+                      title: 'Get Family Relationships',
+                      desc: 'Retrieve mapped relationships (e.g. spouse, child, parent) between users and contacts.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/relationships"`
+                    },
+
+                    // FOCUS & PROJECTS
+                    {
+                      categoryKey: 'focus',
+                      categoryName: 'Focus Sessions & Projects',
+                      method: 'GET',
+                      path: '/api/projects',
+                      title: 'Get Projects',
+                      desc: 'List active and completed projects with their subtasks.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/projects"`
+                    },
+                    {
+                      categoryKey: 'focus',
+                      categoryName: 'Focus Sessions & Projects',
+                      method: 'POST',
+                      path: '/api/focus',
+                      title: 'Record Focus Session',
+                      desc: 'Record a completed Pomodoro or focus session for productivity tracking.',
+                      payload: JSON.stringify({ duration_minutes: 25, notes: "Coding sprint" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"duration_minutes":25,"notes":"Coding sprint"}' "${window.location.origin}/api/focus"`
+                    },
+
+                    // SYSTEM & ADMIN
+                    {
+                      categoryKey: 'system',
+                      categoryName: 'System, Notifications & Administration',
+                      method: 'GET',
+                      path: '/api/notifications/active',
+                      title: 'Get Active Notifications',
+                      desc: 'Retrieve active system and user alerts.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/notifications/active"`
+                    },
+                    {
+                      categoryKey: 'system',
+                      categoryName: 'System, Notifications & Administration',
+                      method: 'GET',
+                      path: '/api/users',
+                      title: 'List Users (Admin)',
+                      desc: 'Retrieves all user accounts, display names, and assigned role IDs.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/users"`
+                    },
+                    {
+                      categoryKey: 'system',
+                      categoryName: 'System, Notifications & Administration',
+                      method: 'GET',
+                      path: '/api/roles',
+                      title: 'List Roles (Admin)',
+                      desc: 'Retrieves all configured access control roles and permission matrix mappings.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/roles"`
+                    },
+                    {
+                      categoryKey: 'system',
+                      categoryName: 'System, Notifications & Administration',
+                      method: 'GET',
+                      path: '/api/settings/public',
+                      title: 'Get Public Branding Settings',
+                      desc: 'Retrieves public branding name, logo, favicon, and theme color configurations.',
+                      curl: `curl "${window.location.origin}/api/settings/public"`
+                    },
+                    {
+                      categoryKey: 'system',
+                      categoryName: 'System, Notifications & Administration',
+                      method: 'GET',
+                      path: '/api/version',
+                      title: 'Get Application Version & Build',
+                      desc: 'Returns current build version, git commit hash, repository URL, and runtime information.',
+                      curl: `curl "${window.location.origin}/api/version"`
+                    }
+                  ]
+                  .filter(item => {
+                    const matchCategory = apiDocsFilter === 'all' || item.categoryKey === apiDocsFilter;
+                    const matchSearch = !apiDocsSearch.trim() || 
+                      item.path.toLowerCase().includes(apiDocsSearch.toLowerCase()) || 
+                      item.title.toLowerCase().includes(apiDocsSearch.toLowerCase()) || 
+                      item.desc.toLowerCase().includes(apiDocsSearch.toLowerCase()) ||
+                      item.method.toLowerCase().includes(apiDocsSearch.toLowerCase());
+                    return matchCategory && matchSearch;
+                  })
+                  .map((ep, idx) => {
+                    const isExpanded = expandedEndpoints[idx];
+                    const methodColor = 
+                      ep.method === 'GET' ? '#10b981' : 
+                      ep.method === 'POST' ? '#3b82f6' : 
+                      ep.method === 'PUT' ? '#f59e0b' : 
+                      '#ef4444';
+
+                    return (
+                      <div 
+                        key={idx} 
+                        style={{
+                          border: '1px solid var(--border)',
+                          borderRadius: 'var(--radius)',
+                          overflow: 'hidden',
+                          background: 'var(--card)'
+                        }}
+                      >
+                        {/* Endpoint Row Header */}
+                        <div 
+                          onClick={() => toggleEndpointExpand(idx)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            padding: '0.65rem 0.85rem',
+                            background: 'var(--muted)',
+                            borderBottom: isExpanded ? '1px solid var(--border)' : 'none',
+                            cursor: 'pointer',
+                            flexWrap: 'wrap'
+                          }}
+                        >
+                          <span style={{
+                            background: methodColor,
+                            color: '#fff',
+                            fontSize: '0.625rem',
+                            fontWeight: 'bold',
+                            padding: '0.15rem 0.45rem',
+                            borderRadius: '4px',
+                            minWidth: '46px',
+                            textAlign: 'center'
+                          }}>
+                            {ep.method}
+                          </span>
+                          <code style={{ fontWeight: 'bold', fontSize: '0.825rem', color: 'var(--foreground)' }}>
+                            {ep.path}
+                          </code>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', marginLeft: 'auto' }}>
+                            {ep.title}
+                          </span>
+                          <div style={{ color: 'var(--muted-foreground)' }}>
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </div>
+                        </div>
+
+                        {/* Endpoint Body */}
+                        {isExpanded && (
+                          <div style={{ padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <p style={{ fontSize: '0.8125rem', margin: 0, color: 'var(--foreground)', lineHeight: '1.4' }}>
+                              {ep.desc}
+                            </p>
+
+                            {/* Payload snippet if available */}
+                            {ep.payload && (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>
+                                  JSON Request Body Schema:
+                                </span>
+                                <pre style={{
+                                  margin: 0,
+                                  padding: '0.5rem 0.75rem',
+                                  background: '#1e1e2e',
+                                  color: '#a6e3a1',
+                                  borderRadius: 'var(--radius)',
+                                  fontSize: '0.725rem',
+                                  fontFamily: 'var(--font-mono)',
+                                  overflowX: 'auto',
+                                  maxHeight: '160px'
+                                }}>
+                                  {ep.payload}
+                                </pre>
+                              </div>
+                            )}
+
+                            {/* cURL Request */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                              <span style={{ fontSize: '0.6875rem', fontWeight: 'bold', color: 'var(--muted-foreground)' }}>
+                                Example cURL Request:
+                              </span>
+                              <div style={{ display: 'flex', position: 'relative' }}>
+                                <pre style={{
+                                  margin: 0,
+                                  padding: '0.5rem 0.75rem',
+                                  paddingRight: '4rem',
+                                  background: '#1e1e2e',
+                                  color: '#cdd6f4',
+                                  borderRadius: 'var(--radius)',
+                                  width: '100%',
+                                  overflowX: 'auto',
+                                  fontSize: '0.725rem',
+                                  fontFamily: 'var(--font-mono)'
+                                }}>
+                                  {ep.curl}
+                                </pre>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopyText(ep.curl, 'curl command');
+                                  }}
+                                  style={{
+                                    position: 'absolute',
+                                    right: '0.35rem',
+                                    top: '50%',
+                                    transform: 'translateY(-50%)',
+                                    background: 'var(--background)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 'var(--radius)',
+                                    color: 'var(--foreground)',
+                                    cursor: 'pointer',
+                                    padding: '0.15rem 0.4rem',
+                                    fontSize: '0.6875rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.25rem'
+                                  }}
+                                >
+                                  <Copy size={11} /> Copy
+                                </button>
+                              </div>
+                            </div>
+
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+              </div>
+            )}
+          </div>
+
+        </div>
       )}
 
     </div>

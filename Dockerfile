@@ -27,7 +27,14 @@ COPY backend/ ./
 # Copy compiled frontend files from Stage 1 into the public folder
 COPY --from=frontend-builder /app/frontend/dist ./public
 
-# Environment variables
+# Build arguments and environment variables
+ARG APP_VERSION=1.0.0
+ARG GIT_COMMIT=""
+ARG BUILD_NUMBER=""
+
+ENV APP_VERSION=$APP_VERSION
+ENV GIT_COMMIT=$GIT_COMMIT
+ENV BUILD_NUMBER=$BUILD_NUMBER
 ENV PORT=8282
 ENV DATA_DIR=/data
 ENV DATABASE_PATH=/data/base.db

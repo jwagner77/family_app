@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import PizZip from 'pizzip';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
+import { execSync } from 'child_process';
 
 import {
   getDb,
@@ -1249,7 +1250,47 @@ app.delete('/api/roles/:id', authenticate, requirePermission('roles', 'full'), a
   }
 });
 
-// --- SETTINGS ENDPOINTS ---
+// --- SETTINGS & VERSION ENDPOINTS ---
+
+app.get('/api/version', async (req, res) => {
+  try {
+    let gitCommit = process.env.GIT_COMMIT || '';
+    let appVersion = process.env.APP_VERSION || '';
+    let buildNumber = process.env.BUILD_NUMBER || '';
+
+    // If version not set in env, inspect package.json
+    if (!appVersion) {
+      try {
+        const pkgPath = path.join(path.dirname(fileURLToPath(import.meta.url)), 'package.json');
+        if (fs.existsSync(pkgPath)) {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          appVersion = pkg.version || '1.0.0';
+        }
+      } catch (e) {
+        appVersion = '1.0.0';
+      }
+    }
+
+    // If git commit not set in env, attempt git command fallback
+    if (!gitCommit) {
+      try {
+        gitCommit = execSync('git rev-parse --short HEAD', { timeout: 1000 }).toString().trim();
+      } catch (e) {
+        gitCommit = '';
+      }
+    }
+
+    res.json({
+      version: appVersion || '1.0.0',
+      commit: gitCommit,
+      build: buildNumber,
+      repository: 'https://github.com/jwagner77/family_app',
+      node_version: process.version
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
 app.get('/api/settings/public', async (req, res) => {
   try {
