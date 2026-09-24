@@ -1869,15 +1869,15 @@ export default function HomeView({ onNavigateTab, user }) {
       <div 
         className="card animate-fade-in" 
         style={{ 
-          padding: '2rem', 
-          background: 'linear-gradient(135deg, var(--primary-light) 0%, color-mix(in srgb, var(--card) calc(var(--navbar-opacity, 0.75) * 100%), transparent) 100%)', 
+          padding: '1.5rem', 
+          background: 'color-mix(in srgb, var(--card) calc(var(--navbar-opacity, 0.75) * 100%), transparent)', 
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius)',
           display: 'flex',
           flexDirection: 'column',
-          gap: '1.5rem',
+          gap: '1.25rem',
           position: 'relative',
           overflow: 'visible',
           zIndex: isNotificationsOpen ? 100 : 1
@@ -2078,7 +2078,7 @@ export default function HomeView({ onNavigateTab, user }) {
             
             {/* Column: Today's Meals */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#ec4899', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#ec4899', borderBottom: '1px solid var(--border)', paddingBottom: '0.35rem' }}>
                 Today's Meals
               </h4>
               {todaysMeals.length > 0 ? (
@@ -2097,7 +2097,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
             {/* Column 1: Today's Schedule */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: 'var(--primary)', borderBottom: '1px solid var(--border)', paddingBottom: '0.35rem' }}>
                 Today's Schedule
               </h4>
               {todayEvents.length > 0 ? (
@@ -2118,7 +2118,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
             {/* Column 2: Tasks Due Today */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#10b981', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#10b981', borderBottom: '1px solid var(--border)', paddingBottom: '0.35rem' }}>
                 Tasks Due Today
               </h4>
               {todayTasks.length > 0 ? (
@@ -2136,7 +2136,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
             {/* Column 3: Celebrations */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#ef4444', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#ef4444', borderBottom: '1px solid var(--border)', paddingBottom: '0.35rem' }}>
                 Celebrations
               </h4>
               {(todayBirthdays.length > 0 || todayAnniversaries.length > 0) ? (
@@ -2159,7 +2159,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
             {/* Column 4: Bills & Subscriptions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#3b82f6', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '0.35rem' }}>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#3b82f6', borderBottom: '1px solid var(--border)', paddingBottom: '0.35rem' }}>
                 Bills & Subscriptions
               </h4>
               {(todayBills.length > 0 || todaySubs.length > 0) ? (
