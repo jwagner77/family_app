@@ -2238,24 +2238,69 @@ export async function clearWeeklyMenu() {
   return true;
 }
 
+export function normalizeDayOfWeek(day) {
+  if (!day || typeof day !== 'string') return day || 'Monday';
+  const trimmed = day.trim().toLowerCase();
+  const map = {
+    'monday': 'Monday', 'mon': 'Monday',
+    'tuesday': 'Tuesday', 'tue': 'Tuesday', 'tues': 'Tuesday',
+    'wednesday': 'Wednesday', 'wed': 'Wednesday',
+    'thursday': 'Thursday', 'thu': 'Thursday', 'thur': 'Thursday', 'thurs': 'Thursday',
+    'friday': 'Friday', 'fri': 'Friday',
+    'saturday': 'Saturday', 'sat': 'Saturday',
+    'sunday': 'Sunday', 'sun': 'Sunday'
+  };
+  return map[trimmed] || (day.charAt(0).toUpperCase() + day.slice(1));
+}
+
+export function normalizeMealType(meal) {
+  if (!meal || typeof meal !== 'string') return meal || 'Dinner';
+  const trimmed = meal.trim().toLowerCase();
+  const map = {
+    'breakfast': 'Breakfast', 'b': 'Breakfast',
+    'lunch': 'Lunch', 'l': 'Lunch',
+    'dinner': 'Dinner', 'd': 'Dinner', 'supper': 'Dinner'
+  };
+  return map[trimmed] || (meal.charAt(0).toUpperCase() + meal.slice(1));
+}
+
 export async function addWeeklyMenuEntry(dayOfWeek, mealType, recipeId, leftoverId = null, hasLeftovers = 0, customMeal = null, servings = null, tags = null, assignedPeople = null) {
   const db = await getDb();
-  let finalTags = tags;
-  if (leftoverId) {
-    const tagList = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-    if (!tagList.some(t => t.toLowerCase() === 'leftovers')) {
-      tagList.push('Leftovers');
-    }
-    finalTags = tagList.join(', ');
+  
+  const finalDay = normalizeDayOfWeek(dayOfWeek);
+  const finalMeal = normalizeMealType(mealType);
+
+  let tagList = [];
+  if (Array.isArray(tags)) {
+    tagList = tags.map(t => String(t).trim()).filter(Boolean);
+  } else if (typeof tags === 'string' && tags.trim()) {
+    tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
   }
+  if (leftoverId && !tagList.some(t => t.toLowerCase() === 'leftovers')) {
+    tagList.push('Leftovers');
+  }
+  const finalTags = tagList.length > 0 ? tagList.join(', ') : null;
+
+  let finalPeople = null;
+  if (Array.isArray(assignedPeople)) {
+    finalPeople = assignedPeople.map(p => String(p).trim()).filter(Boolean).join(', ') || null;
+  } else if (typeof assignedPeople === 'string' && assignedPeople.trim()) {
+    finalPeople = assignedPeople.trim();
+  }
+
+  const parsedRecipeId = recipeId ? parseInt(recipeId, 10) || null : null;
+  const parsedLeftoverId = leftoverId ? parseInt(leftoverId, 10) || null : null;
+  const parsedServings = servings !== undefined && servings !== null && servings !== '' ? parseInt(servings, 10) || null : null;
+  const parsedHasLeftovers = hasLeftovers === true || hasLeftovers === 1 || hasLeftovers === '1' ? 1 : 0;
+
   const result = await db.run(
     `INSERT INTO weekly_menu (day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [dayOfWeek, mealType, recipeId || null, leftoverId || null, hasLeftovers, customMeal || null, servings || null, finalTags || null, assignedPeople || null]
+    [finalDay, finalMeal, parsedRecipeId, parsedLeftoverId, parsedHasLeftovers, customMeal ? String(customMeal).trim() : null, parsedServings, finalTags, finalPeople]
   );
 
-  if (customMeal) {
-    await saveCustomMeal(customMeal);
+  if (customMeal && String(customMeal).trim()) {
+    await saveCustomMeal(String(customMeal).trim());
   }
   if (finalTags) {
     await saveReusableTags(finalTags);
@@ -2266,14 +2311,30 @@ export async function addWeeklyMenuEntry(dayOfWeek, mealType, recipeId, leftover
 
 export async function updateWeeklyMenuEntry(id, recipeId, leftoverId = null, hasLeftovers = 0, customMeal = null, servings = null, tags = null, assignedPeople = null) {
   const db = await getDb();
-  let finalTags = tags;
-  if (leftoverId) {
-    const tagList = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-    if (!tagList.some(t => t.toLowerCase() === 'leftovers')) {
-      tagList.push('Leftovers');
-    }
-    finalTags = tagList.join(', ');
+  
+  let tagList = [];
+  if (Array.isArray(tags)) {
+    tagList = tags.map(t => String(t).trim()).filter(Boolean);
+  } else if (typeof tags === 'string' && tags.trim()) {
+    tagList = tags.split(',').map(t => t.trim()).filter(Boolean);
   }
+  if (leftoverId && !tagList.some(t => t.toLowerCase() === 'leftovers')) {
+    tagList.push('Leftovers');
+  }
+  const finalTags = tagList.length > 0 ? tagList.join(', ') : null;
+
+  let finalPeople = null;
+  if (Array.isArray(assignedPeople)) {
+    finalPeople = assignedPeople.map(p => String(p).trim()).filter(Boolean).join(', ') || null;
+  } else if (typeof assignedPeople === 'string' && assignedPeople.trim()) {
+    finalPeople = assignedPeople.trim();
+  }
+
+  const parsedRecipeId = recipeId ? parseInt(recipeId, 10) || null : null;
+  const parsedLeftoverId = leftoverId ? parseInt(leftoverId, 10) || null : null;
+  const parsedServings = servings !== undefined && servings !== null && servings !== '' ? parseInt(servings, 10) || null : null;
+  const parsedHasLeftovers = hasLeftovers === true || hasLeftovers === 1 || hasLeftovers === '1' ? 1 : 0;
+
   await db.run(
     `UPDATE weekly_menu SET 
        recipe_id = ?, 
@@ -2284,23 +2345,23 @@ export async function updateWeeklyMenuEntry(id, recipeId, leftoverId = null, has
        tags = ?,
        assigned_people = ?
      WHERE id = ?`,
-    [recipeId || null, leftoverId || null, hasLeftovers, customMeal || null, servings || null, finalTags || null, assignedPeople || null, id]
+    [parsedRecipeId, parsedLeftoverId, parsedHasLeftovers, customMeal ? String(customMeal).trim() : null, parsedServings, finalTags, finalPeople, parseInt(id, 10)]
   );
 
-  if (customMeal) {
-    await saveCustomMeal(customMeal);
+  if (customMeal && String(customMeal).trim()) {
+    await saveCustomMeal(String(customMeal).trim());
   }
   if (finalTags) {
     await saveReusableTags(finalTags);
   }
 
-  return id;
+  return parseInt(id, 10);
 }
 
 export async function deleteWeeklyMenuEntry(id) {
   const db = await getDb();
-  await db.run('DELETE FROM weekly_menu WHERE id = ?', [id]);
-  return id;
+  await db.run('DELETE FROM weekly_menu WHERE id = ?', [parseInt(id, 10)]);
+  return parseInt(id, 10);
 }
 
 export async function updateWeeklyMenu(dayOfWeek, mealType, recipeId, leftoverId = null, hasLeftovers = 0, customMeal = null, servings = null) {

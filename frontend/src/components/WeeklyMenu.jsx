@@ -97,31 +97,34 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
       });
 
       data.forEach(item => {
-        if (structured[item.day_of_week]) {
+        const matchedDay = DAYS.find(d => d.toLowerCase() === (item.day_of_week || '').trim().toLowerCase()) || item.day_of_week;
+        const matchedMeal = MEALS.find(m => m.toLowerCase() === (item.meal_type || '').trim().toLowerCase()) || item.meal_type;
+
+        if (structured[matchedDay]) {
           let mealItem = null;
-          if (item.recipe_id !== null) {
+          if (item.recipe_id !== null && item.recipe_id !== undefined) {
             mealItem = {
               type: 'recipe',
               id: item.recipe_id,
               menu_entry_id: item.id,
-              title: item.recipe_title,
+              title: item.recipe_title || 'Untitled Recipe',
               image_path: item.recipe_image,
               has_leftovers: item.has_leftovers,
               servings: item.servings,
               tags: item.tags ? item.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
               assigned_people: item.assigned_people ? item.assigned_people.split(',').map(p => p.trim()).filter(Boolean) : []
             };
-          } else if (item.leftover_id !== null) {
+          } else if (item.leftover_id !== null && item.leftover_id !== undefined) {
             mealItem = {
               type: 'leftover',
               id: item.leftover_id,
               menu_entry_id: item.id,
-              title: item.leftover_name,
+              title: item.leftover_name || 'Leftovers',
               has_leftovers: 0,
               tags: item.tags ? item.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
               assigned_people: item.assigned_people ? item.assigned_people.split(',').map(p => p.trim()).filter(Boolean) : []
             };
-          } else if (item.custom_meal !== null && item.custom_meal !== '') {
+          } else if (item.custom_meal !== null && item.custom_meal !== undefined && item.custom_meal !== '') {
             mealItem = {
               type: 'custom',
               menu_entry_id: item.id,
@@ -132,8 +135,8 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
               assigned_people: item.assigned_people ? item.assigned_people.split(',').map(p => p.trim()).filter(Boolean) : []
             };
           }
-          if (mealItem && structured[item.day_of_week][item.meal_type]) {
-            structured[item.day_of_week][item.meal_type].push(mealItem);
+          if (mealItem && structured[matchedDay] && structured[matchedDay][matchedMeal]) {
+            structured[matchedDay][matchedMeal].push(mealItem);
           }
         }
       });

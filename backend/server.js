@@ -455,12 +455,18 @@ function requirePermission(func, level) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: 'Unauthenticated' });
     
-    let userPerm = req.user.permissions[func];
+    // Administrator role always has full access to all features
+    if (req.user.role_name === 'Administrator' || req.user.role_name === 'admin' || req.user.id === 1) {
+      return next();
+    }
+
+    const perms = req.user.permissions || {};
+    let userPerm = perms[func];
     
     if (func === 'users') {
-      userPerm = req.user.permissions.settings_users || req.user.permissions.users;
+      userPerm = perms.settings_users || perms.users;
     } else if (func === 'roles') {
-      userPerm = req.user.permissions.settings_roles || req.user.permissions.roles;
+      userPerm = perms.settings_roles || perms.roles;
     }
     
     if (level === 'full' && userPerm !== 'full') {
@@ -6187,18 +6193,33 @@ app.get('/api/menu', authenticate, requirePermission('planner', 'read'), async (
 // POST /api/menu - Add or update a menu entry
 app.post('/api/menu', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
-    const { id, day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people } = req.body;
+    const { id, day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people, assigned_user_ids } = req.body;
     
+    let resolvedPeople = assigned_people;
+    if (Array.isArray(assigned_user_ids) && assigned_user_ids.length > 0) {
+      try {
+        const db = await getDb();
+        const placeholders = assigned_user_ids.map(() => '?').join(',');
+        const users = await db.all(`SELECT display_name, username FROM users WHERE id IN (${placeholders})`, assigned_user_ids);
+        const names = users.map(u => u.display_name || u.username).filter(Boolean);
+        if (names.length > 0) {
+          resolvedPeople = names.join(', ');
+        }
+      } catch (e) {
+        console.error('Failed to resolve assigned_user_ids:', e);
+      }
+    }
+
     let entryId = id;
     if (id) {
       // Update existing entry
-      await updateWeeklyMenuEntry(id, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, assigned_people || null);
+      await updateWeeklyMenuEntry(id, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, resolvedPeople || null);
     } else {
       // Create new entry
       if (!day_of_week || !meal_type) {
-        return res.status(400).json({ error: 'Missing day_of_week or meal_type' });
+        return res.status(400).json({ error: 'Missing day_of_week or meal_type in request payload.' });
       }
-      entryId = await addWeeklyMenuEntry(day_of_week, meal_type, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, assigned_people || null);
+      entryId = await addWeeklyMenuEntry(day_of_week, meal_type, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, resolvedPeople || null);
     }
     
     try {
@@ -6243,9 +6264,25 @@ app.post('/api/menu', authenticate, requirePermission('planner', 'full'), async 
 app.put('/api/menu/:id', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people } = req.body;
-    await updateWeeklyMenuEntry(id, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, assigned_people || null);
-    res.json({ message: 'Menu entry updated successfully', id });
+    const { recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people, assigned_user_ids } = req.body;
+    
+    let resolvedPeople = assigned_people;
+    if (Array.isArray(assigned_user_ids) && assigned_user_ids.length > 0) {
+      try {
+        const db = await getDb();
+        const placeholders = assigned_user_ids.map(() => '?').join(',');
+        const users = await db.all(`SELECT display_name, username FROM users WHERE id IN (${placeholders})`, assigned_user_ids);
+        const names = users.map(u => u.display_name || u.username).filter(Boolean);
+        if (names.length > 0) {
+          resolvedPeople = names.join(', ');
+        }
+      } catch (e) {
+        console.error('Failed to resolve assigned_user_ids:', e);
+      }
+    }
+
+    await updateWeeklyMenuEntry(id, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, resolvedPeople || null);
+    res.json({ message: 'Menu entry updated successfully', id: parseInt(id, 10) });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
