@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Plus, Trash2, Download, Search, X, Utensils, RefreshCw } from 'lucide-react';
+import { Calendar, Plus, Trash2, Download, Search, X, Utensils, RefreshCw, Edit2, Users, Check } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MEALS = ['Breakfast', 'Lunch', 'Dinner'];
@@ -18,8 +18,18 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
   const [assigningRecipe, setAssigningRecipe] = useState(null);
   const [recipeServings, setRecipeServings] = useState(4);
   const [mealTags, setMealTags] = useState('');
+
+  // Edit Meal modal states
   const [editingEntry, setEditingEntry] = useState(null);
+  const [editingCustomMealText, setEditingCustomMealText] = useState('');
+  const [editingServings, setEditingServings] = useState(4);
   const [editingTags, setEditingTags] = useState('');
+  const [editingHasLeftovers, setEditingHasLeftovers] = useState(false);
+  const [editingSelectedPeople, setEditingSelectedPeople] = useState([]);
+  const [editingIsCustomPerson, setEditingIsCustomPerson] = useState(false);
+  const [editingCustomPersonName, setEditingCustomPersonName] = useState('');
+  const [editingShowPeopleDropdown, setEditingShowPeopleDropdown] = useState(false);
+  const editPeopleDropdownRef = useRef(null);
 
   // Person assignment and filtering states
   const [assignableUsers, setAssignableUsers] = useState([]);
@@ -33,7 +43,7 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
   // Autocomplete states
   const [retainedCustomMeals, setRetainedCustomMeals] = useState([]);
   const [retainedTags, setRetainedTags] = useState([]);
-  const [activeInputFocus, setActiveInputFocus] = useState(null); // 'customMeal' | 'mealTags' | 'editingTags' | null
+  const [activeInputFocus, setActiveInputFocus] = useState(null); // 'customMeal' | 'mealTags' | 'editingTags' | 'editingCustomMeal' | null
 
   // Calendar sync modal state
   const [showSyncModal, setShowSyncModal] = useState(false);
@@ -238,6 +248,9 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
       if (peopleDropdownRef.current && !peopleDropdownRef.current.contains(event.target)) {
         setShowPeopleDropdown(false);
       }
+      if (editPeopleDropdownRef.current && !editPeopleDropdownRef.current.contains(event.target)) {
+        setEditingShowPeopleDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -378,8 +391,39 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
     }
   };
 
-  // Save tags for editing
-  const handleSaveTags = async () => {
+  // Open Edit Meal modal and populate current values
+  const handleOpenEditModal = (entry) => {
+    setEditingEntry(entry);
+    setEditingCustomMealText(entry.type === 'custom' ? (entry.title || '') : '');
+    setEditingServings(entry.servings !== null && entry.servings !== undefined ? entry.servings : (entry.type === 'recipe' ? 4 : ''));
+    setEditingTags(entry.tags ? entry.tags.join(', ') : '');
+    setEditingHasLeftovers(entry.has_leftovers === 1);
+
+    // Map existing assigned people
+    const assigned = entry.assigned_people || [];
+    const knownUserNames = assignableUsers.map(u => u.display_name || u.username);
+    const knownSelected = [];
+    const customSelected = [];
+    assigned.forEach(name => {
+      if (knownUserNames.includes(name)) {
+        knownSelected.push(name);
+      } else {
+        customSelected.push(name);
+      }
+    });
+    setEditingSelectedPeople(knownSelected);
+    if (customSelected.length > 0) {
+      setEditingIsCustomPerson(true);
+      setEditingCustomPersonName(customSelected.join(', '));
+    } else {
+      setEditingIsCustomPerson(false);
+      setEditingCustomPersonName('');
+    }
+    setEditingShowPeopleDropdown(false);
+  };
+
+  // Save changes to edited meal
+  const handleSaveEditedMeal = async () => {
     if (!editingEntry) return;
     try {
       let finalTags = editingTags.trim();
@@ -391,26 +435,39 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
         finalTags = tagArr.join(', ');
       }
 
+      const allPeople = [...editingSelectedPeople];
+      if (editingIsCustomPerson && editingCustomPersonName.trim()) {
+        allPeople.push(editingCustomPersonName.trim());
+      }
+      const finalAssignedPeople = allPeople.filter(Boolean).join(', ');
+
+      const payload = {
+        id: editingEntry.menu_entry_id,
+        recipe_id: editingEntry.type === 'recipe' ? editingEntry.id : null,
+        leftover_id: editingEntry.type === 'leftover' ? editingEntry.id : null,
+        custom_meal: editingEntry.type === 'custom' ? (editingCustomMealText.trim() || editingEntry.title) : null,
+        has_leftovers: editingHasLeftovers ? 1 : 0,
+        servings: editingServings ? parseInt(editingServings, 10) : null,
+        tags: finalTags || null,
+        assigned_people: finalAssignedPeople || null
+      };
+
       const res = await fetch('/api/menu', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editingEntry.menu_entry_id,
-          recipe_id: editingEntry.type === 'recipe' ? editingEntry.id : null,
-          leftover_id: editingEntry.type === 'leftover' ? editingEntry.id : null,
-          custom_meal: editingEntry.type === 'custom' ? editingEntry.title : null,
-          has_leftovers: editingEntry.has_leftovers || 0,
-          servings: editingEntry.servings || null,
-          tags: finalTags || null
-        })
+        body: JSON.stringify(payload)
       });
 
-      if (!res.ok) throw new Error('Failed to update tags');
-      showToast('Tags updated successfully');
+      if (!res.ok) throw new Error('Failed to update meal');
+      showToast('Meal plan entry updated successfully');
       fetchMenu();
       fetchRetainedMealsAndTags(); // Refresh autocomplete items
       setEditingEntry(null);
       setEditingTags('');
+      setEditingCustomMealText('');
+      setEditingSelectedPeople([]);
+      setEditingIsCustomPerson(false);
+      setEditingCustomPersonName('');
     } catch (err) {
       showToast(err.message, 'error');
     }
@@ -670,11 +727,18 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
                               <div style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-main)', display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                                 <span style={{ wordBreak: 'break-word' }}>{entry.title}</span>
                               </div>
-                              {entry.has_leftovers === 1 && (
-                                <span style={{ display: 'block', fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 'bold' }}>
-                                  🍲 Leftovers Generated
-                                </span>
-                              )}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                {entry.servings ? (
+                                  <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                                    🍽️ {entry.servings} {entry.servings === 1 ? 'serving' : 'servings'}
+                                  </span>
+                                ) : null}
+                                {entry.has_leftovers === 1 && (
+                                  <span style={{ display: 'inline-block', fontSize: '0.68rem', color: 'var(--accent)', fontWeight: 'bold' }}>
+                                    🍲 Leftovers Generated
+                                  </span>
+                                )}
+                              </div>
                               
                               {/* Display entry tags */}
                               {entry.tags && entry.tags.length > 0 && (
@@ -747,11 +811,12 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
                                 {user?.permissions?.planner === 'full' && (
                                   <button 
                                     className="btn btn-outline" 
-                                    style={{ padding: '0.2rem 0.3rem', color: 'var(--primary)', fontSize: '0.65rem' }} 
-                                    onClick={() => { setEditingEntry(entry); setEditingTags(entry.tags ? entry.tags.join(', ') : ''); }}
-                                    title="Edit Tags"
+                                    style={{ padding: '0.2rem 0.35rem', color: 'var(--primary)', fontSize: '0.65rem', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }} 
+                                    onClick={() => handleOpenEditModal(entry)}
+                                    title="Edit Meal (servings, people, tags)"
                                   >
-                                    Tags
+                                    <Edit2 size={10} />
+                                    <span>Edit</span>
                                   </button>
                                 )}
                                 {user?.permissions?.planner === 'full' && (
@@ -1228,25 +1293,258 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
         </div>
       )}
 
-      {/* Edit Tags Modal overlay */}
+      {/* Edit Meal Modal overlay */}
       {editingEntry && (
-        <div className="modal-overlay" onClick={() => { setEditingEntry(null); setEditingTags(''); }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+        <div className="modal-overlay" onClick={() => { setEditingEntry(null); setEditingTags(''); setEditingCustomMealText(''); setEditingShowPeopleDropdown(false); }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px', overflow: 'visible' }}>
             <div className="modal-header">
-              <h2 style={{ fontSize: '1.25rem' }}>Edit Tags</h2>
-              <button className="close-btn" onClick={() => { setEditingEntry(null); setEditingTags(''); }}>×</button>
-            </div>
-            <div className="modal-body" style={{ padding: '1.5rem' }}>
-              <div style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '1rem', background: 'var(--bg-app)', marginBottom: '1.25rem' }}>
-                <strong style={{ display: 'block', fontSize: '1rem' }}>{editingEntry.title}</strong>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Edit2 size={18} className="text-primary" />
+                <h2 style={{ fontSize: '1.25rem', margin: 0 }}>Edit Meal</h2>
               </div>
-              <div className="form-group" style={{ marginBottom: '1.5rem', position: 'relative' }}>
+              <button 
+                className="close-btn" 
+                onClick={() => { setEditingEntry(null); setEditingTags(''); setEditingCustomMealText(''); setEditingShowPeopleDropdown(false); }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body" style={{ padding: '1.5rem', overflow: 'visible', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              
+              {/* Meal Header Info */}
+              <div style={{
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '0.85rem 1rem',
+                background: 'var(--bg-app)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '0.5rem'
+              }}>
+                <div>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 'bold', display: 'block' }}>
+                    Meal Name
+                  </span>
+                  <strong style={{ fontSize: '1rem', color: 'var(--text-main)' }}>{editingEntry.title}</strong>
+                </div>
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 'bold',
+                  padding: '0.2rem 0.5rem',
+                  borderRadius: '4px',
+                  background: editingEntry.type === 'recipe' ? 'var(--primary-light)' : editingEntry.type === 'leftover' ? 'var(--accent-light)' : 'rgba(100, 116, 139, 0.15)',
+                  color: editingEntry.type === 'recipe' ? 'var(--primary)' : editingEntry.type === 'leftover' ? 'var(--accent)' : 'var(--text-muted)'
+                }}>
+                  {editingEntry.type === 'recipe' ? '📖 Recipe' : editingEntry.type === 'leftover' ? '🍲 Leftover' : '✍️ Custom Meal'}
+                </span>
+              </div>
+
+              {/* If custom meal, allow editing the meal text */}
+              {editingEntry.type === 'custom' && (
+                <div className="form-group" style={{ position: 'relative' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                    Custom Meal Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editingCustomMealText}
+                    onChange={(e) => setEditingCustomMealText(e.target.value)}
+                    onFocus={() => setActiveInputFocus('editingCustomMeal')}
+                    onBlur={() => setTimeout(() => setActiveInputFocus(null), 200)}
+                    placeholder="e.g. Pizza Night, Eating Out..."
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-app)',
+                      color: 'var(--text-main)',
+                      fontSize: '0.9rem',
+                      outline: 'none'
+                    }}
+                  />
+                  {activeInputFocus === 'editingCustomMeal' && renderSuggestions(getCustomMealSuggestions(), (suggestion) => setEditingCustomMealText(suggestion))}
+                </div>
+              )}
+
+              {/* Number of Servings */}
+              <div className="form-group">
                 <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                  Tags (comma-separated)
+                  Number of Servings
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.6rem 0.9rem', fontSize: '1rem', fontWeight: 'bold' }}
+                    onClick={() => setEditingServings(prev => Math.max(1, (parseInt(prev) || 1) - 1))}
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={editingServings}
+                    onChange={(e) => setEditingServings(parseInt(e.target.value) || 1)}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-app)',
+                      color: 'var(--text-main)',
+                      fontSize: '1rem',
+                      fontWeight: 'bold',
+                      textAlign: 'center',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: '0.6rem 0.9rem', fontSize: '1rem', fontWeight: 'bold' }}
+                    onClick={() => setEditingServings(prev => (parseInt(prev) || 0) + 1)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Person / People Assignment Dropdown */}
+              <div className="form-group" style={{ position: 'relative' }} ref={editPeopleDropdownRef}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Assigned People / Users
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className="input-control"
+                    onClick={() => setEditingShowPeopleDropdown(!editingShowPeopleDropdown)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-color)',
+                      background: 'var(--bg-app)',
+                      color: 'var(--text-main)',
+                      fontSize: '0.9rem',
+                      textAlign: 'left',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {editingSelectedPeople.length === 0 && !editingIsCustomPerson
+                        ? 'Select People...'
+                        : [
+                            ...editingSelectedPeople,
+                            ...(editingIsCustomPerson && editingCustomPersonName.trim() ? [editingCustomPersonName.trim()] : [])
+                          ].join(', ') || 'Custom Name...'}
+                    </span>
+                    <span>▼</span>
+                  </button>
+
+                  {editingShowPeopleDropdown && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        zIndex: 1010,
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: 'var(--radius-sm)',
+                        boxShadow: 'var(--shadow-lg)',
+                        padding: '0.75rem',
+                        marginTop: '0.25rem',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.6rem',
+                        maxHeight: '220px',
+                        overflowY: 'auto'
+                      }}
+                    >
+                      {assignableUsers.map(u => {
+                        const nameToUse = u.display_name || u.username;
+                        const isChecked = editingSelectedPeople.includes(nameToUse);
+                        return (
+                          <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }} onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setEditingSelectedPeople([...editingSelectedPeople, nameToUse]);
+                                } else {
+                                  setEditingSelectedPeople(editingSelectedPeople.filter(p => p !== nameToUse));
+                                }
+                              }}
+                              style={{ cursor: 'pointer' }}
+                            />
+                            <span>{nameToUse}</span>
+                          </label>
+                        );
+                      })}
+
+                      {/* Custom option */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.9rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={editingIsCustomPerson}
+                          onChange={(e) => setEditingIsCustomPerson(e.target.checked)}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span style={{ fontWeight: 'bold' }}>Custom Name (not listed)</span>
+                      </label>
+
+                      {editingIsCustomPerson && (
+                        <input
+                          type="text"
+                          placeholder="Type custom name..."
+                          value={editingCustomPersonName}
+                          onChange={(e) => setEditingCustomPersonName(e.target.value)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="input-control"
+                          style={{
+                            width: '100%',
+                            padding: '0.5rem',
+                            fontSize: '0.85rem',
+                            borderRadius: '4px',
+                            border: '1px solid var(--border-color)',
+                            background: 'var(--bg-app)',
+                            color: 'var(--text-main)'
+                          }}
+                        />
+                      )}
+
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        style={{ padding: '0.35rem 0.5rem', fontSize: '0.8rem', marginTop: '0.25rem', width: '100%' }}
+                        onClick={(e) => { e.stopPropagation(); setEditingShowPeopleDropdown(false); }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tags Input */}
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+                  Tags (comma-separated, e.g. Keto, Quick, Dinner)
                 </label>
                 <input 
                   type="text" 
-                  placeholder="e.g. Keto, Spicy..."
+                  placeholder="e.g. Keto, Spicy, Family..."
                   value={editingTags}
                   onChange={(e) => setEditingTags(e.target.value)}
                   onFocus={() => setActiveInputFocus('editingTags')}
@@ -1264,22 +1562,41 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
                 />
                 {activeInputFocus === 'editingTags' && renderSuggestions(getTagSuggestions(editingTags), (suggestion) => handleSelectTagSuggestion(suggestion, editingTags, setEditingTags))}
               </div>
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
+
+              {/* Has Leftovers (For recipes) */}
+              {editingEntry.type === 'recipe' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0' }}>
+                  <input
+                    type="checkbox"
+                    id="editingHasLeftovers"
+                    checked={editingHasLeftovers}
+                    onChange={(e) => setEditingHasLeftovers(e.target.checked)}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="editingHasLeftovers" style={{ fontSize: '0.875rem', fontWeight: '500', cursor: 'pointer', userSelect: 'none' }}>
+                    Mark meal as generating leftovers
+                  </label>
+                </div>
+              )}
+
+              {/* Modal Actions */}
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                 <button 
                   className="btn btn-secondary"
-                  onClick={() => { setEditingEntry(null); setEditingTags(''); }}
+                  onClick={() => { setEditingEntry(null); setEditingTags(''); setEditingCustomMealText(''); setEditingShowPeopleDropdown(false); }}
                   style={{ flex: 1 }}
                 >
                   Cancel
                 </button>
                 <button 
                   className="btn btn-primary"
-                  onClick={handleSaveTags}
+                  onClick={handleSaveEditedMeal}
                   style={{ flex: 2 }}
                 >
-                  Save Tags
+                  Save Changes
                 </button>
               </div>
+
             </div>
           </div>
         </div>

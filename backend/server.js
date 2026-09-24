@@ -5874,6 +5874,18 @@ app.post('/api/menu', authenticate, requirePermission('planner', 'full'), async 
   }
 });
 
+// PUT /api/menu/:id - Update an existing menu entry
+app.put('/api/menu/:id', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people } = req.body;
+    await updateWeeklyMenuEntry(id, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, assigned_people || null);
+    res.json({ message: 'Menu entry updated successfully', id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // DELETE /api/menu/:id - Delete a menu entry
 app.delete('/api/menu/:id', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
