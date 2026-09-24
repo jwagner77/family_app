@@ -202,6 +202,10 @@ export function renderRecipeDocx(templatePath, recipeData) {
     instructions: (recipeData.instructions || []).map(inst => ({
       step: inst.step_number || '',
       text: inst.instruction_text || inst.text || ''
+    })),
+    notes: (recipeData.notes || []).map(n => ({
+      bullet: '•',
+      text: typeof n === 'string' ? n : (n.note_text || '')
     }))
   };
 

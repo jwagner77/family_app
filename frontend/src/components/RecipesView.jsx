@@ -14,7 +14,8 @@ import {
   ShoppingCart, 
   X, 
   ChevronDown,
-  ExternalLink 
+  ExternalLink,
+  FileText 
 } from 'lucide-react';
 import RecipeForm from './RecipeForm';
 
@@ -675,6 +676,22 @@ export default function RecipesView({ showToast, user }) {
                   </ol>
                 </div>
               </div>
+
+              {/* Recipe Notes & Tips Section */}
+              {currentRecipe.notes && currentRecipe.notes.length > 0 && (
+                <div className="card" style={{ padding: '1.25rem' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '0.75rem', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FileText size={18} style={{ color: 'var(--primary)' }} /> Notes & Tips
+                  </h3>
+                  <ul style={{ paddingLeft: '1.25rem', margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {currentRecipe.notes.map((note, idx) => (
+                      <li key={idx} style={{ lineHeight: '1.6', fontSize: '0.92rem', color: 'var(--foreground)' }}>
+                        {typeof note === 'string' ? note : note.note_text}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Template Export Selector */}
               {templates.length > 0 && (

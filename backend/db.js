@@ -194,6 +194,14 @@ export async function getDb() {
       FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS recipe_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipe_id INTEGER,
+      step_number INTEGER DEFAULT 1,
+      note_text TEXT NOT NULL,
+      FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS leftovers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -726,6 +734,18 @@ export async function getDb() {
         name TEXT NOT NULL,
         date TEXT NOT NULL,
         FOREIGN KEY (contact_id) REFERENCES contacts (id) ON DELETE CASCADE
+      )
+    `);
+  } catch (err) {}
+
+  try {
+    await dbInstance.run(`
+      CREATE TABLE IF NOT EXISTS recipe_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        recipe_id INTEGER,
+        step_number INTEGER DEFAULT 1,
+        note_text TEXT NOT NULL,
+        FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE
       )
     `);
   } catch (err) {}
@@ -2003,6 +2023,7 @@ export async function getRecipeById(id) {
 
   recipe.ingredients = await db.all('SELECT * FROM ingredients WHERE recipe_id = ? ORDER BY id ASC', [id]);
   recipe.instructions = await db.all('SELECT * FROM instructions WHERE recipe_id = ? ORDER BY step_number ASC', [id]);
+  recipe.notes = await db.all('SELECT * FROM recipe_notes WHERE recipe_id = ? ORDER BY step_number ASC, id ASC', [id]);
   
   return recipe;
 }
@@ -2048,6 +2069,20 @@ export async function createRecipe(recipe) {
            VALUES (?, ?, ?)`,
           [recipeId, inst.step_number || (i + 1), inst.instruction_text]
         );
+      }
+    }
+
+    if (recipe.notes && recipe.notes.length > 0) {
+      for (let i = 0; i < recipe.notes.length; i++) {
+        const n = recipe.notes[i];
+        const noteText = typeof n === 'string' ? n.trim() : (n.note_text || '').trim();
+        if (noteText) {
+          await db.run(
+            `INSERT INTO recipe_notes (recipe_id, step_number, note_text)
+             VALUES (?, ?, ?)`,
+            [recipeId, n.step_number || (i + 1), noteText]
+          );
+        }
       }
     }
 
@@ -2104,6 +2139,22 @@ export async function updateRecipe(id, recipe) {
            VALUES (?, ?, ?)`,
           [id, inst.step_number || (i + 1), inst.instruction_text]
         );
+      }
+    }
+
+    // Re-create notes
+    await db.run('DELETE FROM recipe_notes WHERE recipe_id = ?', [id]);
+    if (recipe.notes && recipe.notes.length > 0) {
+      for (let i = 0; i < recipe.notes.length; i++) {
+        const n = recipe.notes[i];
+        const noteText = typeof n === 'string' ? n.trim() : (n.note_text || '').trim();
+        if (noteText) {
+          await db.run(
+            `INSERT INTO recipe_notes (recipe_id, step_number, note_text)
+             VALUES (?, ?, ?)`,
+            [id, n.step_number || (i + 1), noteText]
+          );
+        }
       }
     }
 

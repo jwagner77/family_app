@@ -13,6 +13,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
 
   const [ingredients, setIngredients] = useState([{ amount: '', unit: '', name: '', raw_text: '' }]);
   const [instructions, setInstructions] = useState([{ step_number: 1, instruction_text: '' }]);
+  const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(false);
 
   // Tags state
@@ -126,6 +127,14 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
       } else {
         setInstructions([{ step_number: 1, instruction_text: '' }]);
       }
+
+      if (recipe.notes && recipe.notes.length > 0) {
+        setNotes(recipe.notes.map(n => ({
+          note_text: typeof n === 'string' ? n : (n.note_text || '')
+        })));
+      } else {
+        setNotes([]);
+      }
     }
   }, [recipe]);
 
@@ -202,6 +211,21 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
     setInstructions(newInstructions);
   };
 
+  // Notes handlers
+  const handleNoteChange = (index, value) => {
+    const newNotes = [...notes];
+    newNotes[index].note_text = value;
+    setNotes(newNotes);
+  };
+
+  const addNote = () => {
+    setNotes([...notes, { note_text: '' }]);
+  };
+
+  const removeNote = (index) => {
+    setNotes(notes.filter((_, idx) => idx !== index));
+  };
+
   // Form Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -210,13 +234,19 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
       return;
     }
 
-    // Filter empty ingredients/instructions
+    // Filter empty ingredients/instructions/notes
     const validIngredients = ingredients.filter(ing => ing.name.trim() !== '');
     const validInstructions = instructions
       .filter(inst => inst.instruction_text.trim() !== '')
       .map((inst, idx) => ({
         step_number: idx + 1,
         instruction_text: inst.instruction_text
+      }));
+    const validNotes = notes
+      .filter(n => (n.note_text || '').trim() !== '')
+      .map((n, idx) => ({
+        step_number: idx + 1,
+        note_text: n.note_text.trim()
       }));
 
     if (validIngredients.length === 0) {
@@ -235,6 +265,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
       source_url: sourceUrl.trim(),
       ingredients: validIngredients,
       instructions: validInstructions,
+      notes: validNotes,
       image_path: imagePreview && !imagePreview.startsWith('blob:') ? imagePreview : '',
       tags: tags.trim()
     };
@@ -576,6 +607,56 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
             ))}
           </div>
         </div>
+      </div>
+
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.5rem 0 1rem 0' }} />
+
+      {/* Recipe Notes Section */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.2rem', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              📝 Recipe Notes & Tips
+            </h3>
+            <p className="text-muted text-sm" style={{ margin: '0.2rem 0 0 0' }}>
+              Add bullet points for tips, substitutions, serving suggestions, or dietary notes.
+            </p>
+          </div>
+          <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={addNote}>
+            <Plus size={16} /> Add Bullet Note
+          </button>
+        </div>
+
+        {notes.length === 0 ? (
+          <div style={{ padding: '1rem', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.875rem' }}>
+            No notes added yet. Click <strong>"+ Add Bullet Note"</strong> to add notes or tips for this recipe.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '250px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+            {notes.map((note, idx) => (
+              <div key={idx} style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                <span style={{ fontSize: '1.4rem', color: 'var(--primary)', fontWeight: 'bold', lineHeight: 1, userSelect: 'none' }}>•</span>
+                <input 
+                  type="text" 
+                  className="input-control" 
+                  placeholder={`Note bullet point #${idx + 1} (e.g. Can substitute olive oil for butter, best served hot)...`} 
+                  value={note.note_text} 
+                  onChange={(e) => handleNoteChange(idx, e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button 
+                  type="button" 
+                  className="btn btn-outline" 
+                  style={{ padding: '0.55rem', color: 'var(--danger)', flexShrink: 0 }} 
+                  onClick={() => removeNote(idx)}
+                  title="Remove note"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       </div>
 
