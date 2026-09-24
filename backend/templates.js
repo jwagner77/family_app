@@ -118,6 +118,29 @@ export function createDefaultTemplateFile(filePath) {
       <w:r><w:t>{/instructions}</w:t></w:r>
     </w:p>
     
+    <w:p/>
+    <w:p/>
+
+    <!-- Notes & Tips Section -->
+    <w:p>
+      <w:r>
+        <w:rPr>
+          <w:sz w:val="32"/>
+          <w:b/>
+          <w:color w:val="D35400"/>
+        </w:rPr>
+        <w:t>Notes &amp; Tips</w:t>
+      </w:r>
+    </w:p>
+    
+    <!-- Loop through notes -->
+    <w:p>
+      <w:r><w:t>{#notes}•  {text}</w:t></w:r>
+    </w:p>
+    <w:p>
+      <w:r><w:t>{/notes}</w:t></w:r>
+    </w:p>
+    
   </w:body>
 </w:document>`;
 

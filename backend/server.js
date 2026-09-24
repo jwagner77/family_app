@@ -5513,6 +5513,44 @@ app.post('/api/recipes/bulk-delete', authenticate, requirePermission('recipes', 
   }
 });
 
+// GET /api/recipes/:id/export - Export single recipe as docx
+app.get('/api/recipes/:id/export', authenticate, requirePermission('recipes', 'read'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const recipe = await getRecipeById(id);
+    if (!recipe) {
+      return res.status(404).json({ error: 'Recipe not found' });
+    }
+
+    const templateId = req.query.templateId;
+    let templateRecord;
+    if (templateId) {
+      templateRecord = await getTemplateById(templateId);
+    } else {
+      templateRecord = await getDefaultTemplate();
+    }
+
+    if (!templateRecord) {
+      return res.status(404).json({ error: 'No document template found.' });
+    }
+
+    const templateFullPath = path.join(DATA_DIR, templateRecord.file_path.replace(/^\//, ''));
+    if (!fs.existsSync(templateFullPath)) {
+      return res.status(404).json({ error: 'Template file not found on disk' });
+    }
+
+    const docBuffer = renderRecipeDocx(templateFullPath, recipe);
+    const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.docx"`);
+    res.send(docBuffer);
+  } catch (error) {
+    console.error('Recipe export failed:', error);
+    res.status(500).json({ error: 'Recipe export failed: ' + error.message });
+  }
+});
+
 // POST /api/recipes/bulk-export
 app.post('/api/recipes/bulk-export', authenticate, requirePermission('recipes', 'read'), async (req, res) => {
   try {
