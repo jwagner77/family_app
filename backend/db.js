@@ -1052,6 +1052,17 @@ export async function getDb() {
       relationship_type TEXT NOT NULL,
       UNIQUE(from_person_type, from_person_id, to_person_type, to_person_id)
     );
+
+    CREATE TABLE IF NOT EXISTS user_push_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token TEXT UNIQUE NOT NULL,
+      platform TEXT DEFAULT 'mobile',
+      device_name TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   // Bootstrap default roles and admin user
@@ -2386,6 +2397,25 @@ export async function createLeftover(name, recipeId, servings = 1, expirationDat
   return result.lastID;
 }
 
+export async function getLeftoverById(id) {
+  const db = await getDb();
+  return await db.get(`
+    SELECT l.*, r.title as recipe_title 
+    FROM leftovers l 
+    LEFT JOIN recipes r ON l.recipe_id = r.id 
+    WHERE l.id = ?
+  `, [id]);
+}
+
+export async function updateLeftover(id, name, recipeId, servings = 1, expirationDate = null) {
+  const db = await getDb();
+  await db.run(
+    "UPDATE leftovers SET name = ?, recipe_id = ?, servings = ?, expiration_date = ? WHERE id = ?",
+    [name, recipeId || null, servings, expirationDate || null, id]
+  );
+  return await getLeftoverById(id);
+}
+
 export async function deleteLeftover(id) {
   const db = await getDb();
   const result = await db.run("DELETE FROM leftovers WHERE id = ?", [id]);
@@ -3035,3 +3065,35 @@ export async function updateUserStreak(userId) {
     last_completed_date: todayStr
   };
 }
+
+// User Push Notifications Tokens for Mobile Client
+export async function saveUserPushToken(userId, token, platform = 'mobile', deviceName = '') {
+  const db = await getDb();
+  await db.run(
+    `INSERT INTO user_push_tokens (user_id, token, platform, device_name, updated_at)
+     VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(token) DO UPDATE SET
+       user_id = excluded.user_id,
+       platform = excluded.platform,
+       device_name = excluded.device_name,
+       updated_at = CURRENT_TIMESTAMP`,
+    [userId, token, platform || 'mobile', deviceName || '']
+  );
+  return { success: true };
+}
+
+export async function deleteUserPushToken(userId, token = null) {
+  const db = await getDb();
+  if (token) {
+    await db.run('DELETE FROM user_push_tokens WHERE user_id = ? AND token = ?', [userId, token]);
+  } else {
+    await db.run('DELETE FROM user_push_tokens WHERE user_id = ?', [userId]);
+  }
+  return { success: true };
+}
+
+export async function getUserPushTokens(userId) {
+  const db = await getDb();
+  return await db.all('SELECT * FROM user_push_tokens WHERE user_id = ? ORDER BY updated_at DESC', [userId]);
+}
+

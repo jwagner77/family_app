@@ -5176,11 +5176,15 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       { id: 'shopping', label: 'Shopping Lists' },
                       { id: 'todos', label: 'Tasks & Todos' },
                       { id: 'calendar', label: 'Calendar' },
-                      { id: 'money', label: 'Money & Monarch' },
-                      { id: 'kitchen', label: 'Kitchen & Inventory' },
+                      { id: 'money', label: 'Money & Bills' },
+                      { id: 'kitchen', label: 'Kitchen & Leftovers' },
                       { id: 'library', label: 'Books & Library' },
                       { id: 'contacts', label: 'Contacts' },
-                      { id: 'focus', label: 'Focus & Projects' },
+                      { id: 'health', label: 'Health & Pets' },
+                      { id: 'games', label: 'Games' },
+                      { id: 'housekeeping', label: 'Housekeeping' },
+                      { id: 'focus', label: 'Focus & ADHD' },
+                      { id: 'mobile', label: 'Mobile & Devices' },
                       { id: 'system', label: 'System & Admin' }
                     ].map(cat => (
                       <button
@@ -5563,25 +5567,235 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/relationships"`
                     },
 
-                    // FOCUS & PROJECTS
+                    // HEALTH & PETS
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'GET',
+                      path: '/api/health-logs',
+                      title: 'List Health Logs',
+                      desc: 'Retrieve all logged daily health records (steps, water, sleep, mood, weight, notes) for the authenticated user.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/health-logs"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'POST',
+                      path: '/api/health-logs',
+                      title: 'Log Daily Health Metrics',
+                      desc: 'Create or update daily wellness log for a specific date.',
+                      payload: JSON.stringify({ log_date: "2026-09-24", steps: 8500, water_ml: 2500, sleep_hours: 7.5, mood: "Great", weight: 172.5, notes: "Felt energized" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"log_date":"2026-09-24","steps":8500,"water_ml":2500,"sleep_hours":7.5,"mood":"Great","weight":172.5}' "${window.location.origin}/api/health-logs"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'GET',
+                      path: '/api/medications',
+                      title: 'List Medications',
+                      desc: 'Retrieve all prescribed and active medications with dosages and frequencies.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/medications"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'POST',
+                      path: '/api/medications',
+                      title: 'Add Medication',
+                      desc: 'Register a new medication prescription with dosage and administration timing.',
+                      payload: JSON.stringify({ name: "Amoxicillin", dosage: "500mg", frequency: "Twice daily", time_of_day: "Morning, Evening", notes: "Take with food" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"name":"Amoxicillin","dosage":"500mg","frequency":"Twice daily","time_of_day":"Morning, Evening"}' "${window.location.origin}/api/medications"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'GET',
+                      path: '/api/appointments',
+                      title: 'List Doctor Appointments',
+                      desc: 'Retrieve upcoming and historical medical appointments.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/appointments"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'POST',
+                      path: '/api/appointments',
+                      title: 'Schedule Doctor Appointment',
+                      desc: 'Add a new doctor or specialist appointment.',
+                      payload: JSON.stringify({ provider: "Dr. Smith", specialty: "Dentist", appointment_date: "2026-10-15", appointment_time: "10:30 AM", notes: "Routine cleaning" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"provider":"Dr. Smith","specialty":"Dentist","appointment_date":"2026-10-15","appointment_time":"10:30 AM"}' "${window.location.origin}/api/appointments"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'GET',
+                      path: '/api/pets',
+                      title: 'List Pets',
+                      desc: 'Retrieve all family pets with breed, birthdates, weights, and pictures.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/pets"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'POST',
+                      path: '/api/pets',
+                      title: 'Add Pet Profile',
+                      desc: 'Register a new pet profile (supports JSON or multipart picture upload).',
+                      payload: JSON.stringify({ name: "Max", type: "Dog", breed: "Golden Retriever", birthdate: "2022-04-10", weight: 65.5, notes: "Loves tennis balls" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"name":"Max","type":"Dog","breed":"Golden Retriever","birthdate":"2022-04-10","weight":65.5}' "${window.location.origin}/api/pets"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'POST',
+                      path: '/api/pets/:petId/vet-visits',
+                      title: 'Log Vet Visit',
+                      desc: 'Record a veterinary clinic checkup or medical visit for a pet.',
+                      payload: JSON.stringify({ visit_date: "2026-09-20", provider: "Oak Animal Hospital", reason: "Annual Rabies Vaccine", weight_logged: 66.0, notes: "Healthy checkup" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"visit_date":"2026-09-20","provider":"Oak Animal Hospital","reason":"Annual Rabies Vaccine","weight_logged":66.0}' "${window.location.origin}/api/pets/1/vet-visits"`
+                    },
+                    {
+                      categoryKey: 'health',
+                      categoryName: 'Health, Medications & Pets',
+                      method: 'POST',
+                      path: '/api/pets/medications/:medId/log',
+                      title: 'Log Pet Medication Given',
+                      desc: 'Timestamp a pet medication administration event.',
+                      payload: JSON.stringify({ given_at: "2026-09-24T08:00:00Z" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"given_at":"2026-09-24T08:00:00Z"}' "${window.location.origin}/api/pets/medications/1/log"`
+                    },
+
+                    // GAMES & GAME NIGHTS
+                    {
+                      categoryKey: 'games',
+                      categoryName: 'Board Games & Play History',
+                      method: 'GET',
+                      path: '/api/games',
+                      title: 'List Game Collection',
+                      desc: 'Retrieve board and card game catalog with player counts, age recommendations, and ratings.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/games"`
+                    },
+                    {
+                      categoryKey: 'games',
+                      categoryName: 'Board Games & Play History',
+                      method: 'POST',
+                      path: '/api/games',
+                      title: 'Add Game to Collection',
+                      desc: 'Add a new board or card game to the family library.',
+                      payload: JSON.stringify({ title: "Catan", game_type: "Board", min_players: 3, max_players: 4, recommended_ages: "10+", rating: 5 }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Catan","game_type":"Board","min_players":3,"max_players":4,"recommended_ages":"10+","rating":5}' "${window.location.origin}/api/games"`
+                    },
+                    {
+                      categoryKey: 'games',
+                      categoryName: 'Board Games & Play History',
+                      method: 'POST',
+                      path: '/api/games/history',
+                      title: 'Log Game Play Session',
+                      desc: 'Record a played game session with player counts, winner, and optional Markdown notes.',
+                      payload: JSON.stringify({ game_id: 1, players_count: 4, winner: "Joshua", played_at: "2026-09-23T20:00:00Z", notes_content: "# Great match!\nJoshua won with longest road." }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"game_id":1,"players_count":4,"winner":"Joshua"}' "${window.location.origin}/api/games/history"`
+                    },
+
+                    // HOUSEKEEPING & CHORES
+                    {
+                      categoryKey: 'housekeeping',
+                      categoryName: 'Housekeeping & Chores',
+                      method: 'GET',
+                      path: '/api/housekeeping/tasks',
+                      title: 'List Housekeeping Tasks',
+                      desc: 'Retrieve household chores, due dates, reoccurrence rules, and assignees.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/housekeeping/tasks"`
+                    },
+                    {
+                      categoryKey: 'housekeeping',
+                      categoryName: 'Housekeeping & Chores',
+                      method: 'POST',
+                      path: '/api/housekeeping/tasks',
+                      title: 'Create Housekeeping Task',
+                      desc: 'Add a new household chore or cleaning task.',
+                      payload: JSON.stringify({ title: "Clean Refrigerator", description: "Wipe down shelves and toss expired condiments", due_date: "2026-09-28", reoccurrence: "monthly", assigned_to_user_id: 1 }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Clean Refrigerator","due_date":"2026-09-28","reoccurrence":"monthly"}' "${window.location.origin}/api/housekeeping/tasks"`
+                    },
+                    {
+                      categoryKey: 'housekeeping',
+                      categoryName: 'Housekeeping & Chores',
+                      method: 'POST',
+                      path: '/api/housekeeping/tasks/:id/complete',
+                      title: 'Complete Housekeeping Task',
+                      desc: 'Mark a chore as completed and auto-advance its due date based on recurrence rules.',
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/housekeeping/tasks/1/complete"`
+                    },
+
+                    // FOCUSFLOW & ADHD
                     {
                       categoryKey: 'focus',
-                      categoryName: 'Focus Sessions & Projects',
+                      categoryName: 'FocusFlow, Routines & Habits',
                       method: 'GET',
-                      path: '/api/projects',
-                      title: 'Get Projects',
-                      desc: 'List active and completed projects with their subtasks.',
-                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/projects"`
+                      path: '/api/focusflow/tasks',
+                      title: 'List FocusFlow Tasks',
+                      desc: 'Retrieve FocusFlow tasks across backlog, in-progress, and completed states.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/focusflow/tasks"`
                     },
                     {
                       categoryKey: 'focus',
-                      categoryName: 'Focus Sessions & Projects',
+                      categoryName: 'FocusFlow, Routines & Habits',
                       method: 'POST',
-                      path: '/api/focus',
-                      title: 'Record Focus Session',
-                      desc: 'Record a completed Pomodoro or focus session for productivity tracking.',
-                      payload: JSON.stringify({ duration_minutes: 25, notes: "Coding sprint" }, null, 2),
-                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"duration_minutes":25,"notes":"Coding sprint"}' "${window.location.origin}/api/focus"`
+                      path: '/api/focusflow/tasks',
+                      title: 'Create FocusFlow Task',
+                      desc: 'Create a new focus task with micro-steps and priority.',
+                      payload: JSON.stringify({ title: "Build Mobile App Dashboard", project_id: 1, priority: "high", estimated_time: 45, status: "in_progress" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"title":"Build Mobile App Dashboard","priority":"high","estimated_time":45}' "${window.location.origin}/api/focusflow/tasks"`
+                    },
+                    {
+                      categoryKey: 'focus',
+                      categoryName: 'FocusFlow, Routines & Habits',
+                      method: 'GET',
+                      path: '/api/focusflow/habits',
+                      title: 'List Habits',
+                      desc: 'Retrieve daily and weekly habit streaks and completion status.',
+                      curl: `curl -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" "${window.location.origin}/api/focusflow/habits"`
+                    },
+                    {
+                      categoryKey: 'focus',
+                      categoryName: 'FocusFlow, Routines & Habits',
+                      method: 'POST',
+                      path: '/api/focusflow/habits/:id/complete',
+                      title: 'Toggle Habit Completion',
+                      desc: 'Mark a habit complete for today and advance user streak counter.',
+                      payload: JSON.stringify({ date: "2026-09-24" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"date":"2026-09-24"}' "${window.location.origin}/api/focusflow/habits/1/complete"`
+                    },
+                    {
+                      categoryKey: 'focus',
+                      categoryName: 'FocusFlow, Routines & Habits',
+                      method: 'POST',
+                      path: '/api/focusflow/timelogs/start',
+                      title: 'Start Time Tracker',
+                      desc: 'Start active focus session time tracking on a specific task.',
+                      payload: JSON.stringify({ task_id: 1 }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"task_id":1}' "${window.location.origin}/api/focusflow/timelogs/start"`
+                    },
+
+                    // MOBILE & DEVICES
+                    {
+                      categoryKey: 'mobile',
+                      categoryName: 'Native Mobile App & Push Tokens',
+                      method: 'POST',
+                      path: '/api/users/push-token',
+                      title: 'Register Push Notification Token',
+                      desc: 'Register an iOS (APNs/Expo) or Android (FCM/Expo) push device token for native push notifications.',
+                      payload: JSON.stringify({ token: "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]", platform: "ios", device_name: "iPhone 15 Pro" }, null, 2),
+                      curl: `curl -X POST -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"token":"ExponentPushToken[xxxxxxxxxxxx]","platform":"ios","device_name":"iPhone 15 Pro"}' "${window.location.origin}/api/users/push-token"`
+                    },
+                    {
+                      categoryKey: 'mobile',
+                      categoryName: 'Native Mobile App & Push Tokens',
+                      method: 'DELETE',
+                      path: '/api/users/push-token',
+                      title: 'Unregister Push Notification Token',
+                      desc: 'Remove device push token upon user sign-out from native mobile app.',
+                      payload: JSON.stringify({ token: "ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]" }, null, 2),
+                      curl: `curl -X DELETE -H "X-API-Key: ${apiKey || 'YOUR_API_KEY'}" -H "Content-Type: application/json" -d '{"token":"ExponentPushToken[xxxxxxxxxxxx]"}' "${window.location.origin}/api/users/push-token"`
                     },
 
                     // SYSTEM & ADMIN

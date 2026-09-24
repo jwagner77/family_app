@@ -120,7 +120,12 @@ import {
   deleteBookComment,
   addBookRecommendation,
   getRecommendationsForUser,
-  deleteRecommendation
+  deleteRecommendation,
+  getLeftoverById,
+  updateLeftover,
+  saveUserPushToken,
+  deleteUserPushToken,
+  getUserPushTokens
 } from './db.js';
 
 import { parseRecipeImage, parseIngredientLine } from './ocr.js';
@@ -1060,6 +1065,39 @@ app.delete('/api/users/important-dates/:id', authenticate, async (req, res) => {
     }
     await db.run('DELETE FROM user_important_dates WHERE id = ?', [id]);
     res.json({ message: 'Date entry deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- MOBILE PUSH TOKENS ENDPOINTS ---
+app.get('/api/users/push-tokens', authenticate, async (req, res) => {
+  try {
+    const tokens = await getUserPushTokens(req.user.id);
+    res.json(tokens);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/users/push-token', authenticate, async (req, res) => {
+  try {
+    const { token, platform, device_name } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'Push token is required' });
+    }
+    await saveUserPushToken(req.user.id, token, platform || 'mobile', device_name || '');
+    res.status(201).json({ message: 'Push token registered successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/users/push-token', authenticate, async (req, res) => {
+  try {
+    const token = req.body.token || req.query.token;
+    await deleteUserPushToken(req.user.id, token || null);
+    res.json({ message: 'Push token unregistered successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -2565,6 +2603,24 @@ app.post('/api/todo/lists', authenticate, async (req, res) => {
   }
 });
 
+app.put('/api/todo/lists/:id', authenticate, async (req, res) => {
+  try {
+    const { name, description } = req.body;
+    if (!name) return res.status(400).json({ error: 'List name is required' });
+    const db = await getDb();
+    const existing = await db.get("SELECT * FROM todo_lists WHERE id = ?", [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'List not found' });
+    await db.run(
+      "UPDATE todo_lists SET name = ?, description = ? WHERE id = ?",
+      [name, description !== undefined ? description : existing.description, req.params.id]
+    );
+    const updated = await db.get("SELECT * FROM todo_lists WHERE id = ?", [req.params.id]);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.delete('/api/todo/lists/:id', authenticate, async (req, res) => {
   try {
     const db = await getDb();
@@ -2586,6 +2642,22 @@ app.get('/api/todo/lists/:listId/tasks', authenticate, async (req, res) => {
       ORDER BY t.status DESC, t.due_date ASC, t.id DESC
     `, [req.params.listId]);
     res.json(tasks);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/todo/tasks/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const task = await db.get(`
+      SELECT t.*, u.display_name as assignee_name, u.username as assignee_username
+      FROM todo_tasks t
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE t.id = ?
+    `, [req.params.id]);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    res.json(task);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3113,6 +3185,24 @@ app.get('/api/contacts', authenticate, async (req, res) => {
   }
 });
 
+// GET single contact
+app.get('/api/contacts/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const contact = await db.get(`
+      SELECT c.*, 
+             (SELECT COUNT(*) FROM game_play_history h WHERE h.winner = c.name) as game_wins 
+      FROM contacts c 
+      WHERE c.id = ?
+    `, [req.params.id]);
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+    contact.important_dates = await db.all('SELECT * FROM contact_important_dates WHERE contact_id = ?', [contact.id]);
+    res.json(contact);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST contact important date
 app.post('/api/contacts/:contactId/important-dates', authenticate, async (req, res) => {
   try {
@@ -3128,6 +3218,27 @@ app.post('/api/contacts/:contactId/important-dates', authenticate, async (req, r
     );
     const newDate = await db.get('SELECT * FROM contact_important_dates WHERE id = ?', [result.lastID]);
     res.status(201).json(newDate);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT contact important date
+app.put('/api/contacts/important-dates/:id', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, date } = req.body;
+    if (!name || !date) {
+      return res.status(400).json({ error: 'Name and Date are required' });
+    }
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM contact_important_dates WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Important date not found' });
+    }
+    await db.run('UPDATE contact_important_dates SET name = ?, date = ? WHERE id = ?', [name, date, id]);
+    const updated = await db.get('SELECT * FROM contact_important_dates WHERE id = ?', [id]);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3255,6 +3366,53 @@ app.post('/api/health-logs', authenticate, async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// PUT (update) health log by id
+app.put('/api/health-logs/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { log_date, steps, water_ml, sleep_hours, mood, weight, notes } = req.body;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM health_logs WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Health log not found' });
+    }
+    await db.run(
+      'UPDATE health_logs SET log_date = ?, steps = ?, water_ml = ?, sleep_hours = ?, mood = ?, weight = ?, notes = ? WHERE id = ? AND user_id = ?',
+      [
+        log_date !== undefined ? log_date : existing.log_date,
+        steps !== undefined ? steps : existing.steps,
+        water_ml !== undefined ? water_ml : existing.water_ml,
+        sleep_hours !== undefined ? sleep_hours : existing.sleep_hours,
+        mood !== undefined ? mood : existing.mood,
+        weight !== undefined ? weight : existing.weight,
+        notes !== undefined ? notes : existing.notes,
+        id,
+        req.user.id
+      ]
+    );
+    const updated = await db.get('SELECT * FROM health_logs WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE health log by id
+app.delete('/api/health-logs/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM health_logs WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Health log not found' });
+    }
+    await db.run('DELETE FROM health_logs WHERE id = ? AND user_id = ?', [id, req.user.id]);
+    res.json({ message: 'Health log deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });// --- MEDICATIONS API ---
 
 // GET all medications for current user
@@ -3263,6 +3421,18 @@ app.get('/api/medications', authenticate, async (req, res) => {
     const db = await getDb();
     const meds = await db.all('SELECT * FROM medications WHERE user_id = ? ORDER BY name ASC', [req.user.id]);
     res.json(meds);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET single medication
+app.get('/api/medications/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const med = await db.get('SELECT * FROM medications WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!med) return res.status(404).json({ error: 'Medication not found' });
+    res.json(med);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -3341,6 +3511,18 @@ app.get('/api/appointments', authenticate, async (req, res) => {
   }
 });
 
+// GET single doctor appointment
+app.get('/api/appointments/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const appt = await db.get('SELECT * FROM doctor_appointments WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
+    if (!appt) return res.status(404).json({ error: 'Appointment not found' });
+    res.json(appt);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST a new doctor appointment
 app.post('/api/appointments', authenticate, async (req, res) => {
   const { provider, specialty, appointment_date, appointment_time, notes } = req.body;
@@ -3411,20 +3593,37 @@ app.get('/api/pets', authenticate, async (req, res) => {
   }
 });
 
+// GET single pet
+app.get('/api/pets/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const pet = await db.get('SELECT * FROM pets WHERE id = ?', [req.params.id]);
+    if (!pet) return res.status(404).json({ error: 'Pet not found' });
+    res.json(pet);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST a new pet
 app.post('/api/pets', authenticate, upload.single('picture'), async (req, res) => {
   try {
-    const petData = JSON.parse(req.body.pet);
-    const { name, type, breed, birthdate, weight, notes } = petData;
+    let petData = req.body;
+    if (req.body && req.body.pet) {
+      try {
+        petData = typeof req.body.pet === 'string' ? JSON.parse(req.body.pet) : req.body.pet;
+      } catch (e) {}
+    }
+    const { name, type, breed, birthdate, weight, notes } = petData || {};
     if (!name) {
       return res.status(400).json({ error: 'Pet name is required' });
     }
-    const picture_url = req.file ? `/uploads/${req.file.filename}` : null;
+    const picture_url = req.file ? `/uploads/${req.file.filename}` : (petData?.picture_url || null);
     
     const db = await getDb();
     const result = await db.run(
       'INSERT INTO pets (name, type, breed, birthdate, weight, picture_url, notes) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [name, type, breed, birthdate, weight ? Number(weight) : null, picture_url, notes]
+      [name, type || 'Other', breed || '', birthdate || '', weight ? Number(weight) : null, picture_url, notes || '']
     );
     const newPet = await db.get('SELECT * FROM pets WHERE id = ?', [result.lastID]);
     res.status(201).json(newPet);
@@ -3437,8 +3636,13 @@ app.post('/api/pets', authenticate, upload.single('picture'), async (req, res) =
 app.put('/api/pets/:id', authenticate, upload.single('picture'), async (req, res) => {
   const { id } = req.params;
   try {
-    const petData = JSON.parse(req.body.pet);
-    const { name, type, breed, birthdate, weight, notes, keepExistingPicture } = petData;
+    let petData = req.body;
+    if (req.body && req.body.pet) {
+      try {
+        petData = typeof req.body.pet === 'string' ? JSON.parse(req.body.pet) : req.body.pet;
+      } catch (e) {}
+    }
+    const { name, type, breed, birthdate, weight, notes, keepExistingPicture } = petData || {};
     if (!name) {
       return res.status(400).json({ error: 'Pet name is required' });
     }
@@ -3454,11 +3658,22 @@ app.put('/api/pets/:id', authenticate, upload.single('picture'), async (req, res
       picture_url = `/uploads/${req.file.filename}`;
     } else if (keepExistingPicture === false) {
       picture_url = null;
+    } else if (petData && petData.picture_url !== undefined) {
+      picture_url = petData.picture_url;
     }
     
     await db.run(
       'UPDATE pets SET name = ?, type = ?, breed = ?, birthdate = ?, weight = ?, picture_url = ?, notes = ? WHERE id = ?',
-      [name, type, breed, birthdate, weight ? Number(weight) : null, picture_url, notes, id]
+      [
+        name !== undefined ? name : existing.name,
+        type !== undefined ? type : existing.type,
+        breed !== undefined ? breed : existing.breed,
+        birthdate !== undefined ? birthdate : existing.birthdate,
+        weight !== undefined ? (weight ? Number(weight) : null) : existing.weight,
+        picture_url,
+        notes !== undefined ? notes : existing.notes,
+        id
+      ]
     );
     const updatedPet = await db.get('SELECT * FROM pets WHERE id = ?', [id]);
     res.json(updatedPet);
@@ -3522,6 +3737,36 @@ app.post('/api/pets/:petId/vet-visits', authenticate, async (req, res) => {
   }
 });
 
+// PUT (update) a vet visit
+app.put('/api/pets/vet-visits/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { visit_date, provider, reason, weight_logged, notes } = req.body;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM pet_vet_visits WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Vet visit not found' });
+    
+    await db.run(
+      'UPDATE pet_vet_visits SET visit_date = ?, provider = ?, reason = ?, weight_logged = ?, notes = ? WHERE id = ?',
+      [
+        visit_date !== undefined ? visit_date : existing.visit_date,
+        provider !== undefined ? provider : existing.provider,
+        reason !== undefined ? reason : existing.reason,
+        weight_logged !== undefined ? (weight_logged ? Number(weight_logged) : null) : existing.weight_logged,
+        notes !== undefined ? notes : existing.notes,
+        id
+      ]
+    );
+    if (weight_logged) {
+      await db.run('UPDATE pets SET weight = ? WHERE id = ?', [Number(weight_logged), existing.pet_id]);
+    }
+    const updated = await db.get('SELECT * FROM pet_vet_visits WHERE id = ?', [id]);
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // DELETE a vet visit
 app.delete('/api/pets/vet-visits/:id', authenticate, async (req, res) => {
   const { id } = req.params;
@@ -3570,6 +3815,32 @@ app.post('/api/pets/:petId/medications', authenticate, async (req, res) => {
     );
     const newMed = await db.get('SELECT * FROM pet_medications WHERE id = ?', [result.lastID]);
     res.status(201).json(newMed);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) a pet medication
+app.put('/api/pets/medications/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { name, dosage, frequency, instructions } = req.body;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM pet_medications WHERE id = ?', [id]);
+    if (!existing) return res.status(404).json({ error: 'Pet medication not found' });
+    
+    await db.run(
+      'UPDATE pet_medications SET name = ?, dosage = ?, frequency = ?, instructions = ? WHERE id = ?',
+      [
+        name !== undefined ? name : existing.name,
+        dosage !== undefined ? dosage : existing.dosage,
+        frequency !== undefined ? frequency : existing.frequency,
+        instructions !== undefined ? instructions : existing.instructions,
+        id
+      ]
+    );
+    const updated = await db.get('SELECT * FROM pet_medications WHERE id = ?', [id]);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -4870,6 +5141,18 @@ app.get('/api/games', authenticate, async (req, res) => {
   }
 });
 
+// GET single game
+app.get('/api/games/:id', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const game = await db.get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+    if (!game) return res.status(404).json({ error: 'Game not found' });
+    res.json(game);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 2. Add a game
 app.post('/api/games', authenticate, async (req, res) => {
   const { title, game_type, min_players, max_players, recommended_ages, rating } = req.body;
@@ -4891,6 +5174,35 @@ app.post('/api/games', authenticate, async (req, res) => {
       ]
     );
     res.json({ id: result.lastID, title, game_type, min_players, max_players, recommended_ages, rating });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) a game
+app.put('/api/games/:id', authenticate, async (req, res) => {
+  const { title, game_type, min_players, max_players, recommended_ages, rating } = req.body;
+  try {
+    const db = await getDb();
+    const existing = await db.get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+    if (!existing) return res.status(404).json({ error: 'Game not found' });
+    
+    await db.run(
+      `UPDATE games 
+       SET title = ?, game_type = ?, min_players = ?, max_players = ?, recommended_ages = ?, rating = ?
+       WHERE id = ?`,
+      [
+        title !== undefined ? title : existing.title,
+        game_type !== undefined ? game_type : existing.game_type,
+        min_players !== undefined ? parseInt(min_players, 10) : existing.min_players,
+        max_players !== undefined ? parseInt(max_players, 10) : existing.max_players,
+        recommended_ages !== undefined ? recommended_ages : existing.recommended_ages,
+        rating !== undefined ? parseInt(rating, 10) : existing.rating,
+        req.params.id
+      ]
+    );
+    const updated = await db.get("SELECT * FROM games WHERE id = ?", [req.params.id]);
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -6431,6 +6743,17 @@ app.get('/api/leftovers', authenticate, async (req, res) => {
   }
 });
 
+// GET single leftover
+app.get('/api/leftovers/:id', authenticate, async (req, res) => {
+  try {
+    const leftover = await getLeftoverById(req.params.id);
+    if (!leftover) return res.status(404).json({ error: 'Leftover not found' });
+    res.json(leftover);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.post('/api/leftovers', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
     const { name, recipe_id, servings, expiration_date } = req.body;
@@ -6444,6 +6767,25 @@ app.post('/api/leftovers', authenticate, requirePermission('planner', 'full'), a
       'Meal Added to Leftovers'
     );
     res.status(201).json({ id, message: 'Leftover recorded successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) a leftover
+app.put('/api/leftovers/:id', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    const { name, recipe_id, servings, expiration_date } = req.body;
+    const existing = await getLeftoverById(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Leftover not found' });
+    const updated = await updateLeftover(
+      req.params.id,
+      name !== undefined ? name : existing.name,
+      recipe_id !== undefined ? recipe_id : existing.recipe_id,
+      servings !== undefined ? servings : existing.servings,
+      expiration_date !== undefined ? expiration_date : existing.expiration_date
+    );
+    res.json(updated);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -6581,6 +6923,17 @@ app.get('/api/inventory', authenticate, async (req, res) => {
   try {
     const list = await getAllInventory();
     res.json(list);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/inventory/:id - Retrieve single inventory item
+app.get('/api/inventory/:id', authenticate, async (req, res) => {
+  try {
+    const item = await getInventoryItemById(req.params.id);
+    if (!item) return res.status(404).json({ error: 'Inventory item not found' });
+    res.json(item);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
