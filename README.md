@@ -1,189 +1,257 @@
-# 🏡 Family App
+# 🏡 Family Hub (Family App)
 
-A modern, responsive, and all-in-one household management platform built on **React (Vite)**, **Node.js (Express)**, and **SQLite**. Designed with a glassmorphism aesthetic, customizable themes, and rich interactive widgets, Family App unifies household calendars, task delegation, meal planning, finances, reading logs, contacts, chores, and dashboard displays into a single, cohesive experience.
+[![Docker Publish](https://github.com/jwagner77/family_app/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/jwagner77/family_app/actions/workflows/docker-publish.yml)
+[![Container Registry](https://img.shields.io/badge/GHCR-ghcr.io%2Fjwagner77%2Ffamily__app-blue?logo=docker)](https://github.com/jwagner77/family_app/pkgs/container/family_app)
+[![Node.js](https://img.shields.io/badge/Node.js-v20%2B-green?logo=node.js)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18.3.1-61dafb?logo=react)](https://react.dev/)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL%20Mode-003B57?logo=sqlite)](https://www.sqlite.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+A modern, high-performance, and all-in-one self-hosted household management platform built with **React (Vite)**, **Node.js (Express)**, and **SQLite**. Featuring an elegant glassmorphism aesthetic, customizable themes, and rich interactive widgets, Family Hub unifies household calendars, task delegation, meal planning, finances, reading logs, contacts, chores, health logs, pet care, and wall-mounted kiosk dashboard displays into a single, cohesive experience.
 
 ---
 
-## 🌟 Key Features
+## 📑 Quick Links
 
-### 📊 Customizable Dashboards & Rotation
-- **Multiple Dashboards**: Create, rename, clone, and manage multiple independent dashboards.
-- **Auto-Rotation**: Configure automated rotating carousel between selected dashboards with custom interval timing (pause/resume controls included).
-- **Public & Kiosk Sharing**: Generate shareable read-only dashboard links with individual themes, auto-rotation support, and token-based security.
-- **Drag-and-Drop Canvas**: Freely position and resize widgets on an interactive dotted grid canvas.
+- 🌟 [Feature Highlights](#-feature-highlights)
+- 🛠️ [Technology Stack & Versions](#-technology-stack--component-versions)
+- 🔌 [REST API Documentation (API.md)](./API.md)
+- 🚀 [Quick Start with Docker](#-quick-start-with-docker)
+- 💻 [Local Development](#-local-development-setup)
+- ⚙️ [Configuration & Environment Variables](#-environment-configuration)
+- 📱 [Mobile App & Companion Display Support](#-mobile-app--kiosk-displays)
+- 🔒 [Security & Access Control](#-security-authentication--access-control)
+- 👥 [Authors & Acknowledgments](#-authors--acknowledgments)
 
-### 📅 Calendar & Agenda Widget Series
-- **Daily Agenda**: Focused view of today's or any selected date's schedule, events, tasks, bills, and birthdays with day-to-day navigation.
-- **Weekly Agenda**: Rolling 7-day view with visual today highlights and day breakdown.
-- **Monthly Agenda**: Chronological agenda feed for the entire month with category badges.
-- **Monthly Calendar (Full Grid)**: Full 7-column calendar grid matching the dedicated Calendar view, featuring month steppers, category color legends, and an interactive day inspector drawer.
-- **Universal Availability**: All 4 calendar widgets can be placed on the **Custom Dashboard**, **Shared Kiosk Displays**, or enabled as cards on the **Overview Page**.
+---
+
+## 🌟 Feature Highlights
+
+### 📊 Customizable Dashboards & Multi-Link Kiosk Rotation
+- **Multi-Dashboard Canvas**: Create, name, clone, and manage multiple independent dashboards.
+- **Drag-and-Drop Grid**: Freely position and resize cards on an interactive dotted grid canvas.
+- **Automated Rotating Displays**: Group dashboards into timed rotating carousels with configurable interval timers and pause/resume controls.
+- **Kiosk & Multi-Link Sharing**: Generate standalone, token-authenticated public sharing links tailored for wall tablets and kitchen smart displays.
+
+### 📅 Calendar & Agenda Suite (with Microsoft 365 Sync)
+- **Universal Agenda Widgets**: Daily, Weekly, and Monthly Chronological Agenda feeds.
+- **Full Month Calendar Grid**: 7-column calendar view with category color coding, month steppers, and interactive day drawer.
+- **Microsoft Entra ID / M365 Sync**: Seamlessly sync personal and family calendars with Microsoft 365.
+- **Category Customization**: Custom colors for Events, FocusFlow Tasks, Recurring Bills, Subscriptions, and Contact Milestones.
+- **Automated Milestone Overlay**: Birthdays and anniversaries from the Contacts directory automatically populate your schedule.
 
 ### 🏠 Overview Page
 - **12-Column Responsive Grid**: Reorder cards and grab card edges or corners to stretch/shrink cards across the grid.
 - **Custom Wallpapers**: Set persistent background styles (Unsplash daily wallpapers with attribution, custom image URLs, gradients, or solid colors) that persist across sessions.
-- **Unified Summary**: View upcoming tasks, today's schedule, expiring leftovers, bills, and weather in one place.
+- **Unified Daily Summary**: View upcoming tasks, today's schedule, expiring leftovers, bills, and weather at a glance.
 
-### 🗓️ Household Calendar & Microsoft 365 Sync
-- **Event Scheduling**: Create, edit, and organize household events with start/end times and location tags.
-- **Microsoft 365 Sync**: Seamless two-way / pull sync with Microsoft Entra ID calendar.
-- **Category Customization**: Custom color pickers for Events, FocusFlow Tasks, Recurring Bills, Subscriptions, and Contact Birthdays.
-- **Auto-Populated Contact Dates**: Contact birthdays, anniversaries, and milestones automatically populate the calendar.
+### 🍳 Cookbook, Meal Planning & Word (.docx) Export
+- **Structured Recipe Management**: Store ingredients, step-by-step instructions, prep/cook times, servings, tags, and bulleted notes.
+- **OCR Recipe Extraction**: Automatically parse ingredients and directions from uploaded recipe photos using on-device Tesseract OCR.
+- **Microsoft Word (.docx) Export**: Download beautifully formatted Word documents for any recipe using customizable docx templates.
+- **Weekly Meal Planner**: Schedule breakfast, lunch, and dinner menus with serving sizes and user attendance tracking.
+- **Auto-Aggregated Shopping Lists**: Push meal ingredients directly into categorized shopping lists with custom aisle sorting.
 
-### 🎯 FocusFlow Task Management
-- **Task Organization**: Categorize tasks into custom lists with priorities, due dates, and tags.
-- **Subtasks & Checklists**: Break complex chores and projects into actionable steps.
-- **Recurring Tasks**: Configure daily, weekly, or monthly repeating schedules.
+### 🧊 Kitchen Inventory & Leftovers Tracker
+- **Pantry & Fridge Inventory**: Track spices, canned goods, refrigerated items, and freezer inventory with quantities and expiration dates.
+- **Leftovers Management**: Log cooked meals with safe consumption dates, freeze options, and consumption logs.
+- **Automated Expiry Alerts**: Background cron engine checks expiring items and alerts you before food spoils.
 
-### 🧹 Chores & Housekeeping
-- **Family Profiles**: Set up avatars, roles, and profiles for every household member.
-- **Chore Assignments & Points**: Assign chores, track completion status, and award points.
-- **Housekeeping Schedules**: Manage periodic maintenance and cleaning rotations.
+### 🎯 FocusFlow Task & Habit Engine
+- **ADHD-Friendly Task Decomposition**: Break complex tasks into subtasks and bite-sized micro-steps.
+- **Habit Tracking & Streaks**: Daily habit monitoring with streak tracking and 30-day completion metrics.
+- **Active Focus Timer**: Built-in stopwatch and time logger to track active work sessions per task.
+- **Categorized Todo Lists**: General task management with custom priority flags, due dates, and status filters.
 
-### 💳 Financial Tracker (Bills & Subscriptions)
-- **Recurring Bills**: Track utility bills, due dates, amounts, payment URLs, and payment statuses.
-- **Subscriptions Manager**: Monitor active subscriptions, billing cycles, monthly/yearly spend totals, and renewal alerts.
+### 🧹 Chores, Housekeeping & Family Points
+- **Household Member Profiles**: Assign custom avatars, roles, and profiles for every family member.
+- **Chore Delegation & Recurrence**: Create recurring housekeeping routines with point rewards.
+- **Chore Rewards System**: Redeem accumulated chore points for custom household rewards and privileges.
 
-### 🍳 Cookbook & Meal Planning
-- **Recipe Management**: Store ingredients, instructions, tags, and preparation times.
-- **Meal Planning**: Plan 3-day, 5-day, or weekly menus.
-- **Leftovers Tracker**: Log leftovers with expiration dates to minimize food waste.
-- **Shopping Lists**: Automatically aggregate grocery items from planned meals.
+### 💳 Financial Tracker, Bills & Monarch Money Sync
+- **Recurring Bills**: Monitor utility bills, due dates, payment URLs, and toggle paid/unpaid status.
+- **Subscriptions Manager**: Track subscription cycles, renewal cadences, and monthly/annual spend projections.
+- **Monarch Money Integration**: Pull synchronized accounts, bank balances, and net worth summaries directly via GraphQL.
 
 ### 📚 Library & Reading Progress
-- **Book Tracker**: Log books read, current reads, and to-read wishlist.
-- **Reading Progress**: Track pages read, ratings, and yearly reading goals.
+- **Book Catalog**: Search and organize family books by genre, author, and reading status (`to-read`, `reading`, `completed`).
+- **ISBN & Barcode Scanner**: Scan physical book barcodes via webcam/mobile camera using HTML5-QRCode.
+- **Reading Progress Logs**: Track current pages read, personal ratings, notes, and yearly reading goals.
 
-### 👥 Contacts & Relationships
-- **Contact Directory**: Manage family, friends, and service provider details.
-- **Important Dates**: Track birthdays, anniversaries, and custom milestones.
+### 👥 Contacts & Family Relationships
+- **Contact Directory**: Store family, friends, neighbors, and service provider details.
+- **Relationship Mapping**: Map family relationships (spouse, child, parent) between system users and directory contacts.
+- **Important Dates & Reminders**: Track birthdays, anniversaries, and custom milestones.
 
-### 🎮 Arcade & Word Games
-- Built-in casual word puzzles and mini-games for family entertainment.
+### 🩺 Health Tracking, Medications & Pet Profiles
+- **Daily Wellness Logs**: Record daily steps, water intake, sleep duration, mood ratings, and body weight.
+- **Medication Management**: Track prescription dosages, administration frequencies, and dosing logs.
+- **Doctor Appointments**: Maintain upcoming medical and specialist appointments.
+- **Pet Care & Vet Visits**: Log pet profiles, breed info, weight histories, vet checkups, and pet medications.
 
-### 🔒 Security, Authentication & Notifications
-- **Single Sign-On (SSO)**: OpenID Connect (OIDC) / Microsoft Entra ID integration.
-- **Role-Based Access Control (RBAC)**: Fine-grained permissions for administrators, members, and guests.
-- **Notifications Engine**: Multi-channel alerts via SMTP Email, Discord Webhooks, and generic HTTP webhooks.
-- **Password Visibility Toggles**: Interactive show/hide controls across all credential inputs.
+### 🎮 Arcade & Family Games
+- **Game Library**: Catalog board games, card games, player count recommendations, and ages.
+- **Game Night Session Logs**: Record play history, winners, match dates, and Markdown recap notes.
+- **Casual Mini-Games**: Built-in casual word puzzles for family entertainment.
+
+### 🔔 Notifications & Multi-Channel Webhooks
+- **SMTP Email Notifications**: Automated emails for bills due, expiring food, and system events.
+- **Discord & Webhook Integrations**: Instant webhook dispatches with HMAC-SHA256 signature verification (`X-Signature`).
+- **Push Notification Backend**: APNs and FCM token registration endpoints ready for native mobile app integration.
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ Technology Stack & Component Versions
 
-- **Frontend**: React 18, Vite, Lucide Icons, CSS Custom Properties (Theme Engine)
-- **Backend**: Node.js, Express, SQLite (`better-sqlite3` / `sqlite3`)
-- **Containerization**: Docker, Docker Compose, GitHub Container Registry (`ghcr.io`)
-- **Authentication**: JWT, bcrypt / PBKDF2, OIDC (Microsoft Entra ID)
+| Tier | Component | Version | Description |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | React | `^18.3.1` | Modern SPA component architecture with stateful hooks |
+| | Vite | `^5.2.11` | High-speed frontend build tool and development server |
+| | Lucide React | `^0.378.0` | Comprehensive vector iconography library |
+| | HTML5-QRCode | `^2.3.8` | Cross-platform barcode and QR code scanner |
+| | Design System | Modern CSS3 | Responsive glassmorphism styling and custom CSS properties |
+| **Backend** | Node.js | `v20+ LTS` | Asynchronous event-driven server runtime |
+| | Express | `^4.19.2` | RESTful API routing, CORS handling, and middleware |
+| | Docxtemplater | `^3.45.0` | Microsoft Word document compilation engine |
+| | PizZip | `^3.1.4` | In-memory zip archive manipulation for `.docx` templates |
+| | Tesseract.js | `^5.0.5` | Neural-network OCR for recipe photo scanning |
+| | Nodemailer | `^6.9.13` | Multi-transport SMTP email dispatch system |
+| | Multer | `^1.4.5-lts.1` | Multipart/form-data upload processor |
+| | CSV Parser | `^3.0.0` | Streaming CSV parser for bulk data imports |
+| **Database** | SQLite 3 | WAL Mode | Single-file transactional database with Foreign Keys enabled |
+| | `sqlite3` | `^5.1.7` | Native asynchronous SQLite driver |
+| | `sqlite` | `^5.1.1` | Promise-based SQLite wrapper |
+| **Infrastructure** | Docker | Multi-stage | Optimized Alpine production container (`ghcr.io/jwagner77/family_app`) |
+| | Orchestration | Compose / Portainer | Simple local or NAS deployment via Docker Compose or Portainer CE |
+| | CI/CD | GitHub Actions | Automated multi-arch build and registry publishing |
 
 ---
 
-## 📁 Repository Structure
+## 🔌 REST API Documentation
 
-```text
-├── .github/
-│   └── workflows/
-│       └── docker-publish.yml    # GitHub Actions Docker build & publish workflow
-├── backend/
-│   ├── db.js                     # SQLite database schema, migrations & seed data
-│   ├── server.js                 # Express API server, routes & authentication
-│   └── package.json              # Backend dependencies
-├── data/                         # Persistent database & uploads (mounted volume)
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── HomeView.jsx            # 12-column customizable Overview page
-│   │   │   ├── CustomDashboardView.jsx # Multi-dashboard editor & widget renderer
-│   │   │   ├── SharedDashboardView.jsx # Kiosk / public read-only dashboard
-│   │   │   ├── CalendarView.jsx        # Full household calendar & M365 syncer
-│   │   │   ├── FocusView.jsx           # FocusFlow task management
-│   │   │   ├── HousekeepingView.jsx    # Chores, family profiles & points
-│   │   │   ├── ContactsView.jsx        # Contacts directory & milestones
-│   │   │   ├── SettingsView.jsx        # Admin & system settings panel
-│   │   │   ├── GamesView.jsx           # Mini-games & arcade
-│   │   │   └── UserProfileView.jsx     # User settings & profile preferences
-│   │   ├── App.jsx                     # Layout shell, sidebar navigation & auth
-│   │   ├── index.css                   # Glassmorphism design system & styles
-│   │   └── main.jsx                    # React entry point
-│   ├── index.html                      # HTML template
-│   ├── package.json                    # Frontend dependencies
-│   └── vite.config.js                  # Vite configuration & API proxy
-├── docker-compose.yml                  # Docker Compose configuration
-├── Dockerfile                          # Multi-stage production container build
-└── README.md                           # Documentation
+Family Hub features a complete write-back REST API supporting CRUD operations for all modules. For exhaustive endpoint specifications, request schemas, cURL examples, and authentication guides, see the dedicated [API.md](./API.md) document.
+
+### Quick API Example
+```bash
+# Fetch upcoming recipes
+curl -H "X-API-Key: YOUR_API_KEY" "http://localhost:8282/api/recipes"
+
+# Mark chore completed
+curl -X POST -H "X-API-Key: YOUR_API_KEY" "http://localhost:8282/api/housekeeping/tasks/1/complete"
 ```
 
 ---
 
-## 🚀 Quick Start (Docker)
+## 🚀 Quick Start with Docker
 
-The fastest way to run Family App is using Docker Compose:
+The easiest and recommended way to deploy Family Hub is using Docker Compose:
 
+### 1. Create a `docker-compose.yml` file
+```yaml
+version: '3.8'
+
+services:
+  family_app:
+    image: ghcr.io/jwagner77/family_app:latest
+    container_name: family_hub
+    restart: unless-stopped
+    ports:
+      - "8282:5000"
+    environment:
+      - PORT=5000
+      - DATA_DIR=/data
+      - JWT_SECRET=change_me_to_a_random_secure_key
+    volumes:
+      - family_data:/data
+
+volumes:
+  family_data:
+```
+
+### 2. Launch the Container
 ```bash
-# 1. Clone the repository
-git clone https://github.com/jwagner77/family_app.git
-cd family_app
-
-# 2. Build and start the containers
-docker compose up -d --build
+docker compose up -d
 ```
 
 Access the application in your browser at:
 👉 **`http://localhost:8282`**
 
-### Default Administrator Credentials
+### Default Administrator Login
 - **Username**: `admin`
 - **Password**: `admin123`
 
-*(Please change your password immediately upon first login via Settings → User Management).*
+*(Note: Change your administrator password immediately after first login via Settings → User Management).*
 
 ---
 
 ## 💻 Local Development Setup
 
-If you prefer running frontend and backend separately for development:
+To run Family Hub in a development environment:
 
-### 1. Backend
+### Prerequisites
+- Node.js `v20+`
+- npm `v10+`
+
+### 1. Clone the Repository
+```bash
+git clone https://github.com/jwagner77/family_app.git
+cd family_app
+```
+
+### 2. Run Backend Server
 ```bash
 cd backend
 npm install
 npm run dev
-# Server runs on http://localhost:5000 (or PORT specified in .env)
+# Backend starts on http://localhost:5000
 ```
 
-### 2. Frontend
+### 3. Run Frontend Dev Server
 ```bash
-cd frontend
+cd ../frontend
 npm install
 npm run dev
-# Dev server runs on http://localhost:3000 (proxies /api to backend)
+# Frontend starts on http://localhost:3000 (proxies /api to localhost:5000)
 ```
 
 ---
 
 ## ⚙️ Environment Configuration
 
-You can customize environment variables via `.env` in the root directory:
-
-```env
-PORT=5000
-DATABASE_PATH=./data/base.db
-JWT_SECRET=your_secure_random_jwt_secret_key
-SSL_KEY_PATH=./data/ssl.key
-SSL_CERT_PATH=./data/ssl.crt
-```
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `PORT` | `5000` | HTTP port the Express server listens on inside the container |
+| `DATA_DIR` | `./data` | File path for persistent SQLite database, uploads, and Word templates |
+| `JWT_SECRET` | *(Random 32-byte string)* | Secret key used to sign and verify user session tokens |
+| `GIT_COMMIT` | `main` | Optional build commit hash displayed in the About modal |
+| `BUILD_NUMBER` | `prod` | Optional CI/CD build number displayed in the About modal |
 
 ---
 
-## 📦 Container Registry
+## 📱 Mobile App & Kiosk Displays
 
-Official Docker container images are automatically built and published via GitHub Actions to:
-```text
-ghcr.io/jwagner77/family_app:latest
-```
+- **Kiosk Displays**: Share custom dashboards using unique token links with auto-refresh and rotating views for kitchen tablets or wall displays.
+- **Mobile Integration**: Register iOS (APNs) and Android (FCM) device tokens via `/api/users/push-token` to receive real-time push alerts from your home server.
+
+---
+
+## 🔒 Security, Authentication & Access Control
+
+- **Role-Based Access Control (RBAC)**: Fine-grained permission matrix controlling access to Recipes, Meal Planner, Tasks, Settings, and System Administration.
+- **OpenID Connect (OIDC) / SSO**: Seamless single sign-on integration with Microsoft Entra ID and Google SSO.
+- **Tamper-Proof Webhooks**: Outgoing notifications include HMAC-SHA256 signatures in the `X-Signature` header.
+- **Credential Masking**: Built-in show/hide password visibility toggles and API key masking.
+
+---
+
+## 👥 Authors & Acknowledgments
+
+- **Lead Developer**: **Joshua Wagner**
+- **AI Coding Assistant**: **Google Gemini**
+- **Engineered With**: **Google Antigravity** agentic pair-programming workflows and tools
 
 ---
 
 ## 📄 License
 
-This project is licensed under the MIT License.
+This project is licensed under the [MIT License](./LICENSE).

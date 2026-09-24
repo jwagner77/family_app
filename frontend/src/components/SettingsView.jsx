@@ -7,7 +7,7 @@ import {
   Square, RefreshCw, Landmark, ArrowRightLeft, LogIn, LogOut, KeyRound, Radio, 
   Bookmark, Sparkles, Github, GitBranch, ChevronDown, ChevronRight, Search, 
   ChefHat, ShoppingCart, ListTodo, BookOpen, Heart, Terminal, FileText, Database,
-  Sliders
+  Sliders, Server, Globe, ShieldCheck
 } from 'lucide-react';
 import WordTemplateExport from './WordTemplateExport';
 
@@ -5025,6 +5025,336 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               </div>
             </div>
 
+          </div>
+
+          {/* TECHNOLOGY STACK & COMPONENT VERSIONS SECTION */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                padding: '0.5rem',
+                borderRadius: '10px',
+                background: 'rgba(59, 130, 246, 0.1)',
+                color: '#3b82f6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Cpu size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, color: 'var(--foreground)' }}>
+                  Technology Stack & Component Versions
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: '0.15rem 0 0 0' }}>
+                  Core frameworks, libraries, database engines, and runtime infrastructure powering Family Hub
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: '1rem'
+            }}>
+              {/* Frontend Client */}
+              <div style={{
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.65rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                  <Laptop size={16} style={{ color: '#06b6d4' }} />
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--foreground)' }}>Frontend Client</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.785rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>React Framework:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v18.3.1</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Vite Build Tool:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v5.2.11</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Lucide React Icons:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v0.378.0</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>QR / Barcode Scanner:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v2.3.8</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Design System:</span>
+                    <span style={{ fontWeight: '600' }}>Glassmorphism & CSS3</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Backend Server */}
+              <div style={{
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.65rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                  <Server size={16} style={{ color: '#10b981' }} />
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--foreground)' }}>Backend API Server</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.785rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Node.js Runtime:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>{versionInfo.node_version || 'v20+ LTS'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Express REST Framework:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v4.19.2</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Docxtemplater & PizZip:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v3.45.0</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Tesseract.js (OCR):</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v5.0.5</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Nodemailer (SMTP):</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v6.9.13</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Database & Persistence */}
+              <div style={{
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.65rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                  <Database size={16} style={{ color: '#f59e0b' }} />
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--foreground)' }}>Database & Storage</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.785rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Database Engine:</span>
+                    <span style={{ fontWeight: '600' }}>SQLite 3</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Journal Mode:</span>
+                    <span style={{ fontWeight: '600', color: '#10b981' }}>WAL (Write-Ahead Log)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Node Driver (sqlite3):</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v5.1.7</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>SQLite Async Wrapper:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)' }}>v5.1.1</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Persistence Path:</span>
+                    <span style={{ fontWeight: '500', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>/data/base.db</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Deployment & DevOps */}
+              <div style={{
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.65rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                  <Layers size={16} style={{ color: '#8b5cf6' }} />
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--foreground)' }}>DevOps & Deployment</strong>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.785rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Container Engine:</span>
+                    <span style={{ fontWeight: '600' }}>Docker Multi-stage</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Orchestrator:</span>
+                    <span style={{ fontWeight: '600' }}>Portainer CE / Compose</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>CI/CD Pipeline:</span>
+                    <span style={{ fontWeight: '600' }}>GitHub Actions</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Image Registry:</span>
+                    <span style={{ fontWeight: '600', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>ghcr.io (GHCR)</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted-foreground)' }}>Base Image:</span>
+                    <span style={{ fontWeight: '500', fontFamily: 'var(--font-mono)' }}>node:20-alpine</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* SITE HTTP & SECURITY HEADERS SECTION */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                padding: '0.5rem',
+                borderRadius: '10px',
+                background: 'rgba(16, 185, 129, 0.1)',
+                color: '#10b981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <ShieldCheck size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0, color: 'var(--foreground)' }}>
+                  Site HTTP & Security Headers
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', margin: '0.15rem 0 0 0' }}>
+                  Standard HTTP request headers, authentication headers, and transport security policies utilized by Family Hub
+                </p>
+              </div>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+              gap: '1rem'
+            }}>
+              {/* Inbound Request Headers */}
+              <div style={{
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                  <Globe size={16} style={{ color: 'var(--primary)' }} />
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--foreground)' }}>Client Request Headers (Inbound)</strong>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.785rem' }}>
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '0.8rem' }}>Authorization</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Session Auth</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      <code>Bearer &lt;jwt_session_token&gt;</code> - Used for active interactive user browser sessions.
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '0.8rem' }}>X-API-Key</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>External API</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      <code>&lt;configured_secret_api_key&gt;</code> - Required for external automation, scripts, and mobile integrations.
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '0.8rem' }}>Content-Type</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(107, 114, 128, 0.15)', color: 'var(--foreground)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Payload Format</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      <code>application/json</code> (or <code>multipart/form-data</code> for picture/template uploads).
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: 'var(--primary)', fontSize: '0.8rem' }}>X-Signature</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Webhook HMAC</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      <code>sha256=&lt;hmac_hex&gt;</code> - Attached to outgoing webhook event dispatches for tamper verification.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Outbound Response & Security Headers */}
+              <div style={{
+                background: 'var(--muted)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '1rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.75rem'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                  <Shield size={16} style={{ color: '#10b981' }} />
+                  <strong style={{ fontSize: '0.85rem', color: 'var(--foreground)' }}>Security & CORS Headers (Outbound)</strong>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.785rem' }}>
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: '#10b981', fontSize: '0.8rem' }}>Access-Control-Allow-Origin</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>CORS</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      Configured to allow authorized cross-origin requests from companion tools, dashboards, and mobile clients.
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: '#10b981', fontSize: '0.8rem' }}>Cache-Control</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(107, 114, 128, 0.15)', color: 'var(--foreground)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Caching Policy</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      <code>no-cache, no-store, must-revalidate</code> on dynamic JSON APIs; immutable content hashing on static assets.
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: '#10b981', fontSize: '0.8rem' }}>X-Content-Type-Options</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>MIME Defense</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      <code>nosniff</code> - Prevents the browser from MIME-sniffing a response away from the declared Content-Type.
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'var(--background)', padding: '0.6rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                      <code style={{ fontWeight: 'bold', color: '#10b981', fontSize: '0.8rem' }}>X-Frame-Options</code>
+                      <span style={{ fontSize: '0.65rem', background: 'rgba(244, 63, 94, 0.15)', color: '#f43f5e', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>Clickjacking</span>
+                    </div>
+                    <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.725rem' }}>
+                      <code>SAMEORIGIN</code> - Restricts frame embedding to protect against clickjacking attacks.
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* COLLAPSIBLE API DOCUMENTATION SUB-SECTION */}

@@ -708,6 +708,59 @@ async function bootstrap() {
 }
 bootstrap();
 
+// GET /api/version - Public application version and tech stack info
+app.get('/api/version', (req, res) => {
+  let commit = process.env.GIT_COMMIT || process.env.GITHUB_SHA || '';
+  if (!commit) {
+    try {
+      commit = execSync('git rev-parse HEAD', { timeout: 1000 }).toString().trim();
+    } catch (e) {
+      commit = 'main';
+    }
+  }
+
+  res.json({
+    name: 'Family Hub',
+    version: '1.0.0',
+    commit: commit,
+    build: process.env.BUILD_NUMBER || process.env.GITHUB_RUN_NUMBER || 'prod',
+    repository: 'https://github.com/jwagner77/family_app',
+    node_version: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    uptime_seconds: Math.floor(process.uptime()),
+    components: {
+      frontend: {
+        framework: 'React 18',
+        react_version: '^18.3.1',
+        bundler: 'Vite',
+        vite_version: '^5.2.11',
+        icons: 'Lucide React ^0.378.0',
+        scanner: 'html5-qrcode ^2.3.8'
+      },
+      backend: {
+        runtime: `Node.js ${process.version}`,
+        framework: 'Express ^4.19.2',
+        database_driver: 'sqlite3 ^5.1.7 / sqlite ^5.1.1',
+        export_engine: 'docxtemplater ^3.45.0 & pizzip ^3.1.4',
+        ocr_engine: 'tesseract.js ^5.0.5',
+        mailer: 'nodemailer ^6.9.13',
+        uploader: 'multer ^1.4.5-lts.1',
+        csv_engine: 'csv-parser ^3.0.0'
+      },
+      database: {
+        engine: 'SQLite 3 (WAL Mode)',
+        storage: 'Persistent Volume Mount (/data/base.db)'
+      },
+      infrastructure: {
+        container: 'Docker Multi-stage Container',
+        orchestration: 'Portainer CE / Docker Compose',
+        ci_cd: 'GitHub Actions (GHCR)'
+      }
+    }
+  });
+});
+
 // --- AUTHENTICATION ENDPOINTS ---
 
 
