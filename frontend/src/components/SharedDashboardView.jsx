@@ -68,9 +68,13 @@ export default function SharedDashboardView({ token, onClose }) {
     }
   };
 
+  const isInitialLoad = useRef(true);
+
   useEffect(() => {
     let active = true;
-    setLoading(true);
+    if (isInitialLoad.current) {
+      setLoading(true);
+    }
     setError(null);
 
     const loadSharedDashboard = async () => {
@@ -102,7 +106,9 @@ export default function SharedDashboardView({ token, onClose }) {
             setDashboards(data.dashboards);
             const interval = Number(data.rotation_interval) || 30;
             setRotationInterval(interval);
-            setSecondsRemaining(interval);
+            if (isInitialLoad.current) {
+              setSecondsRemaining(interval);
+            }
             const currentDash = data.dashboards[currentIndex] || data.dashboards[0];
             setWidgets(currentDash?.widgets || []);
           } else {
@@ -110,6 +116,7 @@ export default function SharedDashboardView({ token, onClose }) {
           }
 
           setLoading(false);
+          isInitialLoad.current = false;
           
           // Apply settings and theme from public settings
           const colorRes = await fetch('/api/settings/public');
@@ -118,9 +125,15 @@ export default function SharedDashboardView({ token, onClose }) {
             if (settings.primary_color) {
               document.documentElement.style.setProperty('--primary', settings.primary_color);
             }
-            setBgType(settings.dashboard_bg_type || 'theme');
-            setBgValue(settings.dashboard_bg_value || '');
-            setBgKeywords(settings.dashboard_bg_unsplash_keywords || '');
+            if (settings.dashboard_bg_type !== undefined) {
+              setBgType(prev => settings.dashboard_bg_type !== prev ? settings.dashboard_bg_type : prev);
+            }
+            if (settings.dashboard_bg_value !== undefined) {
+              setBgValue(prev => settings.dashboard_bg_value !== prev ? settings.dashboard_bg_value : prev);
+            }
+            if (settings.dashboard_bg_unsplash_keywords !== undefined) {
+              setBgKeywords(prev => settings.dashboard_bg_unsplash_keywords !== prev ? settings.dashboard_bg_unsplash_keywords : prev);
+            }
             if (settings.dashboard_card_opacity !== undefined) {
               setCardOpacity(Number(settings.dashboard_card_opacity));
             }
@@ -128,9 +141,6 @@ export default function SharedDashboardView({ token, onClose }) {
               setCardBlur(Number(settings.dashboard_card_blur));
             }
             setRefreshInterval(settings.dashboard_refresh_interval || 'disabled');
-            if (settings.dashboard_bg_type === 'unsplash' && settings.dashboard_bg_value) {
-              setCurrentSig(settings.dashboard_bg_value);
-            }
           }
         }
       } catch (err) {
@@ -169,11 +179,11 @@ export default function SharedDashboardView({ token, onClose }) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [targetType, dashboards, rotationInterval, isPaused]);
+  }, [targetType, dashboards.length, rotationInterval, isPaused]);
 
   // Handle Unsplash background rotation when manually refreshed
   useEffect(() => {
-    if (bgType === 'unsplash') {
+    if (bgType === 'unsplash' && refreshTrigger > 0) {
       setCurrentSig(Date.now().toString());
     }
   }, [refreshTrigger]);

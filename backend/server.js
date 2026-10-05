@@ -8550,10 +8550,13 @@ app.get('/api/dashboard/shared/:token', async (req, res) => {
     
     // Fallback to legacy single settings token if matching
     if (!share && settings.dashboard_share_token && settings.dashboard_share_token === req.params.token) {
+      const rotEnabled = settings.dashboard_rotation_enabled === 'true';
       share = {
         name: 'Main Dashboard',
-        target_type: 'single',
-        dashboard_id: 'default'
+        target_type: rotEnabled ? 'rotation' : 'single',
+        dashboard_id: 'default',
+        rotation_interval: parseInt(settings.dashboard_rotation_interval, 10) || 30,
+        rotation_dashboards: settings.dashboard_rotation_dashboards || '["default"]'
       };
     }
 
@@ -8804,57 +8807,6 @@ app.get('/api/unsplash/search', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/dashboard/shared/:token', async (req, res) => {
-  try {
-    const settings = await getSettings();
-    if (!settings.dashboard_share_token || settings.dashboard_share_token !== req.params.token) {
-      return res.status(401).json({ error: 'Invalid or missing dashboard share token' });
-    }
-    const db = await getDb();
-    const rows = await db.all('SELECT * FROM dashboard_widgets');
-    const widgets = rows.map(r => ({
-      ...r,
-      config: r.config ? JSON.parse(r.config) : {}
-    }));
-    const adminUser = await db.get("SELECT timezone FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'Administrator' LIMIT 1) LIMIT 1");
-    const timezone = adminUser?.timezone || 'America/New_York';
-    res.json({
-      appName: settings.app_name || 'Dashboard App',
-      brandingIcon: settings.branding_icon || '📊',
-      brandingLogo: settings.branding_logo || '',
-      dashboard_refresh_interval: settings.dashboard_refresh_interval || 'disabled',
-      dashboard_bg_type: settings.dashboard_bg_type || 'theme',
-      dashboard_bg_value: settings.dashboard_bg_value || '',
-      dashboard_bg_unsplash_keywords: settings.dashboard_bg_unsplash_keywords || '',
-      dashboard_card_opacity: settings.dashboard_card_opacity !== undefined ? settings.dashboard_card_opacity : '75',
-      dashboard_card_blur: settings.dashboard_card_blur !== undefined ? settings.dashboard_card_blur : '8',
-      weather_location: settings.weather_location || '10001',
-      weather_unit: settings.weather_unit || 'fahrenheit',
-      timezone,
-      widgets
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.get('/api/dashboard/shared-widget-data/:token/:id', async (req, res) => {
-  try {
-    const settings = await getSettings();
-    if (!settings.dashboard_share_token || settings.dashboard_share_token !== req.params.token) {
-      return res.status(401).json({ error: 'Invalid or missing dashboard share token' });
-    }
-    const db = await getDb();
-    const widget = await db.get('SELECT * FROM dashboard_widgets WHERE id = ?', [req.params.id]);
-    if (!widget) {
-      return res.status(404).json({ error: 'Widget not found' });
-    }
-    const data = await getWidgetData(widget, null);
-    res.json(data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
 // --- HOUSEKEEPING ENDPOINTS ---
 
 function getNextWeeklyOccurrence(currentDate, daysStr) {

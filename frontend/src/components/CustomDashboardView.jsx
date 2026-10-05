@@ -179,6 +179,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
         
         const rotEnabled = data.dashboard_rotation_enabled === 'true';
         const rotInterval = parseInt(data.dashboard_rotation_interval, 10) || 30;
+        setIsRotating(rotEnabled);
         setRotationInterval(rotInterval);
         setSecondsUntilRotate(rotInterval);
         
@@ -246,7 +247,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isRotating, dashboards, rotationDashboards, currentDashboardId, rotationInterval]);
+  }, [isRotating, dashboards.length, rotationDashboards, currentDashboardId, rotationInterval]);
 
   // Set up auto-refresh interval
   useEffect(() => {
