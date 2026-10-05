@@ -4,6 +4,7 @@ import {
   DollarSign, Clock, AlignLeft, Info, RefreshCw, LayoutGrid, Sun, Moon,
   Play, Pause, Layers, RotateCcw, ChevronLeft, ChevronRight
 } from 'lucide-react';
+import { extractYouTubeVideoId } from '../utils/youtube';
 
 export default function SharedDashboardView({ token, onClose }) {
   const [widgets, setWidgets] = useState([]);
@@ -188,18 +189,21 @@ export default function SharedDashboardView({ token, onClose }) {
     );
   }
 
-  const resolvedTheme = (bgType === 'dark' || bgType === 'unsplash' || bgType === 'upload') ? 'dark' : 'light';
+  const resolvedTheme = (bgType === 'dark' || bgType === 'unsplash' || bgType === 'upload' || bgType === 'youtube') ? 'dark' : 'light';
   const currentDashName = targetType === 'rotation' 
     ? (dashboards[currentIndex]?.name || `Dashboard ${currentIndex + 1}`)
     : (dashboardInfo?.dashboardName || 'Main Dashboard');
 
   const getContainerStyle = () => {
-    const base = { fontFamily: 'var(--font-body)', minHeight: '100vh', padding: '2.5rem' };
+    const base = { fontFamily: 'var(--font-body)', minHeight: '100vh', padding: '2.5rem', position: 'relative' };
     if (bgType === 'light') {
       return { ...base, backgroundColor: '#f8fafc', color: '#1e293b' };
     }
     if (bgType === 'dark') {
       return { ...base, backgroundColor: '#0f172a', color: '#f8fafc' };
+    }
+    if (bgType === 'youtube') {
+      return { ...base, backgroundColor: '#000000', color: '#ffffff' };
     }
     if (bgType === 'unsplash') {
       const url = unsplashUrl || `https://images.unsplash.com/featured/1920x1080?sig=${currentSig}${bgKeywords ? `&${encodeURIComponent(bgKeywords)}` : ''}`;
@@ -229,8 +233,53 @@ export default function SharedDashboardView({ token, onClose }) {
 
   return (
     <div className="shared-dashboard-container animate-fade-in" style={getContainerStyle()}>
+      {/* YouTube Video Background Layer */}
+      {bgType === 'youtube' && extractYouTubeVideoId(bgValue) && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            overflow: 'hidden',
+            pointerEvents: 'none',
+            zIndex: 0
+          }}
+        >
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(bgValue)}?autoplay=1&mute=1&loop=1&playlist=${extractYouTubeVideoId(bgValue)}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1`}
+            title="YouTube Background"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '100vw',
+              height: '56.25vw',
+              minHeight: '100vh',
+              minWidth: '177.77vh',
+              transform: 'translate(-50%, -50%)',
+              border: 'none',
+              pointerEvents: 'none'
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.45)'
+            }}
+          />
+        </div>
+      )}
+
       {/* Header bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem', position: 'relative', zIndex: 1 }}>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
           <h1 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {dashboardInfo?.brandingIcon !== 'none' && dashboardInfo?.brandingIcon} {dashboardInfo?.appName}

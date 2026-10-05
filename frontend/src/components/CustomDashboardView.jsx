@@ -7,6 +7,7 @@ import {
   ChevronDown, Star, PlayCircle, PauseCircle, Layers, Copy,
   ChevronLeft, ChevronRight, List, MapPin, Tag
 } from 'lucide-react';
+import { extractYouTubeVideoId } from '../utils/youtube';
 
 const WIDGET_TYPES = [
   { type: 'clock', name: 'Digital Clock & Date', category: 'Utility', defaultSize: { w: 4, h: 2 } },
@@ -266,6 +267,11 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
       appEl.style.backgroundImage = 'none';
       mainEl.style.backgroundColor = 'transparent';
       mainEl.style.color = '#f8fafc';
+    } else if (bgType === 'youtube') {
+      appEl.style.backgroundColor = '#000000';
+      appEl.style.backgroundImage = 'none';
+      mainEl.style.backgroundColor = 'transparent';
+      mainEl.style.color = '#ffffff';
     } else if (bgType === 'unsplash') {
       const url = unsplashUrl || `https://images.unsplash.com/featured/1920x1080?sig=${currentSig}${bgKeywords ? `&${encodeURIComponent(bgKeywords)}` : ''}`;
       appEl.style.backgroundImage = `linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.45)), url(${url})`;
@@ -698,9 +704,55 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
 
   const currentDashboard = dashboards.find(d => d.id === currentDashboardId) || dashboards[0] || { name: 'Main Dashboard' };
 
+  const isDarkBg = bgType === 'dark' || bgType === 'unsplash' || bgType === 'youtube' || (bgType === 'upload' && bgValue);
+
   return (
-    <div style={{ width: '100%', paddingBottom: '4rem' }}>
+    <div style={{ width: '100%', paddingBottom: '4rem', position: 'relative' }}>
       
+      {/* YouTube Video Background Layer */}
+      {bgType === 'youtube' && extractYouTubeVideoId(bgValue) && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            overflow: 'hidden',
+            pointerEvents: 'none',
+            zIndex: 0
+          }}
+        >
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(bgValue)}?autoplay=1&mute=1&loop=1&playlist=${extractYouTubeVideoId(bgValue)}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1`}
+            title="YouTube Background"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              width: '100vw',
+              height: '56.25vw',
+              minHeight: '100vh',
+              minWidth: '177.77vh',
+              transform: 'translate(-50%, -50%)',
+              border: 'none',
+              pointerEvents: 'none'
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.45)'
+            }}
+          />
+        </div>
+      )}
+
       {/* Local toast alerts */}
       {toast && (
         <div className={`alert-banner ${toast.type === 'success' ? 'alert-success' : (toast.type === 'info' ? 'alert-info' : 'alert-error')}`} style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 1100, width: 'auto', minWidth: '280px', boxShadow: 'var(--shadow-lg)' }}>
@@ -710,10 +762,10 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
       )}
 
       {/* Dashboard Top Header Control Panel */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem', position: 'relative', zIndex: 1 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: (bgType === 'dark' || bgType === 'unsplash' || (bgType === 'upload' && bgValue)) ? '#ffffff' : 'inherit' }}>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: isDarkBg ? '#ffffff' : 'inherit' }}>
               <LayoutGrid size={26} style={{ color: 'var(--primary)' }} />
               Dashboard
             </h2>
@@ -769,7 +821,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
             </div>
           </div>
 
-          <p style={{ color: (bgType === 'dark' || bgType === 'unsplash' || (bgType === 'upload' && bgValue)) ? 'rgba(255, 255, 255, 0.7)' : 'var(--text-muted)', fontSize: '0.8125rem', margin: 0 }}>
+          <p style={{ color: isDarkBg ? 'rgba(255, 255, 255, 0.7)' : 'var(--text-muted)', fontSize: '0.8125rem', margin: 0 }}>
             Viewing dashboard: <strong style={{ color: 'var(--primary)' }}>{currentDashboard.name}</strong> • Select or add dashboards to customize views across all home server applications.
           </p>
         </div>

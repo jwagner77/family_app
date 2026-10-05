@@ -10,6 +10,7 @@ import {
   Sliders, Server, Globe, ShieldCheck
 } from 'lucide-react';
 import WordTemplateExport from './WordTemplateExport';
+import { extractYouTubeVideoId } from '../utils/youtube';
 
 const CATEGORIES_LABELS = {
   recipes: 'Create/Manage Recipes',
@@ -1736,7 +1737,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       { value: 'light', label: 'Solid Light' },
                       { value: 'dark', label: 'Solid Dark' },
                       { value: 'unsplash', label: 'Unsplash Random' },
-                      { value: 'upload', label: 'Custom Upload' }
+                      { value: 'upload', label: 'Custom Upload' },
+                      { value: 'youtube', label: 'YouTube Video' }
                     ].map(opt => (
                       <button
                         key={opt.value}
@@ -1819,6 +1821,70 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       )}
                     </div>
                   )}
+
+                  {dashboardBgType === 'youtube' && (
+                    <div className="card" style={{ padding: '1rem', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--muted)' }}>
+                      <div className="form-group">
+                        <label htmlFor="youtube-bg-url" style={{ fontSize: '0.8rem', fontWeight: '600' }}>YouTube Video URL or Video ID</label>
+                        <input
+                          id="youtube-bg-url"
+                          type="text"
+                          className="input-control"
+                          placeholder="e.g. https://www.youtube.com/watch?v=jfKfPfyJRdk or jfKfPfyJRdk"
+                          value={dashboardBgValue}
+                          onChange={(e) => setDashboardBgValue(e.target.value)}
+                          disabled={!canManageGeneral}
+                        />
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                          Paste any YouTube URL (standard, shortened youtu.be, embed, or shorts) or an 11-character Video ID. The video will autoplay muted and loop in the background of your dashboard.
+                        </span>
+                      </div>
+
+                      {/* Video ID preview / status badge */}
+                      {dashboardBgValue && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          fontSize: '0.75rem',
+                          padding: '0.4rem 0.65rem',
+                          borderRadius: 'var(--radius)',
+                          background: extractYouTubeVideoId(dashboardBgValue) ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                          color: extractYouTubeVideoId(dashboardBgValue) ? '#10b981' : '#ef4444',
+                          border: `1px solid ${extractYouTubeVideoId(dashboardBgValue) ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                        }}>
+                          {extractYouTubeVideoId(dashboardBgValue) ? (
+                            <>
+                              <span>✅</span>
+                              <span>Detected YouTube Video ID: <strong>{extractYouTubeVideoId(dashboardBgValue)}</strong></span>
+                            </>
+                          ) : (
+                            <>
+                              <span>⚠️</span>
+                              <span>Please enter a valid YouTube video URL or 11-character Video ID.</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Live Preview Embed */}
+                      {extractYouTubeVideoId(dashboardBgValue) && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', marginTop: '0.25rem' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Live Video Preview:</span>
+                          <div style={{ position: 'relative', width: '100%', maxWidth: '380px', aspectRatio: '16/9', borderRadius: 'var(--radius)', overflow: 'hidden', border: '1px solid var(--border)', background: '#000' }}>
+                            <iframe
+                              src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(dashboardBgValue)}?autoplay=0&controls=1&mute=1`}
+                              title="YouTube Preview"
+                              style={{ width: '100%', height: '100%', border: 'none' }}
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                 </div>
               </div>
 
