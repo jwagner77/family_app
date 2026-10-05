@@ -1596,28 +1596,29 @@ function CalendarDailyAgendaView({ data }) {
                 gap: '0.5rem',
                 padding: '0.45rem 0.6rem',
                 borderRadius: 'var(--radius-sm)',
-                background: 'var(--card)',
+                background: 'rgba(15, 23, 42, 0.75)',
                 border: '1px solid var(--border)',
                 borderLeft: `3.5px solid ${item.color}`,
+                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                 fontSize: '0.75rem'
               }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, gap: '0.1rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <span style={{ fontSize: '0.8rem' }}>{item.icon}</span>
-                  <span style={{ fontWeight: '700', color: 'var(--foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontWeight: '700', color: '#f8fafc', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
                     {item.title}
                   </span>
                 </div>
                 {item.location && (
-                  <span style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     📍 {item.location}
                   </span>
                 )}
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', flexShrink: 0 }}>
-                <span style={{ fontSize: '0.65rem', fontWeight: '700', color: item.color, background: 'rgba(255,255,255,0.05)', padding: '0.1rem 0.35rem', borderRadius: '4px' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: '700', color: item.color, background: 'rgba(0,0,0,0.4)', padding: '0.1rem 0.35rem', borderRadius: '4px', textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
                   {item.timeStr || item.typeLabel}
                 </span>
               </div>
@@ -1691,8 +1692,8 @@ function CalendarWeeklyAgendaView({ data }) {
               gap: '0.3rem',
               padding: '0.45rem 0.6rem',
               borderRadius: 'var(--radius-sm)',
-              background: day.isToday ? 'rgba(59, 130, 246, 0.06)' : 'var(--card)',
-              border: day.isToday ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border)'
+              background: day.isToday ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+              border: day.isToday ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border)'
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1721,17 +1722,18 @@ function CalendarWeeklyAgendaView({ data }) {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       gap: '0.4rem',
-                      padding: '0.25rem 0.4rem',
+                      padding: '0.25rem 0.45rem',
                       borderRadius: '4px',
-                      background: 'rgba(255,255,255,0.03)',
-                      borderLeft: `2.5px solid ${item.color}`,
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      borderLeft: `3px solid ${item.color}`,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                       fontSize: '0.7rem'
                     }}
                   >
-                    <span style={{ color: 'var(--foreground)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                    <span style={{ color: '#f8fafc', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
                       {item.icon} {item.title}
                     </span>
-                    <span style={{ color: item.color, fontSize: '0.65rem', fontWeight: '700', flexShrink: 0 }}>
+                    <span style={{ color: item.color, fontSize: '0.65rem', fontWeight: '700', flexShrink: 0, textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
                       {item.timeStr}
                     </span>
                   </div>
@@ -1814,8 +1816,8 @@ function CalendarMonthlyAgendaView({ data }) {
                   gap: '0.3rem',
                   padding: '0.45rem 0.6rem',
                   borderRadius: 'var(--radius-sm)',
-                  background: isToday ? 'rgba(59, 130, 246, 0.06)' : 'var(--card)',
-                  border: isToday ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid var(--border)'
+                  background: isToday ? 'rgba(59, 130, 246, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                  border: isToday ? '1px solid rgba(59, 130, 246, 0.4)' : '1px solid var(--border)'
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1837,17 +1839,18 @@ function CalendarMonthlyAgendaView({ data }) {
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         gap: '0.4rem',
-                        padding: '0.25rem 0.4rem',
+                        padding: '0.25rem 0.45rem',
                         borderRadius: '4px',
-                        background: 'rgba(255,255,255,0.03)',
+                        background: 'rgba(15, 23, 42, 0.75)',
                         borderLeft: `3px solid ${item.color}`,
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
                         fontSize: '0.7rem'
                       }}
                     >
-                      <span style={{ color: 'var(--foreground)', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                      <span style={{ color: '#f8fafc', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
                         {item.icon} {item.title}
                       </span>
-                      <span style={{ color: item.color, fontSize: '0.65rem', fontWeight: '700', flexShrink: 0 }}>
+                      <span style={{ color: item.color, fontSize: '0.65rem', fontWeight: '700', flexShrink: 0, textShadow: '0 1px 2px rgba(0,0,0,0.7)' }}>
                         {item.timeStr}
                       </span>
                     </div>
@@ -1991,11 +1994,11 @@ function CalendarMonthGridView({ data }) {
               key={dayCell.dateStr}
               onClick={() => setInspectDay(isSelected ? null : dayCell.dateStr)}
               style={{
-                border: isSelected ? '1.5px solid var(--primary)' : (dayCell.isToday ? '1px solid rgba(59, 130, 246, 0.5)' : '1px solid var(--border)'),
+                border: isSelected ? '1.5px solid var(--primary)' : (dayCell.isToday ? '1.5px solid rgba(59, 130, 246, 0.7)' : '1px solid var(--border)'),
                 borderRadius: 'var(--radius-sm)',
                 padding: '0.25rem',
-                background: dayCell.isToday ? 'rgba(59, 130, 246, 0.08)' : (dayCell.isCurrentMonth ? 'var(--card)' : 'rgba(0,0,0,0.02)'),
-                opacity: dayCell.isCurrentMonth ? 1 : 0.45,
+                background: isSelected ? 'rgba(59, 130, 246, 0.22)' : (dayCell.isToday ? 'rgba(59, 130, 246, 0.15)' : (dayCell.isCurrentMonth ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0,0,0,0.12)')),
+                opacity: dayCell.isCurrentMonth ? 1 : 0.4,
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.15rem',
@@ -2009,7 +2012,7 @@ function CalendarMonthGridView({ data }) {
                 <span
                   style={{
                     fontSize: '0.7rem',
-                    fontWeight: dayCell.isToday ? '800' : '600',
+                    fontWeight: dayCell.isToday ? '800' : '700',
                     width: '18px',
                     height: '18px',
                     display: 'flex',
@@ -2017,32 +2020,35 @@ function CalendarMonthGridView({ data }) {
                     justifyContent: 'center',
                     borderRadius: '50%',
                     background: dayCell.isToday ? 'var(--primary)' : 'transparent',
-                    color: dayCell.isToday ? '#fff' : 'var(--foreground)'
+                    color: dayCell.isToday ? '#ffffff' : 'var(--foreground)',
+                    textShadow: dayCell.isToday ? 'none' : '0 1px 2px rgba(0,0,0,0.7)'
                   }}
                 >
                   {dayCell.day}
                 </span>
 
                 {dayCell.items.length > 0 && (
-                  <span style={{ fontSize: '0.55rem', fontWeight: '700', color: 'var(--muted-foreground)' }}>
+                  <span style={{ fontSize: '0.55rem', fontWeight: '700', color: 'rgba(255,255,255,0.9)', background: 'rgba(0,0,0,0.4)', padding: '0.05rem 0.3rem', borderRadius: '8px' }}>
                     {dayCell.items.length}
                   </span>
                 )}
               </div>
 
               {/* Event pill snippets */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.12rem', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', overflow: 'hidden' }}>
                 {dayCell.items.slice(0, 3).map((item, idx) => (
                   <div
                     key={idx}
                     style={{
                       fontSize: '0.58rem',
                       fontWeight: '600',
-                      padding: '0.05rem 0.2rem',
-                      borderRadius: '2px',
-                      background: 'rgba(255,255,255,0.04)',
-                      borderLeft: `2px solid ${item.color}`,
-                      color: 'var(--foreground)',
+                      padding: '0.1rem 0.25rem',
+                      borderRadius: '3px',
+                      background: 'rgba(15, 23, 42, 0.75)',
+                      borderLeft: `3px solid ${item.color}`,
+                      color: '#f8fafc',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                      textShadow: '0 1px 2px rgba(0,0,0,0.7)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
@@ -2053,7 +2059,7 @@ function CalendarMonthGridView({ data }) {
                   </div>
                 ))}
                 {dayCell.items.length > 3 && (
-                  <span style={{ fontSize: '0.55rem', color: 'var(--muted-foreground)', paddingLeft: '0.2rem' }}>
+                  <span style={{ fontSize: '0.55rem', color: '#ffffff', textShadow: '0 1px 2px rgba(0,0,0,0.8)', fontWeight: '700', paddingLeft: '0.2rem' }}>
                     +{dayCell.items.length - 3} more
                   </span>
                 )}
