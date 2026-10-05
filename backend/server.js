@@ -1637,7 +1637,17 @@ app.get('/api/settings/share-token', authenticate, requirePermission('settings_g
 
 app.post('/api/settings/share-token', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
   try {
-    const newToken = 'dash_' + crypto.randomBytes(32).toString('hex');
+    const { custom_token } = req.body || {};
+    let newToken = '';
+    if (custom_token && typeof custom_token === 'string' && custom_token.trim()) {
+      const sanitized = custom_token.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+      if (sanitized.length >= 2) {
+        newToken = sanitized;
+      }
+    }
+    if (!newToken) {
+      newToken = 'd-' + crypto.randomBytes(3).toString('hex');
+    }
     await saveSettings({ dashboard_share_token: newToken });
     res.json({ share_token: newToken, message: 'Share token generated successfully' });
   } catch (error) {
@@ -8467,15 +8477,45 @@ app.get('/api/dashboard/shares', authenticate, requirePermission('settings_gener
   }
 });
 
+function sanitizeShareToken(str) {
+  if (!str || typeof str !== 'string') return null;
+  const cleaned = str.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  return cleaned.length >= 2 ? cleaned : null;
+}
+
+function generateShortShareToken() {
+  return 'd-' + crypto.randomBytes(3).toString('hex');
+}
+
 app.post('/api/dashboard/shares', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
   try {
-    const { name, target_type, dashboard_id, rotation_interval, rotation_dashboards } = req.body;
+    const { name, target_type, dashboard_id, rotation_interval, rotation_dashboards, custom_token } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Share link name is required' });
     }
-    const token = 'dash_' + crypto.randomBytes(24).toString('hex');
-    const id = 'share_' + Date.now();
     const db = await getDb();
+    
+    let token = '';
+    if (custom_token && typeof custom_token === 'string' && custom_token.trim()) {
+      const sanitized = sanitizeShareToken(custom_token);
+      if (!sanitized) {
+        return res.status(400).json({ error: 'Custom short code must be at least 2 alphanumeric characters, hyphens, or underscores' });
+      }
+      const existing = await db.get('SELECT id FROM dashboard_shares WHERE token = ?', [sanitized]);
+      if (existing) {
+        return res.status(400).json({ error: `Short code "${sanitized}" is already in use. Please choose another.` });
+      }
+      token = sanitized;
+    } else {
+      let unique = false;
+      while (!unique) {
+        token = generateShortShareToken();
+        const existing = await db.get('SELECT id FROM dashboard_shares WHERE token = ?', [token]);
+        if (!existing) unique = true;
+      }
+    }
+
+    const id = 'share_' + Date.now();
     
     await db.run(
       `INSERT INTO dashboard_shares (id, name, token, target_type, dashboard_id, rotation_interval, rotation_dashboards, active) 
@@ -8499,7 +8539,7 @@ app.post('/api/dashboard/shares', authenticate, requirePermission('settings_gene
 
 app.put('/api/dashboard/shares/:id', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
   try {
-    const { name, target_type, dashboard_id, rotation_interval, rotation_dashboards, active } = req.body;
+    const { name, target_type, dashboard_id, rotation_interval, rotation_dashboards, active, token } = req.body;
     const db = await getDb();
     const share = await db.get('SELECT * FROM dashboard_shares WHERE id = ?', [req.params.id]);
     if (!share) {
@@ -8515,6 +8555,31 @@ app.put('/api/dashboard/shares/:id', authenticate, requirePermission('settings_g
     if (rotation_interval !== undefined) { updates.push('rotation_interval = ?'); values.push(Number(rotation_interval)); }
     if (rotation_dashboards !== undefined) { updates.push('rotation_dashboards = ?'); values.push(JSON.stringify(rotation_dashboards)); }
     if (active !== undefined) { updates.push('active = ?'); values.push(active ? 1 : 0); }
+    if (token !== undefined) {
+      let finalToken = '';
+      if (token && typeof token === 'string' && token.trim()) {
+        const sanitized = sanitizeShareToken(token);
+        if (!sanitized) {
+          return res.status(400).json({ error: 'Custom short code must be at least 2 alphanumeric characters, hyphens, or underscores' });
+        }
+        if (sanitized !== share.token) {
+          const existing = await db.get('SELECT id FROM dashboard_shares WHERE token = ? AND id != ?', [sanitized, req.params.id]);
+          if (existing) {
+            return res.status(400).json({ error: `Short code "${sanitized}" is already in use. Please choose another.` });
+          }
+        }
+        finalToken = sanitized;
+      } else {
+        let unique = false;
+        while (!unique) {
+          finalToken = generateShortShareToken();
+          const existing = await db.get('SELECT id FROM dashboard_shares WHERE token = ? AND id != ?', [finalToken, req.params.id]);
+          if (!existing) unique = true;
+        }
+      }
+      updates.push('token = ?');
+      values.push(finalToken);
+    }
 
     if (updates.length > 0) {
       values.push(req.params.id);

@@ -173,11 +173,22 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [loadingShares, setLoadingShares] = useState(false);
   const [isCreateShareModalOpen, setIsCreateShareModalOpen] = useState(false);
   const [newShareName, setNewShareName] = useState('');
+  const [newShareCustomToken, setNewShareCustomToken] = useState('');
   const [newShareTargetType, setNewShareTargetType] = useState('single');
   const [newShareDashboardId, setNewShareDashboardId] = useState('default');
   const [newShareRotationInterval, setNewShareRotationInterval] = useState(30);
   const [newShareRotationDashboards, setNewShareRotationDashboards] = useState([]);
   const [revealedShareTokens, setRevealedShareTokens] = useState({});
+
+  // Edit share link modal states
+  const [editingShare, setEditingShare] = useState(null);
+  const [editShareName, setEditShareName] = useState('');
+  const [editShareToken, setEditShareToken] = useState('');
+  const [editShareTargetType, setEditShareTargetType] = useState('single');
+  const [editShareDashboardId, setEditShareDashboardId] = useState('default');
+  const [editShareRotationInterval, setEditShareRotationInterval] = useState(30);
+  const [editShareRotationDashboards, setEditShareRotationDashboards] = useState([]);
+  const [savingEditShare, setSavingEditShare] = useState(false);
 
   // Legacy single share token state for backward compatibility
   const [shareToken, setShareToken] = useState('');
@@ -322,6 +333,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newShareName.trim(),
+          custom_token: newShareCustomToken.trim() || undefined,
           target_type: newShareTargetType,
           dashboard_id: newShareTargetType === 'single' ? (newShareDashboardId || 'default') : null,
           rotation_interval: Number(newShareRotationInterval || 30),
@@ -332,6 +344,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         showToast('Public dashboard share link created successfully!', 'success');
         setIsCreateShareModalOpen(false);
         setNewShareName('');
+        setNewShareCustomToken('');
         fetchDashboardShares();
       } else {
         const err = await res.json().catch(() => ({}));
@@ -339,6 +352,49 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       }
     } catch (e) {
       showToast('Failed to create share link', 'error');
+    }
+  };
+
+  const openEditShareModal = (share) => {
+    setEditingShare(share);
+    setEditShareName(share.name || '');
+    setEditShareToken(share.token || '');
+    setEditShareTargetType(share.target_type || 'single');
+    setEditShareDashboardId(share.dashboard_id || (dashboardsList[0]?.id || 'default'));
+    setEditShareRotationInterval(share.rotation_interval || 30);
+    setEditShareRotationDashboards(share.rotation_dashboards?.length > 0 ? [...share.rotation_dashboards] : dashboardsList.map(d => d.id));
+  };
+
+  const handleUpdateShareLink = async (e) => {
+    e.preventDefault();
+    if (!editingShare || !editShareName.trim()) return;
+
+    setSavingEditShare(true);
+    try {
+      const res = await fetch(`/api/dashboard/shares/${editingShare.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editShareName.trim(),
+          token: editShareToken.trim(),
+          target_type: editShareTargetType,
+          dashboard_id: editShareTargetType === 'single' ? (editShareDashboardId || 'default') : null,
+          rotation_interval: Number(editShareRotationInterval || 30),
+          rotation_dashboards: editShareTargetType === 'rotation' ? (editShareRotationDashboards.length > 0 ? editShareRotationDashboards : null) : null
+        })
+      });
+      if (res.ok) {
+        showToast('Share link updated successfully!', 'success');
+        setEditingShare(null);
+        fetchDashboardShares();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || 'Failed to update share link', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to update share link: ' + e.message, 'error');
+    } finally {
+      setSavingEditShare(false);
     }
   };
 
@@ -4195,10 +4251,22 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                               <Layers size={13} style={{ color: 'var(--primary)' }} /> {share.dashboard_name || 'Main Dashboard'}
                             </span>
                           )}
+                          <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', background: 'var(--card)', border: '1px solid var(--border)', padding: '0.15rem 0.45rem', borderRadius: '4px', color: 'var(--muted-foreground)' }}>
+                            /{share.token}
+                          </span>
                         </div>
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{share.name}</span>
+                          <button
+                            type="button"
+                            className="btn btn-outline"
+                            onClick={() => openEditShareModal(share)}
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                            title="Edit share settings and custom slug"
+                          >
+                            <Edit2 size={13} />
+                          </button>
                           <button
                             type="button"
                             className="btn btn-outline danger"
@@ -4301,6 +4369,29 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                         autoFocus
                         required
                       />
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Short Code / Custom Slug (Optional)</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', fontWeight: 'normal' }}>Leave blank for auto 8-char code</span>
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                        <span style={{ padding: '0.5rem 0.75rem', background: 'var(--muted)', fontSize: '0.8rem', color: 'var(--muted-foreground)', borderRight: '1px solid var(--border)', userSelect: 'none' }}>
+                          /shared/
+                        </span>
+                        <input
+                          type="text"
+                          className="input-control"
+                          value={newShareCustomToken}
+                          onChange={e => setNewShareCustomToken(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                          placeholder="e.g. kitchen, tablet, living-room"
+                          style={{ border: 'none', borderRadius: 0, boxShadow: 'none' }}
+                        />
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', marginTop: '0.25rem', display: 'block' }}>
+                        URL Preview: <code style={{ color: 'var(--primary)' }}>{window.location.origin}/shared/{newShareCustomToken.trim() || 'd-xxxxxx'}</code>
+                      </span>
                     </div>
 
                     <div className="form-group">
@@ -4411,6 +4502,180 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       <button type="button" className="btn btn-outline" onClick={() => setIsCreateShareModalOpen(false)}>Cancel</button>
                       <button type="submit" className="btn btn-primary" disabled={!newShareName.trim()}>
                         <Plus size={14} /> Generate Share Link
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Share Link Modal */}
+          {editingShare && (
+            <div className="modal-overlay" onClick={() => setEditingShare(null)}>
+              <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+                <div className="modal-header">
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Edit2 size={18} style={{ color: 'var(--primary)' }} /> Edit Public Share Link
+                  </h2>
+                  <button className="close-btn" style={{ fontSize: '1.5rem' }} onClick={() => setEditingShare(null)}>×</button>
+                </div>
+                
+                <form onSubmit={handleUpdateShareLink}>
+                  <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    <div className="form-group">
+                      <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Link Label / Device Name *</label>
+                      <input
+                        type="text"
+                        className="input-control"
+                        value={editShareName}
+                        onChange={e => setEditShareName(e.target.value)}
+                        placeholder="e.g. Kitchen Wall Tablet, Office Secondary Screen"
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Short Code / Custom Slug *</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const randomCode = 'd-' + Math.random().toString(16).substring(2, 8);
+                            setEditShareToken(randomCode);
+                          }}
+                          style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', textDecoration: 'underline' }}
+                        >
+                          Generate Short Code
+                        </button>
+                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                        <span style={{ padding: '0.5rem 0.75rem', background: 'var(--muted)', fontSize: '0.8rem', color: 'var(--muted-foreground)', borderRight: '1px solid var(--border)', userSelect: 'none' }}>
+                          /shared/
+                        </span>
+                        <input
+                          type="text"
+                          className="input-control"
+                          value={editShareToken}
+                          onChange={e => setEditShareToken(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                          placeholder="e.g. kitchen, tablet, d-8a2f1b"
+                          required
+                          style={{ border: 'none', borderRadius: 0, boxShadow: 'none' }}
+                        />
+                      </div>
+                      <span style={{ fontSize: '0.72rem', color: 'var(--muted-foreground)', marginTop: '0.25rem', display: 'block' }}>
+                        URL Preview: <code style={{ color: 'var(--primary)' }}>{window.location.origin}/shared/{editShareToken.trim() || '...'}</code>
+                      </span>
+                    </div>
+
+                    <div className="form-group">
+                      <label style={{ fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>What would you like to share?</label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                        <button
+                          type="button"
+                          className={`btn ${editShareTargetType === 'single' ? 'btn-primary' : 'btn-outline'}`}
+                          onClick={() => setEditShareTargetType('single')}
+                          style={{ padding: '0.6rem', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'center' }}
+                        >
+                          <span style={{ fontWeight: '700' }}>Single Dashboard</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>Share 1 specific dashboard</span>
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${editShareTargetType === 'rotation' ? 'btn-primary' : 'btn-outline'}`}
+                          onClick={() => setEditShareTargetType('rotation')}
+                          style={{ padding: '0.6rem', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'center' }}
+                        >
+                          <span style={{ fontWeight: '700' }}>Dashboard Rotation</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>Auto-cycle multiple views</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {editShareTargetType === 'single' ? (
+                      <div className="form-group">
+                        <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Select Dashboard to Share</label>
+                        <select
+                          className="input-control"
+                          value={editShareDashboardId}
+                          onChange={e => setEditShareDashboardId(e.target.value)}
+                        >
+                          {dashboardsList.map(d => (
+                            <option key={d.id} value={d.id}>
+                              {d.name} {d.is_default ? '★ (Default)' : ''} ({d.widget_count || 0} widgets)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', background: 'var(--muted)', padding: '1rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                        <div className="form-group">
+                          <label htmlFor="edit-modal-rot-interval" style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Rotation Frequency</label>
+                          <select
+                            id="edit-modal-rot-interval"
+                            className="input-control"
+                            value={editShareRotationInterval}
+                            onChange={e => setEditShareRotationInterval(Number(e.target.value))}
+                          >
+                            <option value="10">10 Seconds</option>
+                            <option value="15">15 Seconds</option>
+                            <option value="30">30 Seconds</option>
+                            <option value="60">1 Minute</option>
+                            <option value="120">2 Minutes</option>
+                            <option value="300">5 Minutes</option>
+                            <option value="600">10 Minutes</option>
+                          </select>
+                        </div>
+
+                        <div className="form-group">
+                          <label style={{ fontWeight: '600', marginBottom: '0.4rem', display: 'block' }}>Dashboards in this Share Rotation</label>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '160px', overflowY: 'auto' }}>
+                            {dashboardsList.map(dash => {
+                              const isChecked = editShareRotationDashboards.length === 0 || editShareRotationDashboards.includes(dash.id);
+                              return (
+                                <label
+                                  key={dash.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem',
+                                    padding: '0.4rem 0.6rem',
+                                    borderRadius: 'var(--radius)',
+                                    background: 'var(--card)',
+                                    border: '1px solid var(--border)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.8rem'
+                                  }}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      let current = editShareRotationDashboards.length === 0
+                                        ? dashboardsList.map(d => d.id)
+                                        : [...editShareRotationDashboards];
+                                      if (e.target.checked) {
+                                        if (!current.includes(dash.id)) current.push(dash.id);
+                                      } else {
+                                        current = current.filter(id => id !== dash.id);
+                                      }
+                                      setEditShareRotationDashboards(current);
+                                    }}
+                                  />
+                                  <span style={{ fontWeight: '600' }}>{dash.name}</span>
+                                  {dash.is_default ? <span style={{ fontSize: '0.7rem', color: '#eab308' }}>★</span> : null}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>
+                      <button type="button" className="btn btn-outline" onClick={() => setEditingShare(null)} disabled={savingEditShare}>Cancel</button>
+                      <button type="submit" className="btn btn-primary" disabled={!editShareName.trim() || !editShareToken.trim() || savingEditShare}>
+                        {savingEditShare ? <RefreshCw size={14} className="spin" /> : <Save size={14} />} Save Changes
                       </button>
                     </div>
                   </div>
