@@ -592,6 +592,8 @@ export async function getDb() {
   try {
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo_light', '')");
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('branding_logo_dark', '')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('dashboard_card_opacity', '75')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('dashboard_card_blur', '8')");
   } catch (err) {}
 
   // Pre-populate default tags

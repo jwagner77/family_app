@@ -267,6 +267,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [dashboardBgType, setDashboardBgType] = useState('theme');
   const [dashboardBgValue, setDashboardBgValue] = useState('');
   const [dashboardBgUnsplashKeywords, setDashboardBgUnsplashKeywords] = useState('');
+  const [dashboardCardOpacity, setDashboardCardOpacity] = useState(75);
+  const [dashboardCardBlur, setDashboardCardBlur] = useState(8);
   const [dashboardRotationEnabled, setDashboardRotationEnabled] = useState(false);
   const [dashboardRotationInterval, setDashboardRotationInterval] = useState('30');
   const [dashboardRotationDashboards, setDashboardRotationDashboards] = useState([]);
@@ -1042,6 +1044,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setDashboardBgType(data.dashboard_bg_type || 'theme');
         setDashboardBgValue(data.dashboard_bg_value || '');
         setDashboardBgUnsplashKeywords(data.dashboard_bg_unsplash_keywords || '');
+        setDashboardCardOpacity(data.dashboard_card_opacity !== undefined ? Number(data.dashboard_card_opacity) : 75);
+        setDashboardCardBlur(data.dashboard_card_blur !== undefined ? Number(data.dashboard_card_blur) : 8);
 
         setDashboardRotationEnabled(data.dashboard_rotation_enabled === 'true');
         setDashboardRotationInterval(data.dashboard_rotation_interval || '30');
@@ -1180,6 +1184,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         dashboard_bg_type: dashboardBgType,
         dashboard_bg_value: dashboardBgValue,
         dashboard_bg_unsplash_keywords: dashboardBgUnsplashKeywords,
+        dashboard_card_opacity: String(dashboardCardOpacity),
+        dashboard_card_blur: String(dashboardCardBlur),
         dashboard_rotation_enabled: String(dashboardRotationEnabled),
         dashboard_rotation_interval: String(dashboardRotationInterval),
         dashboard_rotation_dashboards: JSON.stringify(dashboardRotationDashboards)
@@ -1884,6 +1890,198 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                       )}
                     </div>
                   )}
+
+                </div>
+              </div>
+
+              {/* Info Card Transparency & Blur Effects */}
+              <div className="card" style={{ padding: '1.25rem', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '1.25rem', background: 'var(--muted)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sliders size={18} style={{ color: 'var(--primary)' }} />
+                  <div>
+                    <h4 style={{ margin: 0, fontWeight: '600', fontSize: '0.95rem', color: 'var(--foreground)' }}>
+                      Info Card Transparency & Blur Effects
+                    </h4>
+                    <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.785rem', color: 'var(--muted-foreground)' }}>
+                      Control the glassmorphism transparency (opacity) and backdrop blur of dashboard info cards and widgets separately from the rest of the application.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <label style={{ fontSize: '0.8rem', fontWeight: '600', margin: 0 }}>Quick Style Presets</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem' }}>
+                    {[
+                      { label: 'Solid (100%)', opacity: 100, blur: 0, desc: 'Opaque card' },
+                      { label: 'Glass Standard (75%)', opacity: 75, blur: 8, desc: 'Default subtle glass' },
+                      { label: 'Frosted Glass (50%)', opacity: 50, blur: 16, desc: 'Deep frosted blur' },
+                      { label: 'Crystal Clear (20%)', opacity: 20, blur: 24, desc: 'Max see-through' }
+                    ].map(preset => {
+                      const isActive = dashboardCardOpacity === preset.opacity && dashboardCardBlur === preset.blur;
+                      return (
+                        <button
+                          key={preset.label}
+                          type="button"
+                          className={`btn ${isActive ? 'btn-primary' : 'btn-outline'}`}
+                          onClick={() => {
+                            if (!canManageGeneral) return;
+                            setDashboardCardOpacity(preset.opacity);
+                            setDashboardCardBlur(preset.blur);
+                          }}
+                          disabled={!canManageGeneral}
+                          style={{
+                            padding: '0.5rem 0.65rem',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'flex-start',
+                            textAlign: 'left',
+                            gap: '0.2rem',
+                            fontSize: '0.8rem'
+                          }}
+                        >
+                          <span style={{ fontWeight: '600' }}>{preset.label}</span>
+                          <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>{preset.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom Sliders & Interactive Preview */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem', alignItems: 'start' }}>
+                  
+                  {/* Controls Column */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    
+                    {/* Opacity Slider */}
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <label htmlFor="dashboard-card-opacity" style={{ fontSize: '0.8125rem', fontWeight: '600', margin: 0 }}>
+                          Card Background Opacity
+                        </label>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '0.8rem',
+                          fontWeight: '700',
+                          color: 'var(--primary)',
+                          background: 'var(--card)',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--border)'
+                        }}>
+                          {dashboardCardOpacity}%
+                        </span>
+                      </div>
+                      <input
+                        id="dashboard-card-opacity"
+                        type="range"
+                        min="0"
+                        max="100"
+                        step="5"
+                        value={dashboardCardOpacity}
+                        onChange={(e) => setDashboardCardOpacity(Number(e.target.value))}
+                        disabled={!canManageGeneral}
+                        style={{ width: '100%', cursor: canManageGeneral ? 'pointer' : 'default' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--muted-foreground)', marginTop: '0.2rem' }}>
+                        <span>0% (Invisible)</span>
+                        <span>50%</span>
+                        <span>100% (Solid)</span>
+                      </div>
+                    </div>
+
+                    {/* Blur Slider */}
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                        <label htmlFor="dashboard-card-blur" style={{ fontSize: '0.8125rem', fontWeight: '600', margin: 0 }}>
+                          Card Backdrop Blur Radius
+                        </label>
+                        <span style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: '0.8rem',
+                          fontWeight: '700',
+                          color: 'var(--primary)',
+                          background: 'var(--card)',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--border)'
+                        }}>
+                          {dashboardCardBlur}px
+                        </span>
+                      </div>
+                      <input
+                        id="dashboard-card-blur"
+                        type="range"
+                        min="0"
+                        max="25"
+                        step="1"
+                        value={dashboardCardBlur}
+                        onChange={(e) => setDashboardCardBlur(Number(e.target.value))}
+                        disabled={!canManageGeneral}
+                        style={{ width: '100%', cursor: canManageGeneral ? 'pointer' : 'default' }}
+                      />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--muted-foreground)', marginTop: '0.2rem' }}>
+                        <span>0px (No Blur)</span>
+                        <span>12px</span>
+                        <span>25px (Max Frosted)</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Live Interactive Preview Box */}
+                  <div style={{
+                    position: 'relative',
+                    borderRadius: 'var(--radius)',
+                    overflow: 'hidden',
+                    border: '1px solid var(--border)',
+                    height: '160px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '1rem',
+                    background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%)'
+                  }}>
+                    {/* Simulated Background elements */}
+                    <div style={{ position: 'absolute', top: 10, left: 14, color: '#fff', fontSize: '0.75rem', fontWeight: 'bold', opacity: 0.9 }}>
+                      🖼️ Live Effect Preview
+                    </div>
+                    <div style={{ position: 'absolute', bottom: 8, right: 12, color: '#fff', fontSize: '0.7rem', opacity: 0.8 }}>
+                      Dashboard Wallpaper
+                    </div>
+                    
+                    {/* Sample Widget Preview Card */}
+                    <div style={{
+                      position: 'relative',
+                      width: '100%',
+                      maxWidth: '240px',
+                      borderRadius: 'var(--radius)',
+                      border: '1px solid rgba(255, 255, 255, 0.25)',
+                      backgroundColor: `color-mix(in srgb, var(--card) ${dashboardCardOpacity}%, transparent)`,
+                      backdropFilter: `blur(${dashboardCardBlur}px)`,
+                      WebkitBackdropFilter: `blur(${dashboardCardBlur}px)`,
+                      boxShadow: '0 8px 32px 0 rgba(0, 0, 0, 0.25)',
+                      padding: '0.75rem',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.35rem',
+                      color: 'var(--foreground)'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: '0.35rem' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>🌤️</span> Weather Widget
+                        </span>
+                        <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>{dashboardCardOpacity}% / {dashboardCardBlur}px</span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', fontWeight: '600', marginTop: '0.15rem' }}>
+                        72°F Sunny & Clear
+                      </div>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--muted-foreground)' }}>
+                        Isolated to dashboard info cards
+                      </div>
+                    </div>
+                  </div>
 
                 </div>
               </div>

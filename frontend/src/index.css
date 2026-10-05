@@ -2043,9 +2043,9 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
 
 /* Card theme styling matched to overview cards design system */
 .widget-card {
-  background-color: color-mix(in srgb, var(--card) calc(var(--navbar-opacity, 0.75) * 100%), transparent) !important;
-  backdrop-filter: blur(8px) !important;
-  -webkit-backdrop-filter: blur(8px) !important;
+  background-color: color-mix(in srgb, var(--card) calc(var(--dashboard-card-opacity, var(--navbar-opacity, 0.75)) * 100%), transparent) !important;
+  backdrop-filter: blur(var(--dashboard-card-blur, 8px)) !important;
+  -webkit-backdrop-filter: blur(var(--dashboard-card-blur, 8px)) !important;
   color: var(--foreground) !important;
   border: 1px solid var(--border) !important;
   border-radius: var(--radius) !important;
@@ -2108,7 +2108,6 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
 }
 
 .cards-themed .card::before,
-.cards-themed .widget-card::before,
 .cards-themed .modal-content::before {
   content: "";
   position: absolute;
@@ -2121,6 +2120,22 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   background-size: cover;
   background-position: center;
   opacity: var(--navbar-opacity, 0.75);
+  z-index: -1;
+  transition: opacity 0.3s ease;
+}
+
+.cards-themed .widget-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--primary);
+  background-image: var(--navbar-bg, none);
+  background-size: cover;
+  background-position: center;
+  opacity: var(--dashboard-card-opacity, var(--navbar-opacity, 0.75));
   z-index: -1;
   transition: opacity 0.3s ease;
 }

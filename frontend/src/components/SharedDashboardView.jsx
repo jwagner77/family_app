@@ -22,6 +22,8 @@ export default function SharedDashboardView({ token, onClose }) {
   const [bgType, setBgType] = useState('theme');
   const [bgValue, setBgValue] = useState('');
   const [bgKeywords, setBgKeywords] = useState('');
+  const [cardOpacity, setCardOpacity] = useState(75);
+  const [cardBlur, setCardBlur] = useState(8);
   const [refreshInterval, setRefreshInterval] = useState('disabled');
   const [currentSig, setCurrentSig] = useState(Date.now().toString());
   const [unsplashUrl, setUnsplashUrl] = useState('');
@@ -50,6 +52,13 @@ export default function SharedDashboardView({ token, onClose }) {
             timezone: data.timezone || 'America/New_York'
           });
 
+          if (data.dashboard_card_opacity !== undefined) {
+            setCardOpacity(Number(data.dashboard_card_opacity));
+          }
+          if (data.dashboard_card_blur !== undefined) {
+            setCardBlur(Number(data.dashboard_card_blur));
+          }
+
           if (data.target_type === 'rotation' && data.dashboards && data.dashboards.length > 0) {
             setDashboards(data.dashboards);
             const interval = Number(data.rotation_interval) || 30;
@@ -73,6 +82,12 @@ export default function SharedDashboardView({ token, onClose }) {
             setBgType(settings.dashboard_bg_type || 'theme');
             setBgValue(settings.dashboard_bg_value || '');
             setBgKeywords(settings.dashboard_bg_unsplash_keywords || '');
+            if (settings.dashboard_card_opacity !== undefined) {
+              setCardOpacity(Number(settings.dashboard_card_opacity));
+            }
+            if (settings.dashboard_card_blur !== undefined) {
+              setCardBlur(Number(settings.dashboard_card_blur));
+            }
             setRefreshInterval(settings.dashboard_refresh_interval || 'disabled');
             if (settings.dashboard_bg_type === 'unsplash' && settings.dashboard_bg_value) {
               setCurrentSig(settings.dashboard_bg_value);
@@ -195,7 +210,14 @@ export default function SharedDashboardView({ token, onClose }) {
     : (dashboardInfo?.dashboardName || 'Main Dashboard');
 
   const getContainerStyle = () => {
-    const base = { fontFamily: 'var(--font-body)', minHeight: '100vh', padding: '2.5rem', position: 'relative' };
+    const base = {
+      fontFamily: 'var(--font-body)',
+      minHeight: '100vh',
+      padding: '2.5rem',
+      position: 'relative',
+      '--dashboard-card-opacity': (Number(cardOpacity !== undefined ? cardOpacity : 75) / 100).toString(),
+      '--dashboard-card-blur': `${cardBlur !== undefined ? cardBlur : 8}px`
+    };
     if (bgType === 'light') {
       return { ...base, backgroundColor: '#f8fafc', color: '#1e293b' };
     }

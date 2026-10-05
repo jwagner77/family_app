@@ -63,6 +63,8 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
   const [bgType, setBgType] = useState('theme');
   const [bgValue, setBgValue] = useState('');
   const [bgKeywords, setBgKeywords] = useState('');
+  const [cardOpacity, setCardOpacity] = useState(75);
+  const [cardBlur, setCardBlur] = useState(8);
   const [refreshInterval, setRefreshInterval] = useState('disabled');
   const [currentSig, setCurrentSig] = useState(Date.now().toString());
   const [unsplashUrl, setUnsplashUrl] = useState('');
@@ -131,6 +133,8 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
         setBgType(data.dashboard_bg_type || 'theme');
         setBgValue(data.dashboard_bg_value || '');
         setBgKeywords(data.dashboard_bg_unsplash_keywords || '');
+        setCardOpacity(data.dashboard_card_opacity !== undefined ? Number(data.dashboard_card_opacity) : 75);
+        setCardBlur(data.dashboard_card_blur !== undefined ? Number(data.dashboard_card_blur) : 8);
         setRefreshInterval(data.dashboard_refresh_interval || 'disabled');
         
         const rotEnabled = data.dashboard_rotation_enabled === 'true';
@@ -915,7 +919,13 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
       </div>
 
       {/* DOTTED GRID LAYOUT CANVAS */}
-      <div className="dashboard-grid-container">
+      <div 
+        className="dashboard-grid-container"
+        style={{
+          '--dashboard-card-opacity': (Number(cardOpacity !== undefined ? cardOpacity : 75) / 100).toString(),
+          '--dashboard-card-blur': `${cardBlur !== undefined ? cardBlur : 8}px`
+        }}
+      >
         {widgets.length === 0 ? (
           <div className="card" style={{ padding: '4rem 2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.25rem' }}>
             <div style={{ fontSize: '3rem' }}>📊</div>
