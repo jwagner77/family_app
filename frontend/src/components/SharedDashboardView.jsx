@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   AlertTriangle, ChefHat, BookOpen, CheckSquare, Calendar, 
   DollarSign, Clock, AlignLeft, Info, RefreshCw, LayoutGrid, Sun, Moon,
-  Play, Pause, Layers, RotateCcw, ChevronLeft, ChevronRight
+  Play, Pause, Layers, RotateCcw, ChevronLeft, ChevronRight, Volume2, VolumeX
 } from 'lucide-react';
 import { extractYouTubeVideoId } from '../utils/youtube';
 
@@ -28,6 +28,45 @@ export default function SharedDashboardView({ token, onClose }) {
   const [currentSig, setCurrentSig] = useState(Date.now().toString());
   const [unsplashUrl, setUnsplashUrl] = useState('');
   const [unsplashAttribution, setUnsplashAttribution] = useState(null);
+  const youtubeIframeRef = useRef(null);
+  const [isMuted, setIsMuted] = useState(true);
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (youtubeIframeRef.current && youtubeIframeRef.current.contentWindow) {
+      try {
+        youtubeIframeRef.current.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: nextMuted ? 'mute' : 'unMute',
+            args: []
+          }),
+          '*'
+        );
+        if (!nextMuted) {
+          youtubeIframeRef.current.contentWindow.postMessage(
+            JSON.stringify({
+              event: 'command',
+              func: 'setVolume',
+              args: [100]
+            }),
+            '*'
+          );
+          youtubeIframeRef.current.contentWindow.postMessage(
+            JSON.stringify({
+              event: 'command',
+              func: 'playVideo',
+              args: []
+            }),
+            '*'
+          );
+        }
+      } catch (err) {
+        console.error('Failed to postMessage to YouTube iframe:', err);
+      }
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -270,7 +309,8 @@ export default function SharedDashboardView({ token, onClose }) {
           }}
         >
           <iframe
-            src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(bgValue)}?autoplay=1&mute=1&loop=1&playlist=${extractYouTubeVideoId(bgValue)}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1`}
+            ref={youtubeIframeRef}
+            src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(bgValue)}?autoplay=1&mute=1&loop=1&playlist=${extractYouTubeVideoId(bgValue)}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&enablejsapi=1`}
             title="YouTube Background"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             style={{
@@ -360,6 +400,29 @@ export default function SharedDashboardView({ token, onClose }) {
                 <ChevronRight size={14} />
               </button>
             </div>
+          )}
+
+          {/* YouTube Background Audio Mute/Unmute Toggle */}
+          {bgType === 'youtube' && extractYouTubeVideoId(bgValue) && (
+            <button
+              type="button"
+              className={`btn ${isMuted ? 'btn-outline' : 'btn-primary'}`}
+              onClick={toggleMute}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
+              title={isMuted ? "Unmute YouTube Background Audio" : "Mute YouTube Background Audio"}
+            >
+              {isMuted ? (
+                <>
+                  <VolumeX size={14} />
+                  <span>Unmute Audio</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 size={14} />
+                  <span>Mute Audio</span>
+                </>
+              )}
+            </button>
           )}
 
           <button 

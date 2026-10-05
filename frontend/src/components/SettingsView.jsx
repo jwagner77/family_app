@@ -1842,7 +1842,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
                           disabled={!canManageGeneral}
                         />
                         <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                          Paste any YouTube URL (standard, shortened youtu.be, embed, or shorts) or an 11-character Video ID. The video will autoplay muted and loop in the background of your dashboard.
+                          Paste any YouTube URL (standard, shortened youtu.be, embed, or shorts) or an 11-character Video ID. The video will autoplay in the background of your dashboard with an audio mute/unmute control in the top-right header.
                         </span>
                       </div>
 

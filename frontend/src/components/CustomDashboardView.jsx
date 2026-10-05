@@ -5,7 +5,7 @@ import {
   BookOpen, CheckSquare, DollarSign, Calendar, AlertTriangle, 
   ChefHat, Book, Info, PlusCircle, LayoutGrid, Edit2, Play, Pause,
   ChevronDown, Star, PlayCircle, PauseCircle, Layers, Copy,
-  ChevronLeft, ChevronRight, List, MapPin, Tag
+  ChevronLeft, ChevronRight, List, MapPin, Tag, Volume2, VolumeX
 } from 'lucide-react';
 import { extractYouTubeVideoId } from '../utils/youtube';
 
@@ -72,6 +72,46 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const gridRef = useRef(null);
+  const youtubeIframeRef = useRef(null);
+  const [isMuted, setIsMuted] = useState(true);
+
+  const toggleMute = () => {
+    const nextMuted = !isMuted;
+    setIsMuted(nextMuted);
+    if (youtubeIframeRef.current && youtubeIframeRef.current.contentWindow) {
+      try {
+        youtubeIframeRef.current.contentWindow.postMessage(
+          JSON.stringify({
+            event: 'command',
+            func: nextMuted ? 'mute' : 'unMute',
+            args: []
+          }),
+          '*'
+        );
+        if (!nextMuted) {
+          youtubeIframeRef.current.contentWindow.postMessage(
+            JSON.stringify({
+              event: 'command',
+              func: 'setVolume',
+              args: [100]
+            }),
+            '*'
+          );
+          youtubeIframeRef.current.contentWindow.postMessage(
+            JSON.stringify({
+              event: 'command',
+              func: 'playVideo',
+              args: []
+            }),
+            '*'
+          );
+        }
+      } catch (err) {
+        console.error('Failed to postMessage to YouTube iframe:', err);
+      }
+    }
+  };
+
   const [dragState, setDragState] = useState({
     id: null,
     startX: 0,
@@ -167,10 +207,18 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
       localStorage.setItem('active_dashboard_id', currentDashboardId);
       fetchWidgets(currentDashboardId);
     }
-    if (bgType === 'unsplash') {
-      setCurrentSig(Date.now().toString());
+  }, [currentDashboardId]);
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      if (currentDashboardId) {
+        fetchWidgets(currentDashboardId);
+      }
+      if (bgType === 'unsplash') {
+        setCurrentSig(Date.now().toString());
+      }
     }
-  }, [currentDashboardId, refreshTrigger]);
+  }, [refreshTrigger]);
 
   // Handle dashboard auto-rotation
   useEffect(() => {
@@ -728,7 +776,8 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
           }}
         >
           <iframe
-            src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(bgValue)}?autoplay=1&mute=1&loop=1&playlist=${extractYouTubeVideoId(bgValue)}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1`}
+            ref={youtubeIframeRef}
+            src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(bgValue)}?autoplay=1&mute=1&loop=1&playlist=${extractYouTubeVideoId(bgValue)}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&enablejsapi=1`}
             title="YouTube Background"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             style={{
@@ -854,6 +903,29 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
                 <>
                   <PlayCircle size={15} />
                   <span>Auto-Rotate</span>
+                </>
+              )}
+            </button>
+          )}
+
+          {/* YouTube Background Audio Mute/Unmute Toggle */}
+          {bgType === 'youtube' && extractYouTubeVideoId(bgValue) && (
+            <button
+              type="button"
+              className={`btn ${isMuted ? 'btn-outline' : 'btn-primary'}`}
+              onClick={toggleMute}
+              style={{ padding: '0.5rem 0.85rem', display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.8125rem' }}
+              title={isMuted ? "Unmute YouTube Background Audio" : "Mute YouTube Background Audio"}
+            >
+              {isMuted ? (
+                <>
+                  <VolumeX size={15} />
+                  <span>Unmute Audio</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 size={15} />
+                  <span>Mute Audio</span>
                 </>
               )}
             </button>
