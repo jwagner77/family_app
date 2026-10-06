@@ -10,7 +10,9 @@ import {
 } from 'lucide-react';
 import { extractYouTubeVideoId } from '../utils/youtube';
 import CastDashboardModal from './CastDashboardModal';
+import DashboardScaleControl from './DashboardScaleControl';
 import { getCastStatus, subscribeCastState } from '../utils/cast';
+import { useDashboardScale } from '../utils/dashboardScale';
 
 const WIDGET_TYPES = [
   { type: 'clock', name: 'Digital Clock & Date', category: 'Utility', defaultSize: { w: 4, h: 2 } },
@@ -96,6 +98,10 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
   }, [currentDashboardId]);
 
   const [widgets, setWidgets] = useState([]);
+
+  // Screen Scaling & TV Auto-Fit hook
+  const { scaleMode, setScaleMode, scaleStyles } = useDashboardScale({ widgets, isShared: false });
+
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -663,7 +669,10 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
 
     const rect = gridEl.getBoundingClientRect();
     const colWidth = rect.width / 12;
-    const rowHeightWithGap = 95 + 20; // 95px height + 20px gap
+    const computedStyle = window.getComputedStyle(gridEl);
+    const parsedRowH = parseFloat(computedStyle.getPropertyValue('--dashboard-row-height')) || 95;
+    const parsedGap = parseFloat(computedStyle.getPropertyValue('gap')) || 16;
+    const rowHeightWithGap = parsedRowH + parsedGap;
 
     const deltaCols = Math.round(deltaX / colWidth);
     const deltaRows = Math.round(deltaY / rowHeightWithGap);
@@ -728,7 +737,10 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
     if (isDragging && gridRef.current) {
       const rect = gridRef.current.getBoundingClientRect();
       const colWidth = rect.width / 12;
-      const rowHeightWithGap = 95 + 20;
+      const computedStyle = window.getComputedStyle(gridRef.current);
+      const parsedRowH = parseFloat(computedStyle.getPropertyValue('--dashboard-row-height')) || 95;
+      const parsedGap = parseFloat(computedStyle.getPropertyValue('gap')) || 16;
+      const rowHeightWithGap = parsedRowH + parsedGap;
 
       const shiftX = (widget.x - dragState.initialX) * colWidth;
       const shiftY = (widget.y - dragState.initialY) * rowHeightWithGap;
@@ -980,6 +992,9 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
             <RefreshCw size={14} /> Refresh
           </button>
 
+          {/* Screen Scaling & TV Auto-Fit Control */}
+          <DashboardScaleControl scaleMode={scaleMode} setScaleMode={setScaleMode} />
+
           {/* Chromecast Screen Casting Button */}
           <button
             type="button"
@@ -1047,7 +1062,8 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
         className="dashboard-grid-container"
         style={{
           '--dashboard-card-opacity': (Number(cardOpacity !== undefined ? cardOpacity : 75) / 100).toString(),
-          '--dashboard-card-blur': `${cardBlur !== undefined ? cardBlur : 8}px`
+          '--dashboard-card-blur': `${cardBlur !== undefined ? cardBlur : 8}px`,
+          ...scaleStyles
         }}
       >
         {widgets.length === 0 ? (

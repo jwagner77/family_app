@@ -7,7 +7,9 @@ import {
 } from 'lucide-react';
 import { extractYouTubeVideoId } from '../utils/youtube';
 import CastDashboardModal from './CastDashboardModal';
+import DashboardScaleControl from './DashboardScaleControl';
 import { getCastStatus, subscribeCastState } from '../utils/cast';
+import { useDashboardScale } from '../utils/dashboardScale';
 
 export default function SharedDashboardView({ token, onClose }) {
   const [widgets, setWidgets] = useState([]);
@@ -18,6 +20,9 @@ export default function SharedDashboardView({ token, onClose }) {
   const [rotationInterval, setRotationInterval] = useState(30);
   const [secondsRemaining, setSecondsRemaining] = useState(30);
   const [isPaused, setIsPaused] = useState(false);
+
+  // Screen & TV Scaling state
+  const { scaleMode, setScaleMode, scaleStyles } = useDashboardScale({ widgets, isShared: true });
 
   // Cast & Screen state
   const [isCastModalOpen, setIsCastModalOpen] = useState(false);
@@ -283,10 +288,11 @@ export default function SharedDashboardView({ token, onClose }) {
     const base = {
       fontFamily: 'var(--font-body)',
       minHeight: '100vh',
-      padding: '2.5rem',
+      padding: scaleStyles['--dashboard-padding'] || 'var(--dashboard-padding, clamp(0.75rem, 2vh, 1.75rem))',
       position: 'relative',
       '--dashboard-card-opacity': (Number(cardOpacity !== undefined ? cardOpacity : 75) / 100).toString(),
-      '--dashboard-card-blur': `${cardBlur !== undefined ? cardBlur : 8}px`
+      '--dashboard-card-blur': `${cardBlur !== undefined ? cardBlur : 8}px`,
+      ...scaleStyles
     };
     if (bgType === 'light') {
       return { ...base, backgroundColor: '#f8fafc', color: '#1e293b' };
@@ -371,26 +377,26 @@ export default function SharedDashboardView({ token, onClose }) {
       )}
 
       {/* Header bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem', position: 'relative', zIndex: 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'clamp(0.75rem, 1.8vh, 1.5rem)', flexWrap: 'wrap', gap: '0.75rem', position: 'relative', zIndex: 1 }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h1 style={{ fontSize: 'clamp(1.25rem, calc(1.1rem + 0.5vw), 1.75rem)', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             {dashboardInfo?.brandingIcon !== 'none' && dashboardInfo?.brandingIcon} {dashboardInfo?.appName}
           </h1>
 
           {/* Active Dashboard Indicator Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.1)', padding: '0.3rem 0.75rem', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.1)', padding: '0.25rem 0.65rem', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
             <Layers size={14} style={{ color: 'var(--primary)' }} />
-            <span style={{ fontSize: '0.85rem', fontWeight: '700' }}>{currentDashName}</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: '700' }}>{currentDashName}</span>
             {targetType === 'rotation' && dashboards.length > 1 && (
-              <span style={{ fontSize: '0.75rem', opacity: 0.8, marginLeft: '0.25rem' }}>
+              <span style={{ fontSize: '0.72rem', opacity: 0.8, marginLeft: '0.25rem' }}>
                 ({currentIndex + 1}/{dashboards.length})
               </span>
             )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           {/* Rotation Controls when target_type is rotation */}
           {targetType === 'rotation' && dashboards.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(0, 0, 0, 0.2)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius)', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -455,6 +461,9 @@ export default function SharedDashboardView({ token, onClose }) {
               )}
             </button>
           )}
+
+          {/* Screen Scaling & TV Auto-Fit Control */}
+          <DashboardScaleControl scaleMode={scaleMode} setScaleMode={setScaleMode} isShared={true} />
 
           {/* Chromecast Screen Casting Button */}
           <button

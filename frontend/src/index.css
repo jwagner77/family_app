@@ -1878,18 +1878,19 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
-  grid-auto-rows: 95px;
-  gap: 1.25rem;
-  min-height: 500px;
+  grid-auto-rows: var(--dashboard-row-height, 95px);
+  gap: var(--dashboard-grid-gap, 1.25rem);
+  min-height: auto;
   border-radius: var(--radius-md);
-  padding: 0.5rem;
-  transition: all var(--transition-normal);
+  padding: 0.25rem;
+  transition: all 0.2s ease-in-out;
   position: relative;
+  font-size: calc(1rem * var(--dashboard-font-scale, 1));
 }
 
 /* Dotted grid lines background for Edit Mode */
 .dashboard-grid.editing {
-  background-size: calc((100% - 11 * 1.25rem) / 12 + 1.25rem) 95px;
+  background-size: calc((100% - 11 * var(--dashboard-grid-gap, 1.25rem)) / 12 + var(--dashboard-grid-gap, 1.25rem)) calc(var(--dashboard-row-height, 95px) + var(--dashboard-grid-gap, 1.25rem));
   background-image: 
     linear-gradient(to right, var(--border-color) 1px, transparent 1px),
     linear-gradient(to bottom, var(--border-color) 1px, transparent 1px);
@@ -1921,11 +1922,11 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.65rem 1.05rem;
+  padding: clamp(0.4rem, 1vh, 0.65rem) clamp(0.6rem, 1.2vw, 1.05rem);
   background: var(--primary-light);
   border-bottom: 1px solid var(--border-color);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: clamp(0.8rem, calc(0.75rem + 0.25vh), 0.95rem);
   color: var(--text-main);
   user-select: none;
 }
@@ -1940,10 +1941,10 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
 }
 
 .widget-body {
-  padding: 0.85rem 1.05rem;
+  padding: clamp(0.5rem, 1.2vh, 0.9rem) clamp(0.6rem, 1.2vw, 1.05rem);
   flex: 1;
   overflow-y: auto;
-  font-size: 0.825rem;
+  font-size: clamp(0.75rem, calc(0.72rem + 0.2vh), 0.85rem);
 }
 
 /* Widget Controls overlay active in Edit Mode */
@@ -2020,8 +2021,8 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
 
 /* Scrollbars for widget body */
 .widget-body::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 .widget-body::-webkit-scrollbar-track {
   background: transparent;
@@ -2038,7 +2039,11 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
 .shared-dashboard-container {
   min-height: 100vh;
   background-color: var(--bg-app);
-  padding: 2.5rem;
+  padding: var(--dashboard-padding, clamp(0.75rem, 2vh, 2rem));
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+  box-sizing: border-box;
 }
 
 /* Card theme styling matched to overview cards design system */
@@ -2055,12 +2060,12 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   background: transparent !important;
   border-bottom: 1px solid var(--border) !important;
   color: var(--foreground) !important;
-  padding: 1rem 1.25rem !important;
+  padding: clamp(0.5rem, 1vh, 0.85rem) clamp(0.75rem, 1.2vw, 1.25rem) !important;
 }
 
 .widget-card .widget-body {
   color: var(--muted-foreground) !important;
-  padding: 1.25rem !important;
+  padding: clamp(0.6rem, 1.2vh, 1.1rem) clamp(0.75rem, 1.2vw, 1.25rem) !important;
 }
 
 .widget-card h3, 
