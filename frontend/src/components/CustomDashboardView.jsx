@@ -5,9 +5,12 @@ import {
   BookOpen, CheckSquare, DollarSign, Calendar, AlertTriangle, 
   ChefHat, Book, Info, PlusCircle, LayoutGrid, Edit2, Play, Pause,
   ChevronDown, Star, PlayCircle, PauseCircle, Layers, Copy,
-  ChevronLeft, ChevronRight, List, MapPin, Tag, Volume2, VolumeX
+  ChevronLeft, ChevronRight, List, MapPin, Tag, Volume2, VolumeX,
+  Cast, Tv
 } from 'lucide-react';
 import { extractYouTubeVideoId } from '../utils/youtube';
+import CastDashboardModal from './CastDashboardModal';
+import { getCastStatus, subscribeCastState } from '../utils/cast';
 
 const WIDGET_TYPES = [
   { type: 'clock', name: 'Digital Clock & Date', category: 'Utility', defaultSize: { w: 4, h: 2 } },
@@ -55,6 +58,42 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
   const [rotationInterval, setRotationInterval] = useState(30);
   const [rotationDashboards, setRotationDashboards] = useState([]);
   const [secondsUntilRotate, setSecondsUntilRotate] = useState(30);
+
+  // Chromecast & Screen Casting state
+  const [isCastModalOpen, setIsCastModalOpen] = useState(false);
+  const [castState, setCastState] = useState(() => getCastStatus());
+  const [shareUrl, setShareUrl] = useState('');
+
+  useEffect(() => {
+    const unsubscribe = subscribeCastState(() => {
+      setCastState(getCastStatus());
+    });
+    setCastState(getCastStatus());
+    return unsubscribe;
+  }, []);
+
+  // Fetch or update share URL for the active dashboard
+  useEffect(() => {
+    let active = true;
+    const loadShareUrl = async () => {
+      try {
+        const res = await fetch('/api/dashboard/shares');
+        if (res.ok) {
+          const shares = await res.json();
+          const matching = shares.find(s => s.dashboard_id === currentDashboardId) || shares[0];
+          if (active && matching) {
+            setShareUrl(`${window.location.origin}/shared/${matching.token}`);
+            return;
+          }
+        }
+      } catch (e) {}
+      if (active) {
+        setShareUrl(`${window.location.origin}/#/dashboard`);
+      }
+    };
+    loadShareUrl();
+    return () => { active = false; };
+  }, [currentDashboardId]);
 
   const [widgets, setWidgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -940,6 +979,18 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
           >
             <RefreshCw size={14} /> Refresh
           </button>
+
+          {/* Chromecast Screen Casting Button */}
+          <button
+            type="button"
+            className={`btn ${castState.isCasting ? 'btn-primary' : 'btn-dashboard-action'}`}
+            onClick={() => setIsCastModalOpen(true)}
+            style={{ padding: '0.5rem 0.85rem', display: 'flex', gap: '0.4rem', alignItems: 'center', fontSize: '0.8125rem' }}
+            title={castState.isCasting ? `Casting active to ${castState.deviceName || 'screen'}` : "Cast dashboard to a screen using Chromecast"}
+          >
+            <Cast size={15} />
+            <span>{castState.isCasting ? `Casting (${castState.deviceName || 'TV'})` : 'Cast'}</span>
+          </button>
           
           <button 
             className={`btn btn-dashboard-action ${isEditing ? 'active' : ''}`}
@@ -1373,6 +1424,15 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
           </a>
         </div>
       )}
+
+      {/* Cast to Screen Modal */}
+      <CastDashboardModal
+        isOpen={isCastModalOpen}
+        onClose={() => setIsCastModalOpen(false)}
+        dashboardTitle={currentDashboard.name || 'Dashboard'}
+        shareUrl={shareUrl || `${window.location.origin}/#/dashboard`}
+        showToast={showToast}
+      />
     </div>
   );
 }

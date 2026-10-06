@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   AlertTriangle, ChefHat, BookOpen, CheckSquare, Calendar, 
   DollarSign, Clock, AlignLeft, Info, RefreshCw, LayoutGrid, Sun, Moon,
-  Play, Pause, Layers, RotateCcw, ChevronLeft, ChevronRight, Volume2, VolumeX
+  Play, Pause, Layers, RotateCcw, ChevronLeft, ChevronRight, Volume2, VolumeX,
+  Cast, Tv
 } from 'lucide-react';
 import { extractYouTubeVideoId } from '../utils/youtube';
+import CastDashboardModal from './CastDashboardModal';
+import { getCastStatus, subscribeCastState } from '../utils/cast';
 
 export default function SharedDashboardView({ token, onClose }) {
   const [widgets, setWidgets] = useState([]);
@@ -15,6 +18,24 @@ export default function SharedDashboardView({ token, onClose }) {
   const [rotationInterval, setRotationInterval] = useState(30);
   const [secondsRemaining, setSecondsRemaining] = useState(30);
   const [isPaused, setIsPaused] = useState(false);
+
+  // Cast & Screen state
+  const [isCastModalOpen, setIsCastModalOpen] = useState(false);
+  const [castState, setCastState] = useState(() => getCastStatus());
+  const [toast, setToast] = useState(null);
+
+  const showToast = (text, type = 'success') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3500);
+  };
+
+  useEffect(() => {
+    const unsubscribe = subscribeCastState(() => {
+      setCastState(getCastStatus());
+    });
+    setCastState(getCastStatus());
+    return unsubscribe;
+  }, []);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -435,6 +456,18 @@ export default function SharedDashboardView({ token, onClose }) {
             </button>
           )}
 
+          {/* Chromecast Screen Casting Button */}
+          <button
+            type="button"
+            className={`btn ${castState.isCasting ? 'btn-primary' : 'btn-outline'}`}
+            onClick={() => setIsCastModalOpen(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
+            title={castState.isCasting ? `Casting active to ${castState.deviceName || 'screen'}` : "Cast dashboard to a screen using Chromecast"}
+          >
+            <Cast size={14} />
+            <span>{castState.isCasting ? `Casting (${castState.deviceName || 'TV'})` : 'Cast'}</span>
+          </button>
+
           <button 
             className="btn btn-outline" 
             onClick={() => setRefreshTrigger(p => p + 1)}
@@ -528,6 +561,23 @@ export default function SharedDashboardView({ token, onClose }) {
           </a>
         </div>
       )}
+
+      {/* Toast Banner */}
+      {toast && (
+        <div className={`alert-banner ${toast.type === 'success' ? 'alert-success' : (toast.type === 'info' ? 'alert-info' : 'alert-error')}`} style={{ position: 'fixed', top: '1.5rem', right: '1.5rem', zIndex: 1300, width: 'auto', minWidth: '280px', boxShadow: 'var(--shadow-lg)' }}>
+          <span>{toast.text}</span>
+          <button className="close-btn" onClick={() => setToast(null)}>×</button>
+        </div>
+      )}
+
+      {/* Cast to Screen Modal */}
+      <CastDashboardModal
+        isOpen={isCastModalOpen}
+        onClose={() => setIsCastModalOpen(false)}
+        dashboardTitle={activeDashboard?.name || dashboardInfo?.name || 'Shared Dashboard'}
+        shareUrl={window.location.href}
+        showToast={showToast}
+      />
     </div>
   );
 }
