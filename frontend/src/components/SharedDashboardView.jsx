@@ -574,7 +574,7 @@ export default function SharedDashboardView({ token, onClose }) {
       <CastDashboardModal
         isOpen={isCastModalOpen}
         onClose={() => setIsCastModalOpen(false)}
-        dashboardTitle={activeDashboard?.name || dashboardInfo?.name || 'Shared Dashboard'}
+        dashboardTitle={currentDashName || 'Shared Dashboard'}
         shareUrl={window.location.href}
         showToast={showToast}
       />
