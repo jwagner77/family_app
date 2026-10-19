@@ -502,6 +502,24 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
             {ingredients.map((ing, idx) => (
               <div key={idx} className="recipe-ingredient-row">
+                <span 
+                  className="ingredient-step-number"
+                  style={{ 
+                    background: 'var(--primary-light)', 
+                    color: 'var(--primary)', 
+                    width: '32px', 
+                    height: '32px', 
+                    borderRadius: '50%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    fontWeight: '700',
+                    fontSize: '0.85rem',
+                    flexShrink: 0 
+                  }}
+                >
+                  {idx + 1}
+                </span>
                 <input 
                   type="text" 
                   className="input-control ingredient-amount" 

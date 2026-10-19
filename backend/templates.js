@@ -2,7 +2,11 @@ import PizZip from 'pizzip';
 import Docxtemplater from 'docxtemplater';
 import fs from 'fs';
 import path from 'path';
-import { addTemplate, getDefaultTemplate } from './db.js';
+import { fileURLToPath } from 'url';
+import { addTemplate, getAllTemplates, getDefaultTemplate } from './db.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Generates a bare-minimum valid .docx file containing the required template tags.
@@ -157,22 +161,35 @@ export async function initDefaultTemplate() {
     const defaultTpl = await getDefaultTemplate();
     const dataDir = process.env.DATA_DIR || './data';
     const filePath = path.join(dataDir, 'templates', 'default_template.docx');
-
-    if (defaultTpl && fs.existsSync(filePath)) {
-      return;
-    }
-
     const tplDir = path.dirname(filePath);
+
     if (!fs.existsSync(tplDir)) {
       fs.mkdirSync(tplDir, { recursive: true });
     }
 
-    createDefaultTemplateFile(filePath);
-    
+    if (!fs.existsSync(filePath)) {
+      createDefaultTemplateFile(filePath);
+    }
+
     // Register in database if not already there
     if (!defaultTpl) {
       await addTemplate('Default Classic Template', '/templates/default_template.docx', 1);
       console.log('Created and registered default DOCX template.');
+    }
+
+    // Ensure 5x7 Recipe Card template is synced and registered
+    const cardAssetPath = path.join(__dirname, 'assets', '5x7_recipe_card.docx');
+    const cardDestPath = path.join(tplDir, '5x7_recipe_card.docx');
+    if (fs.existsSync(cardAssetPath)) {
+      fs.copyFileSync(cardAssetPath, cardDestPath);
+      const allTemplates = await getAllTemplates();
+      const has5x7 = allTemplates.some(
+        t => t.file_path === '/templates/5x7_recipe_card.docx' || t.name === '5x7 Recipe Card'
+      );
+      if (!has5x7) {
+        await addTemplate('5x7 Recipe Card', '/templates/5x7_recipe_card.docx', 0);
+        console.log('Registered 5x7 Recipe Card DOCX template.');
+      }
     }
   } catch (error) {
     console.error('Failed to initialize default template:', error);

@@ -1827,11 +1827,11 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
     margin-bottom: 0.25rem;
   }
   .recipe-ingredient-row .ingredient-amount {
-    width: calc(50% - 0.25rem) !important;
+    width: calc(50% - 1.5rem) !important;
     flex-grow: 1;
   }
   .recipe-ingredient-row .ingredient-unit {
-    width: calc(50% - 0.25rem) !important;
+    width: calc(50% - 1.5rem) !important;
     flex-grow: 1;
   }
   .recipe-ingredient-row .ingredient-name {
