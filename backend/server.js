@@ -5966,6 +5966,9 @@ app.get('/api/recipes/:id/export', authenticate, requirePermission('recipes', 'r
     const docBuffer = renderRecipeDocx(templateFullPath, recipe);
     const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
     
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${safeTitle}.docx"`);
     res.send(docBuffer);
@@ -6823,6 +6826,9 @@ app.get('/api/recipes/:id/export', authenticate, requirePermission('recipes', 'r
 
     // Set download headers
     const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="recipe_${safeTitle}.docx"`);
     res.send(docBuffer);

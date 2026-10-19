@@ -213,6 +213,7 @@ export default function RecipesView({ showToast, user }) {
     const params = [];
     if (tId) params.push(`templateId=${tId}`);
     if (token) params.push(`token=${encodeURIComponent(token)}`);
+    params.push(`t=${Date.now()}`);
     if (params.length > 0) url += `?${params.join('&')}`;
     window.open(url, '_blank');
   };
