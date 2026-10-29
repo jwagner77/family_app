@@ -229,15 +229,18 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
   // Form Submit handler
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title.trim()) {
-      showToast('Please specify a recipe title.', 'error');
-      return;
-    }
 
-    // Filter empty ingredients/instructions/notes
-    const validIngredients = ingredients.filter(ing => ing.name.trim() !== '');
+    // Keep any ingredient/instruction/note row that has content in any field
+    const validIngredients = ingredients
+      .filter(ing => (ing.name || '').trim() !== '' || (ing.amount || '').trim() !== '' || (ing.unit || '').trim() !== '')
+      .map(ing => ({
+        amount: (ing.amount || '').trim(),
+        unit: (ing.unit || '').trim(),
+        name: (ing.name || '').trim(),
+        raw_text: (ing.raw_text || `${ing.amount || ''} ${ing.unit || ''} ${ing.name || ''}`).trim().replace(/\s+/g, ' ')
+      }));
     const validInstructions = instructions
-      .filter(inst => inst.instruction_text.trim() !== '')
+      .filter(inst => (inst.instruction_text || '').trim() !== '')
       .map((inst, idx) => ({
         step_number: idx + 1,
         instruction_text: inst.instruction_text
@@ -248,11 +251,6 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
         step_number: idx + 1,
         note_text: n.note_text.trim()
       }));
-
-    if (validIngredients.length === 0) {
-      showToast('Please add at least one ingredient.', 'error');
-      return;
-    }
 
     setLoading(true);
 
@@ -303,6 +301,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
   return (
     <form 
       onSubmit={handleSubmit} 
+      noValidate
       style={{ 
         display: 'flex', 
         flexDirection: 'column', 
@@ -326,7 +325,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
           {/* Left Side Metadata */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1.5 1 320px' }}>
             <div className="form-group">
-              <label htmlFor="title">Recipe Title *</label>
+              <label htmlFor="title">Recipe Title</label>
               <input 
                 id="title"
                 type="text" 
@@ -334,7 +333,6 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
                 placeholder="e.g. Grandma's Famous Lasagna" 
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                required
               />
             </div>
 
@@ -392,7 +390,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
             <label htmlFor="source-url">Recipe Source Website URL</label>
             <input 
               id="source-url"
-              type="url" 
+              type="text" 
               className="input-control" 
               placeholder="https://example.com/lasagna"
               value={sourceUrl}
@@ -489,9 +487,9 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
       <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
 
       {/* Lists Editor */}
-      <div className="dual-pane" style={{ gap: '2.5rem' }}>
+      <div className="dual-pane recipe-lists-pane" style={{ gap: '2rem' }}>
         {/* Ingredients Column */}
-        <div style={{ flex: '1 1 320px' }}>
+        <div style={{ flex: '1 1 420px', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.25rem' }}>Ingredients List</h3>
             <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={addIngredient}>
@@ -499,7 +497,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.25rem' }}>
             {ingredients.map((ing, idx) => (
               <div key={idx} className="recipe-ingredient-row">
                 <span 
@@ -537,10 +535,9 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
                 <input 
                   type="text" 
                   className="input-control ingredient-name" 
-                  placeholder="Ingredient Name *" 
+                  placeholder="Ingredient Name" 
                   value={ing.name} 
                   onChange={(e) => handleIngredientChange(idx, 'name', e.target.value)}
-                  required
                 />
                 <button 
                   type="button" 
@@ -556,7 +553,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
         </div>
 
         {/* Instructions Column */}
-        <div style={{ flex: '1 1 320px' }}>
+        <div style={{ flex: '1 1 420px', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.25rem' }}>Instructions Steps</h3>
             <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={addInstruction}>
@@ -564,7 +561,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingRight: '0.25rem' }}>
             {instructions.map((inst, idx) => (
               <div key={idx} style={{ display: 'flex', gap: '0.5rem', alignItems: 'start' }}>
                 <span 
@@ -591,7 +588,6 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
                   value={inst.instruction_text} 
                   onChange={(e) => handleInstructionChange(idx, e.target.value)}
                   style={{ flex: 1, minHeight: '60px', padding: '0.5rem 0.75rem' }}
-                  required
                 />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                   <button 

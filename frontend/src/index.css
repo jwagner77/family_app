@@ -871,10 +871,19 @@ optgroup {
 }
 
 /* Modal sizing variants */
-.modal-content.modal-lg,
-.modal-content.recipe-modal {
+.modal-content.modal-lg {
   width: 60vw;
   max-width: 860px;
+}
+
+.modal-content.recipe-modal {
+  width: clamp(320px, 75vw, 1280px);
+  max-width: calc(100vw - 2rem);
+}
+
+.modal-content.recipe-form-modal {
+  width: clamp(320px, 88vw, 1760px);
+  max-width: calc(100vw - 2rem);
 }
 
 .modal-content.modal-xl {
@@ -882,19 +891,34 @@ optgroup {
   max-width: 1100px;
 }
 
+@media (max-width: 1440px) {
+  .modal-content.recipe-form-modal {
+    width: 92vw;
+    max-width: calc(100vw - 2rem);
+  }
+}
+
 @media (max-width: 1200px) {
-  .modal-content.modal-lg,
-  .modal-content.recipe-modal {
+  .modal-content.modal-lg {
     width: 75vw;
     max-width: 75vw;
+  }
+  .modal-content.recipe-modal {
+    width: 85vw;
+    max-width: calc(100vw - 2rem);
+  }
+  .modal-content.recipe-form-modal {
+    width: 95vw;
+    max-width: calc(100vw - 1.5rem);
   }
 }
 
 @media (max-width: 768px) {
   .modal-content.modal-lg,
-  .modal-content.recipe-modal {
-    width: 95vw;
-    max-width: 95vw;
+  .modal-content.recipe-modal,
+  .modal-content.recipe-form-modal {
+    width: calc(100vw - 1rem);
+    max-width: calc(100vw - 1rem);
   }
 }
 
@@ -1777,6 +1801,13 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   }
 }
 
+.dual-pane.recipe-lists-pane {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+  gap: 2rem;
+  align-items: start;
+}
+
 .recipe-ingredient-row {
   display: flex;
   gap: 0.5rem;
@@ -1784,15 +1815,16 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   width: 100%;
 }
 .recipe-ingredient-row .ingredient-amount {
-  width: 80px;
-  flex-shrink: 0;
+  width: clamp(80px, 6.5vw, 125px);
+  flex: 0 1 clamp(80px, 6.5vw, 125px);
 }
 .recipe-ingredient-row .ingredient-unit {
-  width: 90px;
-  flex-shrink: 0;
+  width: clamp(90px, 7.5vw, 145px);
+  flex: 0 1 clamp(90px, 7.5vw, 145px);
 }
 .recipe-ingredient-row .ingredient-name {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 140px;
 }
 
 /* Planner Row Class */
@@ -1819,7 +1851,7 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 560px) {
   .recipe-ingredient-row {
     flex-wrap: wrap;
     border-bottom: 1px dashed var(--border);

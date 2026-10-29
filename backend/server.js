@@ -5843,7 +5843,7 @@ app.post('/api/recipes', authenticate, requirePermission('recipes', 'full'), upl
       recipeData.image_path = `/uploads/${req.file.filename}`;
     }
     const id = await createRecipe(recipeData);
-    sendNotification('Recipe Added', `A new recipe has been added: "${recipeData.title}".`, 'Recipe Added');
+    sendNotification('Recipe Added', `A new recipe has been added: "${recipeData.title || 'Untitled Recipe'}".`, 'Recipe Added');
     res.status(201).json({ id, message: 'Recipe created successfully' });
   } catch (error) {
     console.error('Error creating recipe:', error);
@@ -5964,7 +5964,7 @@ app.get('/api/recipes/:id/export', authenticate, requirePermission('recipes', 'r
     }
 
     const docBuffer = renderRecipeDocx(templateFullPath, recipe);
-    const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const safeTitle = (recipe.title || 'untitled_recipe').replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'untitled_recipe';
     
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -6008,7 +6008,7 @@ app.post('/api/recipes/bulk-export', authenticate, requirePermission('recipes', 
       const recipe = await getRecipeById(id);
       if (recipe) {
         const docBuffer = renderRecipeDocx(templateFullPath, recipe);
-        const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const safeTitle = (recipe.title || 'untitled_recipe').replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'untitled_recipe';
         zip.file(`${safeTitle}.docx`, docBuffer);
       }
     }
@@ -6825,7 +6825,7 @@ app.get('/api/recipes/:id/export', authenticate, requirePermission('recipes', 'r
     const docBuffer = renderRecipeDocx(templateFullPath, recipe);
 
     // Set download headers
-    const safeTitle = recipe.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const safeTitle = (recipe.title || 'untitled_recipe').replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'untitled_recipe';
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');

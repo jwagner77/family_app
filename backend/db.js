@@ -2051,7 +2051,7 @@ export async function createRecipe(recipe) {
       `INSERT INTO recipes (title, description, prep_time, cook_time, servings, image_path, source_url, favorite, tags)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        recipe.title,
+        recipe.title || '',
         recipe.description || '',
         recipe.prep_time || null,
         recipe.cook_time || null,
@@ -2069,7 +2069,7 @@ export async function createRecipe(recipe) {
         await db.run(
           `INSERT INTO ingredients (recipe_id, name, amount, unit, raw_text)
            VALUES (?, ?, ?, ?, ?)`,
-          [recipeId, ing.name, ing.amount || '', ing.unit || '', ing.raw_text || '']
+          [recipeId, ing.name || '', ing.amount || '', ing.unit || '', ing.raw_text || '']
         );
       }
     }
@@ -2080,7 +2080,7 @@ export async function createRecipe(recipe) {
         await db.run(
           `INSERT INTO instructions (recipe_id, step_number, instruction_text)
            VALUES (?, ?, ?)`,
-          [recipeId, inst.step_number || (i + 1), inst.instruction_text]
+          [recipeId, inst.step_number || (i + 1), inst.instruction_text || '']
         );
       }
     }
@@ -2117,7 +2117,7 @@ export async function updateRecipe(id, recipe) {
        SET title = ?, description = ?, prep_time = ?, cook_time = ?, servings = ?, image_path = ?, source_url = ?, favorite = ?, tags = ?
        WHERE id = ?`,
       [
-        recipe.title,
+        recipe.title || '',
         recipe.description || '',
         recipe.prep_time || null,
         recipe.cook_time || null,
@@ -2137,7 +2137,7 @@ export async function updateRecipe(id, recipe) {
         await db.run(
           `INSERT INTO ingredients (recipe_id, name, amount, unit, raw_text)
            VALUES (?, ?, ?, ?, ?)`,
-          [id, ing.name, ing.amount || '', ing.unit || '', ing.raw_text || '']
+          [id, ing.name || '', ing.amount || '', ing.unit || '', ing.raw_text || '']
         );
       }
     }
@@ -2150,7 +2150,7 @@ export async function updateRecipe(id, recipe) {
         await db.run(
           `INSERT INTO instructions (recipe_id, step_number, instruction_text)
            VALUES (?, ?, ?)`,
-          [id, inst.step_number || (i + 1), inst.instruction_text]
+          [id, inst.step_number || (i + 1), inst.instruction_text || '']
         );
       }
     }

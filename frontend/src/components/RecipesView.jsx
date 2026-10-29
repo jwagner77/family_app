@@ -223,8 +223,21 @@ export default function RecipesView({ showToast, user }) {
     setIsFormOpen(true);
   };
 
-  const openEditForm = (recipe, e) => {
+  const openEditForm = async (recipe, e) => {
     if (e) e.stopPropagation();
+    if (recipe && recipe.id && (!recipe.ingredients || !recipe.instructions)) {
+      try {
+        const res = await fetch(`/api/recipes/${recipe.id}`);
+        if (res.ok) {
+          const fullRecipe = await res.json();
+          setEditRecipe(fullRecipe);
+          setIsFormOpen(true);
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to load full recipe details for editing:', err);
+      }
+    }
     setEditRecipe(recipe);
     setIsFormOpen(true);
   };
@@ -468,7 +481,7 @@ export default function RecipesView({ showToast, user }) {
                 <div className="recipe-placeholder-img">🍳</div>
               )}
 
-              <h3 style={{ marginTop: '0.5rem', marginBottom: '0.25rem' }}>{recipe.title}</h3>
+              <h3 style={{ marginTop: '0.5rem', marginBottom: '0.25rem' }}>{recipe.title || 'Untitled Recipe'}</h3>
               <p className="text-muted text-sm" style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', minHeight: '36px' }}>
                 {recipe.description || 'No description provided.'}
               </p>
@@ -531,7 +544,7 @@ export default function RecipesView({ showToast, user }) {
                     <td onClick={(e) => handleToggleFavorite(recipe.id, e)}>
                       <Star size={16} fill={recipe.favorite ? '#f1c40f' : 'transparent'} style={{ color: recipe.favorite ? '#f1c40f' : 'var(--text-muted)' }} />
                     </td>
-                    <td><strong>{recipe.title}</strong></td>
+                    <td><strong>{recipe.title || 'Untitled Recipe'}</strong></td>
                     <td>{recipe.prep_time ? `${recipe.prep_time}m` : '-'}</td>
                     <td>{recipe.cook_time ? `${recipe.cook_time}m` : '-'}</td>
                     <td>{recipe.servings || '-'}</td>
@@ -557,7 +570,7 @@ export default function RecipesView({ showToast, user }) {
         <div className="modal-overlay" onClick={() => setCurrentRecipe(null)}>
           <div className="modal-content recipe-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0, wordBreak: 'break-word' }}>{currentRecipe.title}</h2>
+              <h2 style={{ fontSize: '1.35rem', fontWeight: 700, margin: 0, wordBreak: 'break-word' }}>{currentRecipe.title || 'Untitled Recipe'}</h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                 {currentRecipe.source_url && (
                   <a
@@ -736,11 +749,11 @@ export default function RecipesView({ showToast, user }) {
 
       {/* Recipe Create/Edit Form Modal */}
       {isFormOpen && (
-        <div className="modal-overlay" onClick={() => setIsFormOpen(false)}>
+        <div className="modal-overlay">
           <div 
-            className="modal-content recipe-modal" 
+            className="modal-content recipe-modal recipe-form-modal" 
             onClick={(e) => e.stopPropagation()}
-            style={{ display: 'flex', flexDirection: 'column', maxHeight: '90vh', overflow: 'hidden', padding: 0 }}
+            style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 2rem)', overflow: 'hidden', padding: 0 }}
           >
             <div className="modal-header" style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
               <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700 }}>{editRecipe ? 'Edit Recipe' : 'Add New Recipe'}</h2>
