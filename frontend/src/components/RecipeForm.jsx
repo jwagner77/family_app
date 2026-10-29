@@ -321,9 +321,9 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
           gap: '1.5rem' 
         }}
       >
-        <div className="dual-pane" style={{ gap: '2rem' }}>
+        <div className="dual-pane recipe-top-pane" style={{ gap: '2rem' }}>
           {/* Left Side Metadata */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: '1.5 1 320px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', minWidth: 0, width: '100%' }}>
             <div className="form-group">
               <label htmlFor="title">Recipe Title</label>
               <input 
@@ -415,7 +415,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
         </div>
 
         {/* Right Side Image Upload */}
-        <div className="form-group" style={{ height: '100%', justifyContent: 'center', flex: '1 1 220px' }}>
+        <div className="form-group" style={{ height: '100%', justifyContent: 'flex-start', width: '100%', marginBottom: 0 }}>
           <label>Recipe Image</label>
           <div 
             style={{ 
@@ -489,7 +489,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
       {/* Lists Editor */}
       <div className="dual-pane recipe-lists-pane" style={{ gap: '2rem' }}>
         {/* Ingredients Column */}
-        <div style={{ flex: '1 1 420px', minWidth: 0 }}>
+        <div style={{ minWidth: 0, width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.25rem' }}>Ingredients List</h3>
             <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={addIngredient}>
@@ -553,7 +553,7 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
         </div>
 
         {/* Instructions Column */}
-        <div style={{ flex: '1 1 420px', minWidth: 0 }}>
+        <div style={{ minWidth: 0, width: '100%' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.25rem' }}>Instructions Steps</h3>
             <button type="button" className="btn btn-secondary" style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }} onClick={addInstruction}>
