@@ -2036,7 +2036,11 @@ app.put('/api/features/:id', authenticate, async (req, res) => {
     }
 
     const db = await getDb();
-    await db.run('UPDATE feature_requests SET status = ? WHERE id = ?', [status, req.params.id]);
+    if (status === 'completed') {
+      await db.run('UPDATE feature_requests SET status = ?, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?', [status, req.params.id]);
+    } else {
+      await db.run('UPDATE feature_requests SET status = ?, completed_at = NULL WHERE id = ?', [status, req.params.id]);
+    }
     res.json({ message: 'Feature request updated successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2137,9 +2141,14 @@ app.put('/api/bugs/:id', authenticate, async (req, res) => {
     const values = [];
 
     if (status) {
-      const validStatuses = ['open', 'in_progress', 'resolved', 'closed'];
+      const validStatuses = ['open', 'in_progress', 'resolved', 'closed', 'completed'];
       if (validStatuses.includes(status)) {
         updates.push('status = ?');
+        if (['resolved', 'closed', 'completed'].includes(status)) {
+          updates.push('completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP)');
+        } else {
+          updates.push('completed_at = NULL');
+        }
         values.push(status);
       }
     }
@@ -2204,7 +2213,11 @@ app.post('/api/webhooks/incoming-status', async (req, res) => {
       else if (status === 'completed' || status === 'done') bugStatus = 'resolved';
       else if (status === 'failed') bugStatus = 'open';
       
-      await db.run('UPDATE bug_reports SET status = ? WHERE id = ?', [bugStatus, targetId]);
+      if (['resolved', 'closed', 'completed'].includes(bugStatus)) {
+        await db.run('UPDATE bug_reports SET status = ?, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?', [bugStatus, targetId]);
+      } else {
+        await db.run('UPDATE bug_reports SET status = ?, completed_at = NULL WHERE id = ?', [bugStatus, targetId]);
+      }
       console.log(`[Callback] Updated local bug ${targetId} status to ${bugStatus}`);
     } else if (link_type === 'feature') {
       let featureStatus = 'pending';
@@ -2214,7 +2227,11 @@ app.post('/api/webhooks/incoming-status', async (req, res) => {
       else if (status === 'completed' || status === 'done') featureStatus = 'completed';
       else if (status === 'failed') featureStatus = 'pending';
       
-      await db.run('UPDATE feature_requests SET status = ? WHERE id = ?', [featureStatus, targetId]);
+      if (featureStatus === 'completed') {
+        await db.run('UPDATE feature_requests SET status = ?, completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP) WHERE id = ?', [featureStatus, targetId]);
+      } else {
+        await db.run('UPDATE feature_requests SET status = ?, completed_at = NULL WHERE id = ?', [featureStatus, targetId]);
+      }
       console.log(`[Callback] Updated local feature ${targetId} status to ${featureStatus}`);
     }
 

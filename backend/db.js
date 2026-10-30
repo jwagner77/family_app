@@ -684,6 +684,18 @@ export async function getDb() {
     await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN github_issue_number INTEGER");
   } catch (err) {}
   try {
+    await dbInstance.run("ALTER TABLE feature_requests ADD COLUMN completed_at DATETIME");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN completed_at DATETIME");
+  } catch (err) {}
+  try {
+    await dbInstance.run("UPDATE feature_requests SET completed_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE status = 'completed' AND completed_at IS NULL");
+  } catch (err) {}
+  try {
+    await dbInstance.run("UPDATE bug_reports SET completed_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE status IN ('resolved', 'closed', 'completed') AND completed_at IS NULL");
+  } catch (err) {}
+  try {
     await dbInstance.run("ALTER TABLE housekeeping_tasks ADD COLUMN reoccurrence_days TEXT");
   } catch (err) {}
   try {

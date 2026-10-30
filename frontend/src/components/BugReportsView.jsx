@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Plus, Trash2, Clock, RefreshCw, GitPullRequest } from 'lucide-react';
+import { AlertTriangle, Plus, Trash2, Clock, RefreshCw, GitPullRequest, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 
 export default function BugReportsView({ showToast, currentUser }) {
   const [bugs, setBugs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -132,7 +133,9 @@ export default function BugReportsView({ showToast, currentUser }) {
 
   const getStatusBadgeClass = (status) => {
     switch (status?.toLowerCase()) {
-      case 'resolved': return 'badge-success';
+      case 'resolved':
+      case 'completed':
+        return 'badge-success';
       case 'in_progress': return 'badge-info';
       case 'closed': return 'badge-secondary';
       default: return 'badge-danger';
@@ -142,6 +145,124 @@ export default function BugReportsView({ showToast, currentUser }) {
   const formatText = (text) => {
     return (text || '').replace('_', ' ').toUpperCase();
   };
+
+  const isBugCompleted = (status) => {
+    return ['resolved', 'closed', 'completed'].includes((status || '').toLowerCase());
+  };
+
+  const incompleteBugs = bugs.filter((b) => !isBugCompleted(b.status));
+  const completedBugs = bugs.filter((b) => isBugCompleted(b.status));
+
+  const renderBugCard = (bug) => (
+    <div key={bug.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <h4 style={{ fontSize: '1.1rem', fontWeight: '600', margin: '0 0 0.25rem 0' }}>{bug.title}</h4>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+            <span>Reported by <strong style={{ color: 'var(--foreground)' }}>{bug.creator_display_name || bug.creator_username || 'System'}</strong></span>
+            <span>•</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Clock size={12} /> {new Date(bug.created_at).toLocaleDateString()}
+            </span>
+            {isBugCompleted(bug.status) && (
+              <>
+                <span>•</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--success, #10b981)', fontWeight: '600' }}>
+                  <CheckCircle2 size={12} /> Completed on {new Date(bug.completed_at || bug.created_at).toLocaleDateString()}
+                </span>
+              </>
+            )}
+            {bug.github_issue_url && (
+              <>
+                <span>•</span>
+                <a 
+                  href={bug.github_issue_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}
+                  title={`GitHub Issue #${bug.github_issue_number}`}
+                >
+                  <GitPullRequest size={12} /> Issue #{bug.github_issue_number}
+                </a>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <span className={`badge ${getSeverityBadgeClass(bug.severity)}`} style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', fontWeight: '600' }}>
+            {formatText(bug.severity)}
+          </span>
+          <span className={`badge ${getStatusBadgeClass(bug.status)}`} style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', fontWeight: '600' }}>
+            {formatText(bug.status)}
+          </span>
+          
+          {isAdmin && (
+            <button 
+              className="btn btn-outline" 
+              onClick={() => handleDelete(bug.id, bug.title)}
+              style={{ color: 'var(--destructive)', border: 'none', padding: '0.25rem', height: '1.75rem', width: '1.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Delete Bug Report"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+        <div>
+          <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>Description</span>
+          <p style={{ margin: 0, fontSize: '0.875rem', lineHeight: '1.6', color: 'var(--foreground)', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
+            {bug.description}
+          </p>
+        </div>
+
+        {bug.steps_to_reproduce && bug.steps_to_reproduce.trim() && (
+          <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '0.75rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>Steps to Reproduce</span>
+            <pre style={{ margin: 0, fontSize: '0.8125rem', fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', background: 'var(--muted)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius)', color: 'var(--foreground)', lineHeight: '1.5' }}>
+              {bug.steps_to_reproduce}
+            </pre>
+          </div>
+        )}
+      </div>
+
+      {isAdmin && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Admin Status:</span>
+            <select 
+              value={bug.status}
+              onChange={(e) => handleUpdate(bug.id, { status: e.target.value })}
+              className="input-control"
+              style={{ width: '130px', height: '1.75rem', fontSize: '0.75rem', padding: '0 0.5rem' }}
+            >
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="resolved">Resolved</option>
+              <option value="completed">Completed</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Admin Severity:</span>
+            <select 
+              value={bug.severity}
+              onChange={(e) => handleUpdate(bug.id, { severity: e.target.value })}
+              className="input-control"
+              style={{ width: '110px', height: '1.75rem', fontSize: '0.75rem', padding: '0 0.5rem' }}
+            >
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+            </select>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
@@ -238,108 +359,57 @@ export default function BugReportsView({ showToast, currentUser }) {
           <p>Loading bug reports...</p>
         </div>
       ) : bugs.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {bugs.map((bug) => (
-            <div key={bug.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-                <div>
-                  <h4 style={{ fontSize: '1.1rem', fontWeight: '600', margin: '0 0 0.25rem 0' }}>{bug.title}</h4>
-                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                    <span>Reported by <strong style={{ color: 'var(--foreground)' }}>{bug.creator_display_name || bug.creator_username || 'System'}</strong></span>
-                    <span>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Clock size={12} /> {new Date(bug.created_at).toLocaleDateString()}
-                    </span>
-                    {bug.github_issue_url && (
-                      <>
-                        <span>•</span>
-                        <a 
-                          href={bug.github_issue_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}
-                          title={`GitHub Issue #${bug.github_issue_number}`}
-                        >
-                          <GitPullRequest size={12} /> Issue #{bug.github_issue_number}
-                        </a>
-                      </>
-                    )}
-                  </div>
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {incompleteBugs.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {incompleteBugs.map((bug) => renderBugCard(bug))}
+            </div>
+          ) : (
+            <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--muted-foreground)' }}>
+              <CheckCircle2 size={36} style={{ margin: '0 auto 0.75rem auto', strokeWidth: 1.5, color: 'var(--success, #10b981)', opacity: 0.85 }} />
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>All submitted bug reports have been resolved! Expand the completed section below to view past reports.</p>
+            </div>
+          )}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                  <span className={`badge ${getSeverityBadgeClass(bug.severity)}`} style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', fontWeight: '600' }}>
-                    {formatText(bug.severity)}
+          {completedBugs.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowCompleted((prev) => !prev)}
+                className="card"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.875rem 1.25rem',
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  background: 'var(--card)',
+                  color: 'var(--foreground)',
+                  width: '100%',
+                  textAlign: 'left'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <CheckCircle2 size={18} style={{ color: 'var(--success, #10b981)' }} />
+                  <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>Completed Bug Reports</span>
+                  <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '0.1rem 0.5rem' }}>
+                    {completedBugs.length}
                   </span>
-                  <span className={`badge ${getStatusBadgeClass(bug.status)}`} style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', fontWeight: '600' }}>
-                    {formatText(bug.status)}
-                  </span>
-                  
-                  {isAdmin && (
-                    <button 
-                      className="btn btn-outline" 
-                      onClick={() => handleDelete(bug.id, bug.title)}
-                      style={{ color: 'var(--destructive)', border: 'none', padding: '0.25rem', height: '1.75rem', width: '1.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      title="Delete Bug Report"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div>
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>Description</span>
-                  <p style={{ margin: 0, fontSize: '0.875rem', lineHeight: '1.6', color: 'var(--foreground)', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
-                    {bug.description}
-                  </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
+                  <span>{showCompleted ? 'Hide' : 'Show'}</span>
+                  {showCompleted ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                 </div>
+              </button>
 
-                {bug.steps_to_reproduce && bug.steps_to_reproduce.trim() && (
-                  <div style={{ borderTop: '1px dashed var(--border)', paddingTop: '0.75rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>Steps to Reproduce</span>
-                    <pre style={{ margin: 0, fontSize: '0.8125rem', fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', background: 'var(--muted)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius)', color: 'var(--foreground)', lineHeight: '1.5' }}>
-                      {bug.steps_to_reproduce}
-                    </pre>
-                  </div>
-                )}
-              </div>
-
-              {isAdmin && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Admin Status:</span>
-                    <select 
-                      value={bug.status}
-                      onChange={(e) => handleUpdate(bug.id, { status: e.target.value })}
-                      className="input-control"
-                      style={{ width: '130px', height: '1.75rem', fontSize: '0.75rem', padding: '0 0.5rem' }}
-                    >
-                      <option value="open">Open</option>
-                      <option value="in_progress">In Progress</option>
-                      <option value="resolved">Resolved</option>
-                      <option value="closed">Closed</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Admin Severity:</span>
-                    <select 
-                      value={bug.severity}
-                      onChange={(e) => handleUpdate(bug.id, { severity: e.target.value })}
-                      className="input-control"
-                      style={{ width: '110px', height: '1.75rem', fontSize: '0.75rem', padding: '0 0.5rem' }}
-                    >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
-                    </select>
-                  </div>
+              {showCompleted && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {completedBugs.map((bug) => renderBugCard(bug))}
                 </div>
               )}
             </div>
-          ))}
+          )}
         </div>
       ) : (
         <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted-foreground)' }}>

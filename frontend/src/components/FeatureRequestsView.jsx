@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Lightbulb, Plus, Trash2, Clock, RefreshCw, GitPullRequest } from 'lucide-react';
+import { Lightbulb, Plus, Trash2, Clock, RefreshCw, GitPullRequest, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 
 export default function FeatureRequestsView({ showToast, currentUser }) {
   const [features, setFeatures] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
 
   // Form states
   const [title, setTitle] = useState('');
@@ -129,6 +130,87 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
     return (status || '').replace('_', ' ').toUpperCase();
   };
 
+  const incompleteFeatures = features.filter((f) => f.status !== 'completed');
+  const completedFeatures = features.filter((f) => f.status === 'completed');
+
+  const renderFeatureCard = (feature) => (
+    <div key={feature.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+        <div>
+          <h4 style={{ fontSize: '1.1rem', fontWeight: '600', margin: '0 0 0.25rem 0' }}>{feature.title}</h4>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+            <span>Submitted by <strong style={{ color: 'var(--foreground)' }}>{feature.creator_display_name || feature.creator_username || 'System'}</strong></span>
+            <span>•</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <Clock size={12} /> {new Date(feature.created_at).toLocaleDateString()}
+            </span>
+            {feature.status === 'completed' && (
+              <>
+                <span>•</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--success, #10b981)', fontWeight: '600' }}>
+                  <CheckCircle2 size={12} /> Completed on {new Date(feature.completed_at || feature.created_at).toLocaleDateString()}
+                </span>
+              </>
+            )}
+            {feature.github_issue_url && (
+              <>
+                <span>•</span>
+                <a 
+                  href={feature.github_issue_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}
+                  title={`GitHub Issue #${feature.github_issue_number}`}
+                >
+                  <GitPullRequest size={12} /> Issue #{feature.github_issue_number}
+                </a>
+              </>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <span className={`badge ${getStatusBadgeClass(feature.status)}`} style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', fontWeight: '600' }}>
+            {formatStatus(feature.status)}
+          </span>
+          
+          {isAdmin && (
+            <button 
+              className="btn btn-outline" 
+              onClick={() => handleDelete(feature.id, feature.title)}
+              style={{ color: 'var(--destructive)', border: 'none', padding: '0.25rem', height: '1.75rem', width: '1.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              title="Delete Feature Request"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <p style={{ margin: 0, fontSize: '0.875rem', lineHeight: '1.6', color: 'var(--foreground)', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
+        {feature.description}
+      </p>
+
+      {isAdmin && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Admin Controls: Status</span>
+          <select 
+            value={feature.status}
+            onChange={(e) => handleUpdateStatus(feature.id, e.target.value)}
+            className="input-control"
+            style={{ width: '150px', height: '1.75rem', fontSize: '0.75rem', padding: '0 0.5rem' }}
+          >
+            <option value="pending">Pending</option>
+            <option value="under_review">Under Review</option>
+            <option value="planned">Planned</option>
+            <option value="completed">Completed</option>
+            <option value="rejected">Rejected</option>
+          </select>
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '2rem', width: '100%' }}>
       <div className="content-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -193,76 +275,57 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
           <p>Loading feature requests...</p>
         </div>
       ) : features.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {features.map((feature) => (
-            <div key={feature.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
-                <div>
-                  <h4 style={{ fontSize: '1.1rem', fontWeight: '600', margin: '0 0 0.25rem 0' }}>{feature.title}</h4>
-                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
-                    <span>Submitted by <strong style={{ color: 'var(--foreground)' }}>{feature.creator_display_name || feature.creator_username || 'System'}</strong></span>
-                    <span>•</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                      <Clock size={12} /> {new Date(feature.created_at).toLocaleDateString()}
-                    </span>
-                    {feature.github_issue_url && (
-                      <>
-                        <span>•</span>
-                        <a 
-                          href={feature.github_issue_url} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}
-                          title={`GitHub Issue #${feature.github_issue_number}`}
-                        >
-                          <GitPullRequest size={12} /> Issue #{feature.github_issue_number}
-                        </a>
-                      </>
-                    )}
-                  </div>
-                </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {incompleteFeatures.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {incompleteFeatures.map((feature) => renderFeatureCard(feature))}
+            </div>
+          ) : (
+            <div className="card" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--muted-foreground)' }}>
+              <CheckCircle2 size={36} style={{ margin: '0 auto 0.75rem auto', strokeWidth: 1.5, color: 'var(--success, #10b981)', opacity: 0.85 }} />
+              <p style={{ margin: 0, fontSize: '0.9rem' }}>All submitted feature requests have been completed! Expand the completed section below to view them.</p>
+            </div>
+          )}
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                  <span className={`badge ${getStatusBadgeClass(feature.status)}`} style={{ fontSize: '0.75rem', padding: '0.125rem 0.5rem', fontWeight: '600' }}>
-                    {formatStatus(feature.status)}
+          {completedFeatures.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowCompleted((prev) => !prev)}
+                className="card"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '0.875rem 1.25rem',
+                  cursor: 'pointer',
+                  border: '1px solid var(--border)',
+                  background: 'var(--card)',
+                  color: 'var(--foreground)',
+                  width: '100%',
+                  textAlign: 'left'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <CheckCircle2 size={18} style={{ color: 'var(--success, #10b981)' }} />
+                  <span style={{ fontWeight: '600', fontSize: '0.95rem' }}>Completed Feature Requests</span>
+                  <span className="badge badge-secondary" style={{ fontSize: '0.75rem', padding: '0.1rem 0.5rem' }}>
+                    {completedFeatures.length}
                   </span>
-                  
-                  {isAdmin && (
-                    <button 
-                      className="btn btn-outline" 
-                      onClick={() => handleDelete(feature.id, feature.title)}
-                      style={{ color: 'var(--destructive)', border: 'none', padding: '0.25rem', height: '1.75rem', width: '1.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      title="Delete Feature Request"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
                 </div>
-              </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--muted-foreground)' }}>
+                  <span>{showCompleted ? 'Hide' : 'Show'}</span>
+                  {showCompleted ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </div>
+              </button>
 
-              <p style={{ margin: 0, fontSize: '0.875rem', lineHeight: '1.6', color: 'var(--foreground)', opacity: 0.9, whiteSpace: 'pre-wrap' }}>
-                {feature.description}
-              </p>
-
-              {isAdmin && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Admin Controls: Status</span>
-                  <select 
-                    value={feature.status}
-                    onChange={(e) => handleUpdateStatus(feature.id, e.target.value)}
-                    className="input-control"
-                    style={{ width: '150px', height: '1.75rem', fontSize: '0.75rem', padding: '0 0.5rem' }}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="under_review">Under Review</option>
-                    <option value="planned">Planned</option>
-                    <option value="completed">Completed</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
+              {showCompleted && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {completedFeatures.map((feature) => renderFeatureCard(feature))}
                 </div>
               )}
             </div>
-          ))}
+          )}
         </div>
       ) : (
         <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted-foreground)' }}>
