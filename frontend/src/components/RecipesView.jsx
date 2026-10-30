@@ -242,13 +242,14 @@ export default function RecipesView({ showToast, user }) {
     setIsFormOpen(true);
   };
 
-  const handleFormSuccess = () => {
+  const handleFormSuccess = async (savedRecipeId) => {
+    const targetId = savedRecipeId || editRecipe?.id || currentRecipe?.id;
     setIsFormOpen(false);
     setEditRecipe(null);
     fetchRecipes();
     fetchTags();
-    if (currentRecipe) {
-      loadRecipeDetails(currentRecipe.id);
+    if (targetId) {
+      await loadRecipeDetails(targetId);
     }
   };
 
@@ -566,7 +567,7 @@ export default function RecipesView({ showToast, user }) {
       )}
 
       {/* Recipe Detail Modal */}
-      {currentRecipe && (
+      {currentRecipe && !isFormOpen && (
         <div className="modal-overlay" onClick={() => setCurrentRecipe(null)}>
           <div className="modal-content recipe-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">

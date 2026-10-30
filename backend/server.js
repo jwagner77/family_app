@@ -5876,7 +5876,7 @@ app.put('/api/recipes/:id', authenticate, requirePermission('recipes', 'full'), 
       recipeData.image_path = `/uploads/${req.file.filename}`;
     }
     await updateRecipe(req.params.id, recipeData);
-    res.json({ message: 'Recipe updated successfully' });
+    res.json({ id: Number(req.params.id), message: 'Recipe updated successfully' });
   } catch (error) {
     console.error('Error updating recipe:', error);
     res.status(500).json({ error: error.message });

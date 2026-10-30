@@ -285,12 +285,14 @@ export default function RecipeForm({ recipe, onSuccess, onCancel, showToast }) {
         body: formData // Body is FormData
       });
 
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to save recipe');
+        throw new Error(data.error || 'Failed to save recipe');
       }
 
-      onSuccess();
+      const savedId = isEdit ? recipe.id : data.id;
+      showToast(isEdit ? 'Recipe updated successfully!' : 'Recipe created successfully!', 'success');
+      onSuccess(savedId);
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
