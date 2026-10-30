@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Lightbulb, Plus, Trash2, Clock, RefreshCw, GitPullRequest, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { Lightbulb, Plus, Trash2, Clock, RefreshCw, GitPullRequest, ChevronDown, ChevronUp, CheckCircle2, Image as ImageIcon, ExternalLink, X } from 'lucide-react';
 
 export default function FeatureRequestsView({ showToast, currentUser }) {
   const [features, setFeatures] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   // Form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [screenshotFile, setScreenshotFile] = useState(null);
+  const [screenshotPreview, setScreenshotPreview] = useState('');
   const [formOpen, setFormOpen] = useState(false);
 
   const fetchFeatures = async () => {
@@ -45,25 +48,55 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
     };
   }, []);
 
+  const handleScreenshotSelect = (file) => {
+    if (file && file.type && file.type.startsWith('image/')) {
+      setScreenshotFile(file);
+      setScreenshotPreview(URL.createObjectURL(file));
+    }
+  };
+
+  const handlePasteScreenshot = (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          handleScreenshotSelect(file);
+          break;
+        }
+      }
+    }
+  };
+
+  const clearScreenshot = () => {
+    setScreenshotFile(null);
+    setScreenshotPreview('');
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim() || !description.trim()) return;
 
     setSubmitting(true);
     try {
+      const formData = new FormData();
+      formData.append('title', title.trim());
+      formData.append('description', description.trim());
+      if (screenshotFile) {
+        formData.append('screenshot', screenshotFile);
+      }
+
       const res = await fetch('/api/features', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim()
-        })
+        body: formData
       });
       const data = await res.json();
       if (res.ok) {
         showToast('Feature request submitted successfully!', 'success');
         setTitle('');
         setDescription('');
+        clearScreenshot();
         setFormOpen(false);
         fetchFeatures();
       } else {
@@ -191,6 +224,29 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
         {feature.description}
       </p>
 
+      {feature.screenshot_path && (
+        <div style={{ marginTop: '0.25rem' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.4rem' }}>
+            Attached Screenshot
+          </span>
+          <img
+            src={feature.screenshot_path}
+            alt={`Screenshot for ${feature.title}`}
+            onClick={() => setLightboxImage(feature.screenshot_path)}
+            title="Click to view full size"
+            style={{
+              maxWidth: '100%',
+              maxHeight: '220px',
+              objectFit: 'contain',
+              borderRadius: 'var(--radius)',
+              border: '1px solid var(--border)',
+              cursor: 'zoom-in',
+              background: 'var(--muted)'
+            }}
+          />
+        </div>
+      )}
+
       {isAdmin && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
           <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)' }}>Admin Controls: Status</span>
@@ -228,7 +284,7 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
               <button className="close-btn" onClick={() => setFormOpen(false)}>×</button>
             </div>
 
-            <div className="modal-body">
+            <div className="modal-body" onPaste={handlePasteScreenshot}>
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div className="form-group">
                   <label htmlFor="feature-title">Title *</label>
@@ -247,13 +303,89 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
                   <textarea 
                     id="feature-desc"
                     className="input-control" 
-                    rows="6"
+                    rows="5"
                     placeholder="Describe the feature, why it is useful, and how it should work..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     required
                     style={{ resize: 'vertical' }}
                   />
+                </div>
+                <div className="form-group">
+                  <label>Screenshot (Optional)</label>
+                  <input
+                    id="feature-screenshot-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleScreenshotSelect(e.target.files?.[0])}
+                    style={{ display: 'none' }}
+                  />
+                  {screenshotPreview ? (
+                    <div
+                      style={{
+                        position: 'relative',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius)',
+                        overflow: 'hidden',
+                        background: 'var(--muted)',
+                        maxHeight: '200px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <img
+                        src={screenshotPreview}
+                        alt="Screenshot preview"
+                        style={{ maxWidth: '100%', maxHeight: '200px', objectFit: 'contain' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={clearScreenshot}
+                        title="Remove screenshot"
+                        style={{
+                          position: 'absolute',
+                          top: '8px',
+                          right: '8px',
+                          background: 'rgba(0, 0, 0, 0.65)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '28px',
+                          height: '28px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => document.getElementById('feature-screenshot-input')?.click()}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleScreenshotSelect(e.dataTransfer.files?.[0]);
+                      }}
+                      style={{
+                        border: '1px dashed var(--border)',
+                        borderRadius: 'var(--radius)',
+                        padding: '1.25rem',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        color: 'var(--muted-foreground)',
+                        background: 'var(--background)'
+                      }}
+                    >
+                      <ImageIcon size={24} style={{ margin: '0 auto 0.4rem auto', opacity: 0.7 }} />
+                      <p style={{ margin: 0, fontSize: '0.8rem' }}>
+                        Click to upload, drag & drop, or paste (<strong>Ctrl+V</strong>) a screenshot
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
                   <button type="button" className="btn btn-outline" onClick={() => setFormOpen(false)}>
@@ -331,6 +463,58 @@ export default function FeatureRequestsView({ showToast, currentUser }) {
         <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted-foreground)' }}>
           <Lightbulb size={40} style={{ margin: '0 auto 1rem auto', strokeWidth: 1.5, opacity: 0.7 }} />
           <p style={{ margin: 0, fontSize: '0.9rem' }}>No feature requests have been submitted yet. Be the first to request a feature!</p>
+        </div>
+      )}
+
+      {lightboxImage && (
+        <div
+          className="modal-overlay"
+          onClick={() => setLightboxImage(null)}
+          style={{ justifyContent: 'center', alignItems: 'center', padding: '1.5rem' }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'relative',
+              maxWidth: '90vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '0.75rem'
+            }}
+          >
+            <div style={{ display: 'flex', gap: '0.5rem', alignSelf: 'flex-end' }}>
+              <a
+                href={lightboxImage}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-secondary"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', padding: '0.35rem 0.75rem', textDecoration: 'none' }}
+              >
+                <ExternalLink size={14} /> Open Original
+              </a>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setLightboxImage(null)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+              >
+                <X size={14} /> Close
+              </button>
+            </div>
+            <img
+              src={lightboxImage}
+              alt="Full size screenshot"
+              style={{
+                maxWidth: '90vw',
+                maxHeight: 'calc(90vh - 3rem)',
+                objectFit: 'contain',
+                borderRadius: 'var(--radius)',
+                boxShadow: 'var(--shadow-lg)'
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

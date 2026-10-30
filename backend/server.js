@@ -1979,7 +1979,7 @@ app.get('/api/features', authenticate, async (req, res) => {
   }
 });
 
-app.post('/api/features', authenticate, async (req, res) => {
+app.post('/api/features', authenticate, upload.single('screenshot'), async (req, res) => {
   try {
     const { title, description } = req.body;
     if (!title || !title.trim() || !description || !description.trim()) {
@@ -1988,8 +1988,8 @@ app.post('/api/features', authenticate, async (req, res) => {
 
     const db = await getDb();
     const result = await db.run(
-      'INSERT INTO feature_requests (title, description, user_id) VALUES (?, ?, ?)',
-      [title.trim(), description.trim(), req.user.id]
+      'INSERT INTO feature_requests (title, description, screenshot_path, user_id) VALUES (?, ?, ?, ?)',
+      [title.trim(), description.trim(), req.file ? `/uploads/${req.file.filename}` : null, req.user.id]
     );
 
     const newFeature = await db.get('SELECT * FROM feature_requests WHERE id = ?', [result.lastID]);
@@ -2053,6 +2053,13 @@ app.delete('/api/features/:id', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Permission denied. Administrator access required.' });
     }
     const db = await getDb();
+    const existingFeature = await db.get('SELECT screenshot_path FROM feature_requests WHERE id = ?', [req.params.id]);
+    if (existingFeature && existingFeature.screenshot_path) {
+      const fullPath = path.join(DATA_DIR, existingFeature.screenshot_path.replace(/^\//, ''));
+      if (fs.existsSync(fullPath)) {
+        try { fs.unlinkSync(fullPath); } catch (e) {}
+      }
+    }
     await db.run('DELETE FROM feature_requests WHERE id = ?', [req.params.id]);
     res.json({ message: 'Feature request deleted successfully' });
   } catch (error) {
@@ -2076,7 +2083,7 @@ app.get('/api/bugs', authenticate, async (req, res) => {
   }
 });
 
-app.post('/api/bugs', authenticate, async (req, res) => {
+app.post('/api/bugs', authenticate, upload.single('screenshot'), async (req, res) => {
   try {
     const { title, description, steps_to_reproduce, severity } = req.body;
     if (!title || !title.trim() || !description || !description.trim()) {
@@ -2088,8 +2095,8 @@ app.post('/api/bugs', authenticate, async (req, res) => {
 
     const db = await getDb();
     const result = await db.run(
-      'INSERT INTO bug_reports (title, description, steps_to_reproduce, severity, user_id) VALUES (?, ?, ?, ?, ?)',
-      [title.trim(), description.trim(), steps_to_reproduce ? steps_to_reproduce.trim() : '', finalSeverity, req.user.id]
+      'INSERT INTO bug_reports (title, description, steps_to_reproduce, severity, screenshot_path, user_id) VALUES (?, ?, ?, ?, ?, ?)',
+      [title.trim(), description.trim(), steps_to_reproduce ? steps_to_reproduce.trim() : '', finalSeverity, req.file ? `/uploads/${req.file.filename}` : null, req.user.id]
     );
 
     const newBug = await db.get('SELECT * FROM bug_reports WHERE id = ?', [result.lastID]);
@@ -2179,6 +2186,13 @@ app.delete('/api/bugs/:id', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Permission denied. Administrator access required.' });
     }
     const db = await getDb();
+    const existingBug = await db.get('SELECT screenshot_path FROM bug_reports WHERE id = ?', [req.params.id]);
+    if (existingBug && existingBug.screenshot_path) {
+      const fullPath = path.join(DATA_DIR, existingBug.screenshot_path.replace(/^\//, ''));
+      if (fs.existsSync(fullPath)) {
+        try { fs.unlinkSync(fullPath); } catch (e) {}
+      }
+    }
     await db.run('DELETE FROM bug_reports WHERE id = ?', [req.params.id]);
     res.json({ message: 'Bug report deleted successfully' });
   } catch (error) {

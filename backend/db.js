@@ -690,6 +690,12 @@ export async function getDb() {
     await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN completed_at DATETIME");
   } catch (err) {}
   try {
+    await dbInstance.run("ALTER TABLE feature_requests ADD COLUMN screenshot_path TEXT");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN screenshot_path TEXT");
+  } catch (err) {}
+  try {
     await dbInstance.run("UPDATE feature_requests SET completed_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE status = 'completed' AND completed_at IS NULL");
   } catch (err) {}
   try {
