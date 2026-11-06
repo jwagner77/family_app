@@ -2099,6 +2099,19 @@ input[type="checkbox"].switch-input:checked + .switch-control::after {
   border-radius: var(--radius) !important;
 }
 
+/* Disable expensive per-frame backdrop-filter blurs when a live YouTube video background is playing to prevent choppy video on TVs */
+body.youtube-bg-active .widget-card,
+body.youtube-bg-active .sidebar {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Auto-hide idle mouse cursor on TV / kiosk dashboard screens */
+body.dashboard-cursor-idle,
+body.dashboard-cursor-idle * {
+  cursor: none !important;
+}
+
 .widget-card .widget-header {
   background: transparent !important;
   border-bottom: 1px solid var(--border) !important;

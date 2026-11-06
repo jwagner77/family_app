@@ -6,6 +6,7 @@ import {
   Cast, Tv
 } from 'lucide-react';
 import { extractYouTubeVideoId } from '../utils/youtube';
+import YouTubeBackground from './YouTubeBackground';
 import CastDashboardModal from './CastDashboardModal';
 import DashboardScaleControl from './DashboardScaleControl';
 import { getCastStatus, subscribeCastState } from '../utils/cast';
@@ -333,47 +334,11 @@ export default function SharedDashboardView({ token, onClose }) {
     <div className="shared-dashboard-container animate-fade-in" style={getContainerStyle()}>
       {/* YouTube Video Background Layer */}
       {bgType === 'youtube' && extractYouTubeVideoId(bgValue) && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '100vw',
-            height: '100vh',
-            overflow: 'hidden',
-            pointerEvents: 'none',
-            zIndex: 0
-          }}
-        >
-          <iframe
-            ref={youtubeIframeRef}
-            src={`https://www.youtube-nocookie.com/embed/${extractYouTubeVideoId(bgValue)}?autoplay=1&mute=1&loop=1&playlist=${extractYouTubeVideoId(bgValue)}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&playsinline=1&enablejsapi=1`}
-            title="YouTube Background"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              width: '100vw',
-              height: '56.25vw',
-              minHeight: '100vh',
-              minWidth: '177.77vh',
-              transform: 'translate(-50%, -50%)',
-              border: 'none',
-              pointerEvents: 'none'
-            }}
-          />
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(0, 0, 0, 0.45)'
-            }}
-          />
-        </div>
+        <YouTubeBackground
+          videoId={extractYouTubeVideoId(bgValue)}
+          iframeRef={youtubeIframeRef}
+          isMuted={isMuted}
+        />
       )}
 
       {/* Header bar */}
