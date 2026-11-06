@@ -6229,7 +6229,7 @@ app.get('/api/dashboard/stats', authenticate, async (req, res) => {
 // GET /api/menu - Get current plan
 app.get('/api/menu', authenticate, requirePermission('planner', 'read'), async (req, res) => {
   try {
-    const menu = await getWeeklyMenu();
+    const menu = await getWeeklyMenu(req.query.week_start || null);
     res.json(menu);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -6239,7 +6239,7 @@ app.get('/api/menu', authenticate, requirePermission('planner', 'read'), async (
 // POST /api/menu - Add or update a menu entry
 app.post('/api/menu', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
-    const { id, day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people, assigned_user_ids } = req.body;
+    const { id, day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people, assigned_user_ids, week_start } = req.body;
     
     let resolvedPeople = assigned_people;
     if (Array.isArray(assigned_user_ids) && assigned_user_ids.length > 0) {
@@ -6265,7 +6265,7 @@ app.post('/api/menu', authenticate, requirePermission('planner', 'full'), async 
       if (!day_of_week || !meal_type) {
         return res.status(400).json({ error: 'Missing day_of_week or meal_type in request payload.' });
       }
-      entryId = await addWeeklyMenuEntry(day_of_week, meal_type, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, resolvedPeople || null);
+      entryId = await addWeeklyMenuEntry(day_of_week, meal_type, recipe_id || null, leftover_id || null, has_leftovers || 0, custom_meal || null, servings || null, tags || null, resolvedPeople || null, week_start || null);
     }
     
     try {
@@ -6386,7 +6386,7 @@ app.delete('/api/menu/:id', authenticate, requirePermission('planner', 'full'), 
 // DELETE /api/menu - Clear all menu entries
 app.delete('/api/menu', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
-    await clearWeeklyMenu();
+    await clearWeeklyMenu(req.query.week_start || (req.body && req.body.week_start) || null);
     try {
       sendNotification(
         'Meal Plan Cleared',
@@ -6574,26 +6574,34 @@ app.post('/api/shopping-lists', authenticate, requirePermission('shopping_list',
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'Missing or empty list name' });
     }
-    const listId = await createShoppingList(name.trim(), req.user.id);
+    const listId = await createShoppingList(name.trim(), req.user.id, req.body.auto_add_inventory ? 1 : 0);
     res.status(201).json({ id: listId, message: 'Shopping list created successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// PUT /api/shopping-lists/:id - Rename a shopping list (Owner only)
+// PUT /api/shopping-lists/:id - Rename or update settings for a shopping list
 app.put('/api/shopping-lists/:id', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name || !name.trim()) {
+    const { name, auto_add_inventory } = req.body;
+    if (name === undefined && auto_add_inventory === undefined) {
+      return res.status(400).json({ error: 'Nothing to update' });
+    }
+    if (name !== undefined && !String(name).trim()) {
       return res.status(400).json({ error: 'Missing or empty list name' });
     }
-    const access = await verifyListAccess(req.params.id, req.user.id, 'owner');
+    const requiredRole = name !== undefined && auto_add_inventory === undefined ? 'owner' : 'write';
+    const access = await verifyListAccess(req.params.id, req.user.id, requiredRole);
     if (!access.allowed) {
       return res.status(access.status).json({ error: access.error });
     }
-    await renameShoppingList(req.params.id, name.trim());
-    res.json({ message: 'Shopping list renamed successfully' });
+    await renameShoppingList(
+      req.params.id,
+      name !== undefined ? String(name).trim() : undefined,
+      auto_add_inventory !== undefined ? (auto_add_inventory ? 1 : 0) : undefined
+    );
+    res.json({ message: 'Shopping list updated successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -8200,7 +8208,7 @@ async function getWidgetData(widget, userId) {
       
     case 'home_tasks': {
       const todayStr = new Date().toISOString().split('T')[0];
-      return await getAllTasks(userId, {}, todayStr);
+      return await getAllTasks(userId, { exclude_hidden_from_dashboard: true }, todayStr);
     }
     case 'home_calendar':
       return await getUnifiedUpcomingEventsList(userId);
@@ -9082,6 +9090,29 @@ app.post('/api/housekeeping/tasks/:id/complete', authenticate, async (req, res) 
   }
 });
 
+// POST /api/housekeeping/tasks/:id/miss
+app.post('/api/housekeeping/tasks/:id/miss', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const task = await db.get('SELECT * FROM housekeeping_tasks WHERE id = ?', [req.params.id]);
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    if (!task.reoccurrence || task.reoccurrence === 'none') {
+      return res.status(400).json({ error: 'Only recurring tasks can be marked as missed' });
+    }
+    const nextDue = calculateNextDueDate(task.due_date, task.reoccurrence, task.reoccurrence_days, task.reoccurrence_months);
+    await db.run(`
+      UPDATE housekeeping_tasks
+      SET due_date = ?, status = 'pending'
+      WHERE id = ?
+    `, [nextDue, task.id]);
+    res.json({ message: 'Task marked as missed and moved to next scheduled date', next_due_date: nextDue });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // POST /api/housekeeping/tasks/:id/grab
 app.post('/api/housekeeping/tasks/:id/grab', authenticate, async (req, res) => {
   try {
@@ -9179,7 +9210,8 @@ app.get('/api/focusflow/tasks', authenticate, async (req, res) => {
       routine_id: req.query.routine_id || null,
       habit_id: req.query.habit_id || null,
       include_routines: req.query.include_routines === 'true' || null,
-      include_habits: req.query.include_habits === 'true' || null
+      include_habits: req.query.include_habits === 'true' || null,
+      exclude_hidden_from_dashboard: req.query.exclude_hidden_from_dashboard === 'true' || null
     };
     const tasks = await getAllTasks(req.user.id, filters, todayStr);
     res.json(tasks);
@@ -9318,14 +9350,86 @@ app.post('/api/focusflow/tasks/:id/complete', authenticate, async (req, res) => 
         return res.json({ message: 'Task marked as completed' });
       }
     }
+    const existingTask = await getTaskById(req.params.id);
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    const hasAccess = await canAccessTask(req.user.id, existingTask);
+    if (!hasAccess) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    if (req.body.completed && (existingTask.is_recurring === 1 || (existingTask.recurrence_pattern && existingTask.recurrence_pattern !== 'none'))) {
+      const todayStr = getUserToday(req.user);
+      const baseDue = existingTask.due_date || todayStr;
+      const nextDue = calculateNextDueDate(baseDue, existingTask.recurrence_pattern || 'daily');
+      const nextStatus = nextDue === todayStr ? 'today' : 'backlog';
+      const db = await getDb();
+      await db.run(
+        "UPDATE tasks SET due_date = ?, status = ? WHERE id = ?",
+        [nextDue, nextStatus, existingTask.id]
+      );
+      await updateUserStreak(req.user.id);
+      await sendNotification('Task Completed', `Task "${req.body.title || existingTask.title || 'Untitled'}" was completed! 🎯`, 'Task Completed');
+      return res.json({ message: 'Recurring task completed and scheduled for next occurrence', next_due_date: nextDue });
+    }
+
     const success = await completeTask(req.user.id, req.params.id, req.body.completed);
     if (!success) {
       return res.status(404).json({ error: 'Task not found or update failed' });
     }
     if (req.body.completed) {
-      await sendNotification('Task Completed', `Task "${req.body.title || 'Untitled'}" was completed! 🎯`, 'Task Completed');
+      await sendNotification('Task Completed', `Task "${req.body.title || existingTask.title || 'Untitled'}" was completed! 🎯`, 'Task Completed');
     }
     res.json({ message: 'Task status updated successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/tasks/:id/miss', authenticate, async (req, res) => {
+  try {
+    const taskIdStr = String(req.params.id);
+    if (taskIdStr.startsWith('housekeeping-')) {
+      const hkId = parseInt(taskIdStr.split('-')[1], 10);
+      const db = await getDb();
+      const task = await db.get('SELECT * FROM housekeeping_tasks WHERE id = ?', [hkId]);
+      if (!task) {
+        return res.status(404).json({ error: 'Task not found' });
+      }
+      if (!task.reoccurrence || task.reoccurrence === 'none') {
+        return res.status(400).json({ error: 'Only recurring tasks can be marked as missed' });
+      }
+      const nextDue = calculateNextDueDate(task.due_date, task.reoccurrence, task.reoccurrence_days, task.reoccurrence_months);
+      await db.run(`
+        UPDATE housekeeping_tasks
+        SET due_date = ?, status = 'pending'
+        WHERE id = ?
+      `, [nextDue, task.id]);
+      return res.json({ message: 'Task marked as missed and moved to next scheduled date', next_due_date: nextDue });
+    }
+
+    const existingTask = await getTaskById(req.params.id);
+    if (!existingTask) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    const hasAccess = await canAccessTask(req.user.id, existingTask);
+    if (!hasAccess) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    if (!existingTask.is_recurring && (!existingTask.recurrence_pattern || existingTask.recurrence_pattern === 'none')) {
+      return res.status(400).json({ error: 'Only recurring tasks can be marked as missed' });
+    }
+    const todayStr = getUserToday(req.user);
+    const baseDue = existingTask.due_date || todayStr;
+    const nextDue = calculateNextDueDate(baseDue, existingTask.recurrence_pattern || 'daily');
+    const nextStatus = nextDue === todayStr ? 'today' : 'backlog';
+    const db = await getDb();
+    await db.run(
+      "UPDATE tasks SET due_date = ?, status = ? WHERE id = ?",
+      [nextDue, nextStatus, existingTask.id]
+    );
+    res.json({ message: 'Task marked as missed and moved to next scheduled date', next_due_date: nextDue });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

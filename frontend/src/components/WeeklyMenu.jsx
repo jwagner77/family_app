@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Calendar, Plus, Trash2, Download, Search, X, Utensils, RefreshCw, Edit2, Users, Check } from 'lucide-react';
+import { Calendar, Plus, Trash2, Download, Search, X, Utensils, RefreshCw, Edit2, Users, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const MEALS = ['Breakfast', 'Lunch', 'Dinner'];
@@ -65,6 +65,45 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
     return `${year}-${month}-${day}`;
   };
 
+  // Rolling week-to-week planner state (defaults to current week's Monday)
+  const [currentWeekStart, setCurrentWeekStart] = useState(() => formatDate(getMonday(new Date())));
+  const lastRealMondayRef = useRef(formatDate(getMonday(new Date())));
+
+  const shiftWeek = (deltaWeeks) => {
+    const base = new Date(`${currentWeekStart}T12:00:00`);
+    base.setDate(base.getDate() + deltaWeeks * 7);
+    const nextWeekStr = formatDate(getMonday(base));
+    setCurrentWeekStart(nextWeekStr);
+    setStartDate(nextWeekStr);
+  };
+
+  const goToCurrentWeek = () => {
+    const todayMonday = formatDate(getMonday(new Date()));
+    setCurrentWeekStart(todayMonday);
+    setStartDate(todayMonday);
+  };
+
+  const getWeekSubtitle = (weekStartStr) => {
+    if (!weekStartStr) return '';
+    const startObj = new Date(`${weekStartStr}T12:00:00`);
+    if (isNaN(startObj.getTime())) return '';
+    const endObj = new Date(startObj);
+    endObj.setDate(startObj.getDate() + 6);
+    const startFormatted = `${startObj.getMonth() + 1}/${startObj.getDate()}`;
+    const endFormatted = `${endObj.getMonth() + 1}/${endObj.getDate()}`;
+    return `Week of ${startFormatted}-${endFormatted}`;
+  };
+
+  const getDayDateLabel = (weekStartStr, dayIndex) => {
+    if (!weekStartStr) return '';
+    const d = new Date(`${weekStartStr}T12:00:00`);
+    if (isNaN(d.getTime())) return '';
+    d.setDate(d.getDate() + dayIndex);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
+
+  const isViewingCurrentWeek = currentWeekStart === formatDate(getMonday(new Date()));
+
   const checkOidcStatus = async () => {
     try {
       const res = await fetch('/api/auth/oidc/config');
@@ -80,10 +119,10 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
     }
   };
 
-  // Fetch the menu plan
-  const fetchMenu = async () => {
+  // Fetch the menu plan for a specific week
+  const fetchMenu = async (weekToFetch = currentWeekStart) => {
     try {
-      const res = await fetch('/api/menu');
+      const res = await fetch(`/api/menu?week_start=${encodeURIComponent(weekToFetch)}`);
       if (!res.ok) throw new Error('Failed to load weekly menu');
       const data = await res.json();
       
@@ -194,20 +233,20 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
   };
 
   const handleClearEntirePlan = async () => {
-    if (!window.confirm("Are you sure you want to clear the entire weekly meal plan? This will remove all scheduled meals.")) {
+    if (!window.confirm(`Are you sure you want to clear the meal plan for ${getWeekSubtitle(currentWeekStart)}? This will remove all scheduled meals for this week.`)) {
       return;
     }
     setLoading(true);
     try {
       const token = localStorage.getItem('token') || '';
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const res = await fetch('/api/menu', {
+      const res = await fetch(`/api/menu?week_start=${encodeURIComponent(currentWeekStart)}`, {
         method: 'DELETE',
         headers
       });
       if (!res.ok) throw new Error('Failed to clear meal plan');
       showToast('Weekly meal plan cleared successfully');
-      fetchMenu();
+      fetchMenu(currentWeekStart);
     } catch (err) {
       showToast(err.message, 'error');
     } finally {
@@ -261,14 +300,33 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
 
   useEffect(() => {
     Promise.all([
-      fetchMenu(),
+      fetchMenu(currentWeekStart),
       fetchRecipes(),
       fetchLeftovers(),
       checkOidcStatus(),
       fetchRetainedMealsAndTags(),
       fetchAssignableUsers()
     ]).finally(() => setLoading(false));
-    setStartDate(formatDate(getMonday(new Date())));
+    setStartDate(currentWeekStart);
+  }, []);
+
+  // Re-fetch menu whenever currentWeekStart changes
+  useEffect(() => {
+    fetchMenu(currentWeekStart);
+  }, [currentWeekStart]);
+
+  // Auto-update the default week when the real-world date crosses into a new week
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const realMonday = formatDate(getMonday(new Date()));
+      if (realMonday !== lastRealMondayRef.current) {
+        const previousRealMonday = lastRealMondayRef.current;
+        lastRealMondayRef.current = realMonday;
+        setCurrentWeekStart(prev => (prev === previousRealMonday ? realMonday : prev));
+        setStartDate(prev => (prev === previousRealMonday ? realMonday : prev));
+      }
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   // Update a specific slot
@@ -310,7 +368,8 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
           custom_meal: customMeal || null,
           servings: servings || null,
           tags: finalTags || null,
-          assigned_people: finalAssignedPeople || null
+          assigned_people: finalAssignedPeople || null,
+          week_start: currentWeekStart
         })
       });
 
@@ -606,7 +665,42 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
   return (
     <div className="animate-fade-in">
       <div className="content-header">
-        <h2>Weekly Menu Planner</h2>
+        <div>
+          <h2 style={{ marginBottom: '0.25rem' }}>Weekly Menu Planner</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => shiftWeek(-1)}
+              title="Previous Week"
+              style={{ padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-muted)', minWidth: '140px', textAlign: 'center' }}>
+              {getWeekSubtitle(currentWeekStart)}
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => shiftWeek(1)}
+              title="Next Week"
+              style={{ padding: '0.25rem 0.5rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <ChevronRight size={18} />
+            </button>
+            {!isViewingCurrentWeek && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={goToCurrentWeek}
+                style={{ padding: '0.25rem 0.65rem', fontSize: '0.8rem', marginLeft: '0.25rem' }}
+              >
+                Current Week
+              </button>
+            )}
+          </div>
+        </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
           {user && (
             <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--text-main)', marginRight: '0.75rem', userSelect: 'none' }}>
@@ -659,7 +753,7 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
             width: '100%'
           }}
         >
-          {DAYS.map(day => (
+          {DAYS.map((day, dayIndex) => (
             <div 
               key={day} 
               className="card planner-day-row" 
@@ -667,9 +761,14 @@ export default function WeeklyMenu({ showToast, handleExportWord, user }) {
                 borderLeft: '4px solid var(--primary)'
               }}
             >
-              <h3 style={{ fontSize: '1.15rem', color: 'var(--primary)', fontWeight: 'bold' }}>
-                {day}
-              </h3>
+              <div>
+                <h3 style={{ fontSize: '1.15rem', color: 'var(--primary)', fontWeight: 'bold', margin: 0 }}>
+                  {day}
+                </h3>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '500' }}>
+                  {getDayDateLabel(currentWeekStart, dayIndex)}
+                </span>
+              </div>
               
               {MEALS.map(meal => {
                 const allAssigned = menuPlan[day]?.[meal] || [];

@@ -15,6 +15,7 @@ export default function ShoppingList({ showToast, user }) {
   // Modals visibility & input states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newListName, setNewListName] = useState('');
+  const [newListAutoAddInventory, setNewListAutoAddInventory] = useState(false);
 
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [renameListName, setRenameListName] = useState('');
@@ -201,12 +202,13 @@ export default function ShoppingList({ showToast, user }) {
       const res = await fetch('/api/shopping-lists', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newListName.trim() })
+        body: JSON.stringify({ name: newListName.trim(), auto_add_inventory: newListAutoAddInventory ? 1 : 0 })
       });
       if (!res.ok) throw new Error('Failed to create shopping list');
       const data = await res.json();
       showToast(`Shopping list "${newListName}" created.`);
       setNewListName('');
+      setNewListAutoAddInventory(false);
       setIsCreateModalOpen(false);
       loadLists(data.id);
     } catch (err) {
@@ -290,6 +292,31 @@ export default function ShoppingList({ showToast, user }) {
     }
   };
 
+  const handleToggleAutoAddInventory = async () => {
+    if (!activeListId || !listDetails?.list) return;
+    const nextVal = Number(listDetails.list.auto_add_inventory) === 1 ? 0 : 1;
+
+    // Optimistic UI update
+    setListDetails(prev => prev ? ({
+      ...prev,
+      list: { ...prev.list, auto_add_inventory: nextVal }
+    }) : prev);
+    setLists(prev => prev.map(l => l.id === activeListId ? { ...l, auto_add_inventory: nextVal } : l));
+
+    try {
+      const res = await fetch(`/api/shopping-lists/${activeListId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ auto_add_inventory: nextVal })
+      });
+      if (!res.ok) throw new Error('Failed to update auto-add setting');
+      showToast(nextVal === 1 ? 'Auto-add to Inventory enabled for this list' : 'Auto-add to Inventory disabled for this list');
+    } catch (err) {
+      showToast(err.message, 'error');
+      loadListDetails(activeListId);
+    }
+  };
+
   const toggleCheck = async (item) => {
     const isNowChecked = item.is_checked === 1 ? 0 : 1;
 
@@ -307,7 +334,7 @@ export default function ShoppingList({ showToast, user }) {
       });
       if (!res.ok) throw new Error('Failed to toggle item check status');
 
-      if (isNowChecked === 1) {
+      if (isNowChecked === 1 && Number(listDetails?.list?.auto_add_inventory) === 1) {
         handleAddToInventory(item);
       }
     } catch (err) {
@@ -619,6 +646,35 @@ export default function ShoppingList({ showToast, user }) {
             <button className="btn btn-primary" onClick={handlePrint} disabled={totalItems === 0}>
               <Printer size={18} /> Print Shopping List
             </button>
+
+            {isEditable && (
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  marginLeft: 'auto',
+                  padding: '0.45rem 0.85rem',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: Number(listDetails.list.auto_add_inventory) === 1 ? 'var(--primary-light)' : 'var(--bg-card)',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  color: Number(listDetails.list.auto_add_inventory) === 1 ? 'var(--primary)' : 'var(--text-main)'
+                }}
+                title="When enabled, checking off an item on this list automatically adds it to Kitchen Inventory"
+              >
+                <input
+                  type="checkbox"
+                  checked={Number(listDetails.list.auto_add_inventory) === 1}
+                  onChange={handleToggleAutoAddInventory}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                />
+                <span>Auto-add checked items to Inventory</span>
+              </label>
+            )}
           </div>
         )}
       </div>
@@ -810,6 +866,15 @@ export default function ShoppingList({ showToast, user }) {
                     autoFocus
                   />
                 </div>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none', fontSize: '0.875rem' }}>
+                  <input
+                    type="checkbox"
+                    checked={newListAutoAddInventory}
+                    onChange={(e) => setNewListAutoAddInventory(e.target.checked)}
+                    style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                  />
+                  <span>Auto-add checked items to Inventory</span>
+                </label>
                 <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '0.5rem' }}>
                   Create List
                 </button>

@@ -1180,6 +1180,21 @@ export async function getDb() {
     await dbInstance.run("INSERT OR IGNORE INTO user_streaks (user_id, current_streak, longest_streak, last_completed_date) VALUES (?, 0, 0, NULL)", [u.id]);
   }
 
+  // Migrations for Focus Area hide_from_dashboard, Shopping List auto_add_inventory, and Weekly Menu week_start
+  try {
+    await dbInstance.run("ALTER TABLE projects ADD COLUMN hide_from_dashboard INTEGER DEFAULT 0");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE shopping_lists ADD COLUMN auto_add_inventory INTEGER DEFAULT 0");
+  } catch (err) {}
+  try {
+    await dbInstance.run("ALTER TABLE weekly_menu ADD COLUMN week_start TEXT");
+  } catch (err) {}
+  try {
+    const currentMondayStr = getWeekMondayStr(new Date());
+    await dbInstance.run("UPDATE weekly_menu SET week_start = ? WHERE week_start IS NULL OR week_start = ''", [currentMondayStr]);
+  } catch (err) {}
+
 
 
     return dbInstance;
@@ -1827,7 +1842,7 @@ export async function getShoppingListsForUser(userId) {
   
   // Get all lists owned by the user or shared with the user
   const lists = await db.all(`
-    SELECT sl.id, sl.name, sl.owner_id, sl.created_at, u.username as owner_username,
+    SELECT sl.id, sl.name, sl.owner_id, sl.created_at, COALESCE(sl.auto_add_inventory, 0) as auto_add_inventory, u.username as owner_username,
            CASE WHEN sl.owner_id = ? THEN 'owner'
                 ELSE IFNULL(sls.permission, 'view')
            END as permission
@@ -1841,18 +1856,24 @@ export async function getShoppingListsForUser(userId) {
   return lists;
 }
 
-export async function createShoppingList(name, ownerId) {
+export async function createShoppingList(name, ownerId, autoAddInventory = 0) {
   const db = await getDb();
   const result = await db.run(
-    "INSERT INTO shopping_lists (name, owner_id) VALUES (?, ?)",
-    [name, ownerId]
+    "INSERT INTO shopping_lists (name, owner_id, auto_add_inventory) VALUES (?, ?, ?)",
+    [name, ownerId, autoAddInventory ? 1 : 0]
   );
   return result.lastID;
 }
 
-export async function renameShoppingList(id, name) {
+export async function renameShoppingList(id, name, autoAddInventory = undefined) {
   const db = await getDb();
-  await db.run("UPDATE shopping_lists SET name = ? WHERE id = ?", [name, id]);
+  if (name !== undefined && autoAddInventory !== undefined) {
+    await db.run("UPDATE shopping_lists SET name = ?, auto_add_inventory = ? WHERE id = ?", [name, autoAddInventory ? 1 : 0, id]);
+  } else if (autoAddInventory !== undefined) {
+    await db.run("UPDATE shopping_lists SET auto_add_inventory = ? WHERE id = ?", [autoAddInventory ? 1 : 0, id]);
+  } else if (name !== undefined) {
+    await db.run("UPDATE shopping_lists SET name = ? WHERE id = ?", [name, id]);
+  }
   return true;
 }
 
@@ -1867,7 +1888,7 @@ export async function getShoppingListDetails(id, userId) {
   
   // Verify access and get list info
   const listInfo = await db.get(`
-    SELECT sl.id, sl.name, sl.owner_id, u.username as owner_username,
+    SELECT sl.id, sl.name, sl.owner_id, COALESCE(sl.auto_add_inventory, 0) as auto_add_inventory, u.username as owner_username,
            CASE WHEN sl.owner_id = ? THEN 'owner'
                 ELSE IFNULL(sls.permission, 'view')
            END as permission
@@ -2212,8 +2233,25 @@ export async function toggleRecipeFavorite(id) {
   return newFav;
 }
 
-export async function getWeeklyMenu() {
+export function getWeekMondayStr(dateInput = new Date()) {
+  const d = typeof dateInput === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateInput)
+    ? new Date(dateInput + 'T12:00:00')
+    : new Date(dateInput);
+  if (isNaN(d.getTime())) return getWeekMondayStr(new Date());
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d);
+  monday.setDate(diff);
+  const year = monday.getFullYear();
+  const month = String(monday.getMonth() + 1).padStart(2, '0');
+  const dayOfMonth = String(monday.getDate()).padStart(2, '0');
+  return `${year}-${month}-${dayOfMonth}`;
+}
+
+export async function getWeeklyMenu(weekStart = null) {
   const db = await getDb();
+  const currentMonday = getWeekMondayStr();
+  const targetWeek = weekStart ? getWeekMondayStr(weekStart) : currentMonday;
   const items = await db.all(`
     SELECT wm.*, 
            r.title as recipe_title, r.image_path as recipe_image,
@@ -2221,7 +2259,8 @@ export async function getWeeklyMenu() {
     FROM weekly_menu wm
     LEFT JOIN recipes r ON wm.recipe_id = r.id
     LEFT JOIN leftovers l ON wm.leftover_id = l.id
-  `);
+    WHERE wm.week_start = ? OR ((wm.week_start IS NULL OR wm.week_start = '') AND ? = ?)
+  `, [targetWeek, targetWeek, currentMonday]);
   return items;
 }
 
@@ -2252,9 +2291,14 @@ export async function getReusableTags() {
   return rows.map(r => r.name);
 }
 
-export async function clearWeeklyMenu() {
+export async function clearWeeklyMenu(weekStart = null) {
   const db = await getDb();
-  await db.run('DELETE FROM weekly_menu');
+  const currentMonday = getWeekMondayStr();
+  const targetWeek = weekStart ? getWeekMondayStr(weekStart) : currentMonday;
+  await db.run(
+    "DELETE FROM weekly_menu WHERE week_start = ? OR ((week_start IS NULL OR week_start = '') AND ? = ?)",
+    [targetWeek, targetWeek, currentMonday]
+  );
   return true;
 }
 
@@ -2284,7 +2328,7 @@ export function normalizeMealType(meal) {
   return map[trimmed] || (meal.charAt(0).toUpperCase() + meal.slice(1));
 }
 
-export async function addWeeklyMenuEntry(dayOfWeek, mealType, recipeId, leftoverId = null, hasLeftovers = 0, customMeal = null, servings = null, tags = null, assignedPeople = null) {
+export async function addWeeklyMenuEntry(dayOfWeek, mealType, recipeId, leftoverId = null, hasLeftovers = 0, customMeal = null, servings = null, tags = null, assignedPeople = null, weekStart = null) {
   const db = await getDb();
   
   const finalDay = normalizeDayOfWeek(dayOfWeek);
@@ -2313,10 +2357,12 @@ export async function addWeeklyMenuEntry(dayOfWeek, mealType, recipeId, leftover
   const parsedServings = servings !== undefined && servings !== null && servings !== '' ? parseInt(servings, 10) || null : null;
   const parsedHasLeftovers = hasLeftovers === true || hasLeftovers === 1 || hasLeftovers === '1' ? 1 : 0;
 
+  const finalWeekStart = weekStart ? getWeekMondayStr(weekStart) : getWeekMondayStr();
+
   const result = await db.run(
-    `INSERT INTO weekly_menu (day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [finalDay, finalMeal, parsedRecipeId, parsedLeftoverId, parsedHasLeftovers, customMeal ? String(customMeal).trim() : null, parsedServings, finalTags, finalPeople]
+    `INSERT INTO weekly_menu (day_of_week, meal_type, recipe_id, leftover_id, has_leftovers, custom_meal, servings, tags, assigned_people, week_start)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [finalDay, finalMeal, parsedRecipeId, parsedLeftoverId, parsedHasLeftovers, customMeal ? String(customMeal).trim() : null, parsedServings, finalTags, finalPeople, finalWeekStart]
   );
 
   if (customMeal && String(customMeal).trim()) {
@@ -2634,8 +2680,8 @@ export async function getProjectById(id) {
 export async function createProject(project) {
   const db = await getDb();
   const result = await db.run(
-    "INSERT INTO projects (name, description, color, status, is_shared) VALUES (?, ?, ?, ?, ?)",
-    [project.name, project.description || null, project.color || '#3b82f6', project.status || 'active', project.is_shared ? 1 : 0]
+    "INSERT INTO projects (name, description, color, status, is_shared, hide_from_dashboard) VALUES (?, ?, ?, ?, ?, ?)",
+    [project.name, project.description || null, project.color || '#3b82f6', project.status || 'active', project.is_shared ? 1 : 0, project.hide_from_dashboard ? 1 : 0]
   );
   return result.lastID;
 }
@@ -2643,8 +2689,8 @@ export async function createProject(project) {
 export async function updateProject(id, project) {
   const db = await getDb();
   await db.run(
-    "UPDATE projects SET name = ?, description = ?, color = ?, status = ?, is_shared = ? WHERE id = ?",
-    [project.name, project.description || null, project.color || '#3b82f6', project.status || 'active', project.is_shared ? 1 : 0, id]
+    "UPDATE projects SET name = ?, description = ?, color = ?, status = ?, is_shared = ?, hide_from_dashboard = ? WHERE id = ?",
+    [project.name, project.description || null, project.color || '#3b82f6', project.status || 'active', project.is_shared ? 1 : 0, project.hide_from_dashboard ? 1 : 0, id]
   );
   return true;
 }
@@ -2688,7 +2734,7 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
     todayStr = new Date().toLocaleDateString('sv', { timeZone: normTz });
   }
   let query = `
-    SELECT t.*, p.name as project_name, p.color as project_color, p.is_shared as project_is_shared,
+    SELECT t.*, p.name as project_name, p.color as project_color, p.is_shared as project_is_shared, COALESCE(p.hide_from_dashboard, 0) as project_hide_from_dashboard,
            u.username as assignee_username, u.display_name as assignee_display_name
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
@@ -2743,6 +2789,10 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
     params.push(filters.due_date);
   }
 
+  if (filters.exclude_hidden_from_dashboard) {
+    query += ' AND COALESCE(p.hide_from_dashboard, 0) = 0';
+  }
+
   query += ' ORDER BY CASE t.priority WHEN "urgent" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 WHEN "low" THEN 4 ELSE 5 END ASC, t.id DESC';
   
   const tasks = await db.all(query, params);
@@ -2754,8 +2804,8 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
   }
 
   // Fetch virtual housekeeping tasks assigned to this user and merge them
-  const hk = await db.get("SELECT id, name FROM projects WHERE name = 'Housekeeping'");
-  if (hk) {
+  const hk = await db.get("SELECT id, name, COALESCE(hide_from_dashboard, 0) as hide_from_dashboard FROM projects WHERE name = 'Housekeeping'");
+  if (hk && !(filters.exclude_hidden_from_dashboard && hk.hide_from_dashboard === 1)) {
     const matchesHkFilter = !filters.project_id || String(filters.project_id) === String(hk.id);
     if (matchesHkFilter) {
       let hkStatusFilter = '';
@@ -2783,8 +2833,8 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
           h.due_date,
           0 as estimated_time,
           0 as time_spent,
-          0 as is_recurring,
-          NULL as recurrence_pattern,
+          CASE WHEN h.reoccurrence IS NOT NULL AND h.reoccurrence != 'none' THEN 1 ELSE 0 END as is_recurring,
+          CASE WHEN h.reoccurrence IS NOT NULL AND h.reoccurrence != 'none' THEN h.reoccurrence ELSE NULL END as recurrence_pattern,
           NULL as parent_id,
           0 as is_micro_step,
           NULL as routine_id,
@@ -2795,6 +2845,7 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
           ? as project_name,
           '#8b5cf6' as project_color,
           0 as project_is_shared,
+          ? as project_hide_from_dashboard,
           u.username as assignee_username,
           u.display_name as assignee_display_name
         FROM housekeeping_tasks h
@@ -2802,7 +2853,7 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
         WHERE h.assigned_to_user_id = ? ${hkStatusFilter}
       `;
       
-      const hkParams = [hk.id, hk.name, userId];
+      const hkParams = [hk.id, hk.name, hk.hide_from_dashboard || 0, userId];
       
       if (filters.search) {
         hkQuery += ' AND (h.title LIKE ? OR h.description LIKE ?)';

@@ -184,10 +184,10 @@ export default function HomeView({ onNavigateTab, user }) {
 
   const fetchTasks = async () => {
     try {
-      const res = await fetch('/api/focusflow/tasks');
+      const res = await fetch('/api/focusflow/tasks?exclude_hidden_from_dashboard=true');
       if (res.ok) {
         const data = await res.json();
-        setTasks(data);
+        setTasks((data || []).filter(t => !t.project_hide_from_dashboard));
       }
     } catch (err) {
       console.error(err);
@@ -1113,6 +1113,7 @@ export default function HomeView({ onNavigateTab, user }) {
 
     // 2. Tasks
     (calendarData.tasks || []).forEach(t => {
+      if (t.project_hide_from_dashboard) return;
       if (t.due_date) {
         const dateStr = t.due_date.split('T')[0];
         addItem({

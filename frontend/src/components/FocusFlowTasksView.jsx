@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Search, Trash2, Edit2, CheckCircle, Play, Pause,
   AlertCircle, Clock, Calendar, ChevronDown, ChevronUp,
-  Inbox, AlertTriangle, Zap, Sparkles, FolderOpen, AlarmClock, User
+  Inbox, AlertTriangle, Zap, Sparkles, FolderOpen, AlarmClock, User,
+  SkipForward, RefreshCw
 } from 'lucide-react';
 
 const PRIORITY_COLORS = {
@@ -59,6 +60,7 @@ export default function TasksView({ showToast, permissions }) {
   const [priority, setPriority] = useState('medium');
   const [due_date, setDueDate] = useState('');
   const [estimated_time, setEstimatedTime] = useState(0);
+  const [recurrencePattern, setRecurrencePattern] = useState('none');
   const [subtasks, setSubtasks] = useState([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [expandedTaskId, setExpandedTaskId] = useState(null);
@@ -158,7 +160,7 @@ export default function TasksView({ showToast, permissions }) {
     setProjectId(String(proj.id));
     setAssignedUserId('');
     setStatus('backlog'); setPriority('medium');
-    setDueDate(''); setEstimatedTime(0);
+    setDueDate(''); setEstimatedTime(0); setRecurrencePattern('none');
     setSubtasks([]); setNewSubtaskTitle('');
     setIsModalOpen(true);
   };
@@ -180,6 +182,7 @@ export default function TasksView({ showToast, permissions }) {
         setAssignedUserId(d.user_id ? String(d.user_id) : '');
         setStatus(d.status || 'backlog'); setPriority(d.priority || 'medium');
         setDueDate(d.due_date || ''); setEstimatedTime(d.estimated_time || 0);
+        setRecurrencePattern(d.recurrence_pattern || d.reoccurrence || 'none');
         setSubtasks(d.subtasks || []); setNewSubtaskTitle('');
         setIsModalOpen(true);
       } else showToast('Failed to load task details', 'error');
@@ -201,11 +204,16 @@ export default function TasksView({ showToast, permissions }) {
     const targetProj = projects.find(p => String(p.id) === String(project_id));
     const isSharedProj = targetProj && targetProj.is_shared === 1;
 
+    const isRec = Boolean(recurrencePattern && recurrencePattern !== 'none');
     const payload = {
       title: title.trim(), description: description.trim(),
       project_id: project_id ? Number(project_id) : null,
       status, priority, due_date: due_date || null,
-      estimated_time: Number(estimated_time) || 0, subtasks,
+      estimated_time: Number(estimated_time) || 0,
+      is_recurring: isRec ? 1 : 0,
+      recurrence_pattern: isRec ? recurrencePattern : null,
+      reoccurrence: isRec ? recurrencePattern : 'none',
+      subtasks,
       user_id: isSharedProj && assignedUserId ? Number(assignedUserId) : null
     };
     try {
@@ -250,7 +258,29 @@ export default function TasksView({ showToast, permissions }) {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed: true, title: task.title })
       });
-      if (res.ok) { showToast('Task completed! 🎯', 'success'); fetchTasks(); if (activeLog?.task_id === task.id) setActiveLog(null); }
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.next_due_date ? `Completed! Next due: ${data.next_due_date}` : 'Task completed! 🎯', 'success');
+        fetchTasks();
+        if (activeLog?.task_id === task.id) setActiveLog(null);
+      }
+    } catch (err) { showToast('Network error', 'error'); }
+  };
+
+  const handleMissTask = async (task) => {
+    try {
+      const res = await fetch(`/api/focusflow/tasks/${task.id}/miss`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showToast(data.next_due_date ? `Marked as missed — moved to ${data.next_due_date}` : 'Task marked as missed', 'info');
+        fetchTasks();
+        if (activeLog?.task_id === task.id) setActiveLog(null);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Failed to mark task as missed', 'error');
+      }
     } catch (err) { showToast('Network error', 'error'); }
   };
 
@@ -335,6 +365,11 @@ export default function TasksView({ showToast, permissions }) {
                   <Calendar size={11} /> {task.due_date}
                 </span>
               )}
+              {(task.is_recurring === 1 || (task.recurrence_pattern && task.recurrence_pattern !== 'none')) && (
+                <span style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                  <RefreshCw size={10} /> {task.recurrence_pattern || 'recurring'}
+                </span>
+              )}
             </div>
             <h3 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '0.15rem' }}>{task.title}</h3>
             {task.description && (
@@ -367,6 +402,12 @@ export default function TasksView({ showToast, permissions }) {
                   <button className="btn btn-outline" style={{ height: '1.75rem', width: '1.75rem', padding: 0 }}
                     title="Complete" onClick={() => handleCompleteTask(task)}>
                     <CheckCircle size={13} />
+                  </button>
+                )}
+                {task.status !== 'completed' && (task.is_recurring === 1 || (task.recurrence_pattern && task.recurrence_pattern !== 'none')) && (
+                  <button className="btn btn-outline" style={{ height: '1.75rem', fontSize: '0.7rem', padding: '0 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.35)' }}
+                    title="Mark as missed and move to next scheduled date" onClick={() => handleMissTask(task)}>
+                    <SkipForward size={11} /> Missed
                   </button>
                 )}
                 {isActive ? (
@@ -592,10 +633,21 @@ export default function TasksView({ showToast, permissions }) {
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
                   <div className="form-group">
                     <label htmlFor="task-duedate">Due Date</label>
                     <input id="task-duedate" type="date" className="input-control" value={due_date} onChange={(e) => setDueDate(e.target.value)} />
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="task-recurrence">Recurrence</label>
+                    <select id="task-recurrence" className="input-control" value={recurrencePattern} onChange={(e) => setRecurrencePattern(e.target.value)}>
+                      <option value="none">One-time (None)</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="bi-weekly">Bi-Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
                   </div>
                   <div className="form-group">
                     <label htmlFor="task-est">Est. Effort (minutes)</label>

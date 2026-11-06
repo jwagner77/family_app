@@ -23,6 +23,7 @@ export default function FocusAreasView({ showToast, permissions }) {
   const [color, setColor] = useState('#3b82f6');
   const [status, setStatus] = useState('active');
   const [isShared, setIsShared] = useState(false);
+  const [hideFromDashboard, setHideFromDashboard] = useState(false);
 
   // Schedule states
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
@@ -64,16 +65,16 @@ export default function FocusAreasView({ showToast, permissions }) {
 
   const handleOpenCreateModal = () => {
     setModalMode('create'); setFocusAreaId(null); setName(''); setDescription('');
-    setColor('#3b82f6'); setStatus('active'); setIsShared(false);
+    setColor('#3b82f6'); setStatus('active'); setIsShared(false); setHideFromDashboard(false);
     setScheduleEnabled(false); setScheduleBlocks([]);
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = async (fa) => {
-    if (fa.name === 'Inbox' || fa.name === 'Housekeeping') { showToast(`The ${fa.name} Focus Area cannot be modified.`, 'error'); return; }
     setModalMode('edit'); setFocusAreaId(fa.id); setName(fa.name);
     setDescription(fa.description || ''); setColor(fa.color || '#3b82f6'); setStatus(fa.status || 'active');
     setIsShared(!!fa.is_shared);
+    setHideFromDashboard(!!fa.hide_from_dashboard);
     setScheduleEnabled(!!fa.schedule_enabled);
     const blocks = await fetchScheduleForFocusArea(fa.id);
     setScheduleBlocks(blocks);
@@ -98,7 +99,7 @@ export default function FocusAreasView({ showToast, permissions }) {
   const handleSaveFocusArea = async (e) => {
     e.preventDefault();
     if (!name.trim()) { showToast('Focus Area name is required', 'error'); return; }
-    const payload = { name: name.trim(), description: description.trim(), color, status, is_shared: isShared ? 1 : 0 };
+    const payload = { name: name.trim(), description: description.trim(), color, status, is_shared: isShared ? 1 : 0, hide_from_dashboard: hideFromDashboard ? 1 : 0 };
     try {
       let res;
       if (modalMode === 'create') {
@@ -165,7 +166,12 @@ export default function FocusAreasView({ showToast, permissions }) {
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                   <h3 style={{ fontSize: '1.05rem', fontWeight: '700', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '60%' }}>{fa.name}</h3>
-                  <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {fa.hide_from_dashboard === 1 && (
+                      <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '10px', backgroundColor: '#f59e0b22', color: '#f59e0b', fontWeight: 'bold' }} title="Tasks in this Focus Area are hidden from the Dashboard and Overview pages">
+                        🙈 Hidden on Dashboard
+                      </span>
+                    )}
                     {fa.is_shared === 1 && (
                       <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '10px', backgroundColor: '#3b82f622', color: '#3b82f6', fontWeight: 'bold' }}>
                         👥 Shared
@@ -183,19 +189,21 @@ export default function FocusAreasView({ showToast, permissions }) {
                 </p>
                 {getScheduleSummary(fa)}
               </div>
-              {!isReadOnly && fa.name !== 'Inbox' && fa.name !== 'Housekeeping' && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
-                  <button className="btn btn-outline" style={{ height: '1.75rem', padding: '0 0.5rem', fontSize: '0.75rem' }} onClick={() => handleOpenEditModal(fa)}>
-                    <Edit2 size={12} /> Edit
-                  </button>
-                  <button className="btn btn-danger" style={{ height: '1.75rem', padding: '0 0.5rem', fontSize: '0.75rem' }} onClick={() => handleDeleteFocusArea(fa)}>
-                    <Trash2 size={12} /> Delete
-                  </button>
-                </div>
-              )}
-              {(fa.name === 'Inbox' || fa.name === 'Housekeeping') && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>🔒 Default System {fa.name}</span>
+              {!isReadOnly && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                  {(fa.name === 'Inbox' || fa.name === 'Housekeeping') ? (
+                    <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)', fontStyle: 'italic' }}>🔒 Default System {fa.name}</span>
+                  ) : <span />}
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button className="btn btn-outline" style={{ height: '1.75rem', padding: '0 0.5rem', fontSize: '0.75rem' }} onClick={() => handleOpenEditModal(fa)}>
+                      <Edit2 size={12} /> Edit
+                    </button>
+                    {fa.name !== 'Inbox' && fa.name !== 'Housekeeping' && (
+                      <button className="btn btn-danger" style={{ height: '1.75rem', padding: '0 0.5rem', fontSize: '0.75rem' }} onClick={() => handleDeleteFocusArea(fa)}>
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -217,7 +225,8 @@ export default function FocusAreasView({ showToast, permissions }) {
                 <div className="form-group">
                   <label htmlFor="fa-name">Focus Area Name</label>
                   <input id="fa-name" type="text" className="input-control" value={name}
-                    onChange={(e) => setName(e.target.value)} required maxLength={50} autoFocus />
+                    onChange={(e) => setName(e.target.value)} required maxLength={50} autoFocus
+                    disabled={modalMode === 'edit' && (name === 'Inbox' || name === 'Housekeeping')} />
                 </div>
                 <div className="form-group">
                   <label htmlFor="fa-desc">Description</label>
@@ -240,10 +249,18 @@ export default function FocusAreasView({ showToast, permissions }) {
                 </div>
 
                 {/* Share Toggle */}
-                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <div className="form-group" style={{ marginBottom: '0.85rem' }}>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
                     <input type="checkbox" checked={isShared} onChange={(e) => setIsShared(e.target.checked)} />
                     <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>👥 Share with Household (create a shared to-do list)</span>
+                  </label>
+                </div>
+
+                {/* Hide from Dashboard & Overview Toggle */}
+                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                    <input type="checkbox" checked={hideFromDashboard} onChange={(e) => setHideFromDashboard(e.target.checked)} />
+                    <span style={{ fontSize: '0.85rem', fontWeight: '500' }}>🙈 Hide tasks in this Focus Area from Dashboard & Overview pages</span>
                   </label>
                 </div>
 

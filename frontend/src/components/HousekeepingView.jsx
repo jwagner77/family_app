@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Trash2, Check, UserPlus, Play, RefreshCw, Calendar, 
-  Clock, CheckCircle, User, AlertCircle, Sparkles, ClipboardList
+  Clock, CheckCircle, User, AlertCircle, Sparkles, ClipboardList, SkipForward
 } from 'lucide-react';
 
 export default function HousekeepingView({ showToast, currentUser }) {
@@ -208,6 +208,25 @@ export default function HousekeepingView({ showToast, currentUser }) {
     }
   };
 
+  const handleMissTask = async (id) => {
+    try {
+      const res = await fetch(`/api/housekeeping/tasks/${id}/miss`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showToast(data.message || 'Task marked as missed and moved to next scheduled date', 'info');
+        fetchTasks();
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.error || 'Failed to mark task as missed', 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Server error marking task as missed', 'error');
+    }
+  };
+
   // Helper date checker
   const isOverdue = (dateStr, status) => {
     if (status === 'completed') return false;
@@ -389,7 +408,7 @@ export default function HousekeepingView({ showToast, currentUser }) {
                     </div>
 
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', gap: '0.35rem' }}>
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                         {task.status !== 'completed' && (
                           <button 
                             className="btn btn-primary" 
@@ -398,6 +417,16 @@ export default function HousekeepingView({ showToast, currentUser }) {
                             title="Log complete"
                           >
                             <Check size={12} /> Complete
+                          </button>
+                        )}
+                        {task.status !== 'completed' && task.reoccurrence && task.reoccurrence !== 'none' && (
+                          <button 
+                            className="btn btn-outline" 
+                            onClick={() => handleMissTask(task.id)}
+                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#f59e0b', borderColor: 'rgba(245, 158, 11, 0.35)' }}
+                            title="Mark as missed and move to next scheduled date"
+                          >
+                            <SkipForward size={12} /> Missed
                           </button>
                         )}
                         {!task.assigned_to_user_id && task.status !== 'completed' && (
