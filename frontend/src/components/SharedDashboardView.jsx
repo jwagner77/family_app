@@ -193,6 +193,17 @@ export default function SharedDashboardView({ token, onClose }) {
 
   // Handle countdown and rotation
   useEffect(() => {
+    window.pauseRotation = () => setIsPaused(true);
+    window.resumeRotation = () => setIsPaused(false);
+    window.refreshDashboard = () => setRefreshTrigger(prev => prev + 1);
+    return () => {
+      delete window.pauseRotation;
+      delete window.resumeRotation;
+      delete window.refreshDashboard;
+    };
+  }, []);
+
+  useEffect(() => {
     if (targetType !== 'rotation' || dashboards.length <= 1 || isPaused) return;
 
     const timer = setInterval(() => {

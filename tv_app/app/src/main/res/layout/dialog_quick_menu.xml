@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="480dp"
+    android:layout_height="wrap_content"
+    android:background="@drawable/glass_card_bg"
+    android:padding="32dp"
+    android:orientation="vertical"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="📺 TV Quick Menu"
+        android:textColor="@color/text_primary"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="20dp" />
+
+    <Button
+        android:id="@+id/menu_btn_refresh"
+        style="@style/Widget.FamilyHubTV.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🔄 Refresh Dashboard"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/menu_btn_toggle_rotation"
+        style="@style/Widget.FamilyHubTV.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⏸️ Pause / Resume Rotation"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/menu_btn_screensaver"
+        style="@style/Widget.FamilyHubTV.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🌙 Ambient Mode"
+        android:layout_marginBottom="12dp" />
+
+    <Button
+        android:id="@+id/menu_btn_unpair"
+        style="@style/Widget.FamilyHubTV.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⚙️ Unpair This TV"
+        android:textColor="@color/danger"
+        android:layout_marginBottom="16dp" />
+
+    <Button
+        android:id="@+id/menu_btn_close"
+        style="@style/Widget.FamilyHubTV.Button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Back to Dashboard" />
+
+</LinearLayout>

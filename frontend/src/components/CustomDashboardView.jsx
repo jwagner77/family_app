@@ -1410,6 +1410,7 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
       <CastDashboardModal
         isOpen={isCastModalOpen}
         onClose={() => setIsCastModalOpen(false)}
+        dashboardId={currentDashboard.id || 'default'}
         dashboardTitle={currentDashboard.name || 'Dashboard'}
         shareUrl={shareUrl || `${window.location.origin}/#/dashboard`}
         showToast={showToast}

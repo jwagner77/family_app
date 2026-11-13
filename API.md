@@ -26,7 +26,8 @@ Comprehensive REST API documentation for the **Family Hub** platform. This API e
   - [14. Board Games & Play History](#14-board-games--play-history)
   - [15. Dashboards & Multi-Link Sharing](#15-dashboards--multi-link-sharing)
   - [16. Native Mobile App & Push Tokens](#16-native-mobile-app--push-tokens)
-  - [17. System, Settings & Administration](#17-system-settings--administration)
+  - [17. Android TV Companion & Screensaver Pairing](#17-android-tv-companion--ambient-screensaver-pairing)
+  - [18. System, Settings & Administration](#18-system-settings--administration)
 
 ---
 
@@ -819,7 +820,102 @@ Unregister a push notification device token upon sign-out.
 
 ---
 
-### 17. System, Settings & Administration
+
+### 17. Android TV Companion & Ambient Screensaver Pairing
+
+Endpoints supporting the **Family Hub Android TV Companion** app, enabling frictionless 6-character Device Code pairing without requiring users to type URLs or tokens on a television remote control, plus UDP discovery and keepalive heartbeats.
+
+#### `POST /api/tv/request-code`
+Called by the Android TV app upon launch to generate a temporary 6-character pairing code.
+- **Access**: Public
+- **Body**:
+  ```json
+  {
+    "device_name": "Living Room Sony TV"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "device_code": "TV-8492",
+    "expires_at": "2026-11-13T01:30:00.000Z",
+    "expires_in_seconds": 900,
+    "server_name": "Family Hub",
+    "branding_icon": "🏠"
+  }
+  ```
+
+#### `GET /api/tv/poll/:code`
+Polled every 3 seconds by the Android TV app while awaiting pairing approval from the web UI.
+- **Access**: Public
+- **Response (Pending)**:
+  ```json
+  {
+    "status": "pending",
+    "expires_in_seconds": 885
+  }
+  ```
+- **Response (Once Paired)**:
+  ```json
+  {
+    "status": "paired",
+    "id": "tv_1731459200_a1b2",
+    "device_name": "Living Room Sony TV",
+    "share_token": "d-9f2a",
+    "target_type": "rotation",
+    "dashboard_id": "default",
+    "rotation_interval": 30,
+    "rotation_dashboards": ["dash-1", "dash-2"],
+    "appName": "Family Hub"
+  }
+  ```
+
+#### `POST /api/tv/pair`
+Submitted from the Family App web client (Settings → Android TV) to link an on-screen TV device code with a specific shared dashboard or rotation.
+- **Access**: Authenticated (`settings_general: full`)
+- **Body**:
+  ```json
+  {
+    "device_code": "TV-8492",
+    "device_name": "Living Room Sony Bravia",
+    "share_id": "share_1731450000"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "message": "Successfully connected Living Room Sony Bravia!",
+    "device": { ... }
+  }
+  ```
+
+#### `GET /api/tv/devices`
+List all connected Android TVs and pending pairing requests.
+- **Access**: Authenticated (`settings_general: read`)
+
+#### `PUT /api/tv/devices/:id`
+Update TV device configuration (e.g. rename TV or reassign linked dashboard share).
+- **Access**: Authenticated (`settings_general: full`)
+
+#### `DELETE /api/tv/devices/:id`
+Unlink and revoke an Android TV device.
+- **Access**: Authenticated (`settings_general: full`)
+
+#### `POST /api/tv/ping`
+Background keepalive heartbeat dispatched once per minute by active Android TV devices.
+- **Access**: Public
+- **Body**:
+  ```json
+  {
+    "code": "TV-8492"
+  }
+  ```
+
+---
+
+### 18. System, Settings & Administration
 
 #### `GET /api/version`
 Retrieve application release version, git commit hash, build number, and tech stack details.

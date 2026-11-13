@@ -228,8 +228,14 @@ npm run dev
 
 ---
 
-## 📱 Mobile App & Kiosk Displays
+## 📱 Mobile App, Android TV & Kiosk Displays
 
+- **📺 Android TV Companion & Ambient Screensaver (`tv_app/`)**:
+  - **Zero-Friction Device Code Pairing**: On launch, the Android TV app requests a 6-character Device Code (e.g. `TV-8492`) from the server. Users enter this code in **Settings → Android TV** or scan the on-screen QR code from a phone to connect instantly—no typing URLs or passwords with a TV remote.
+  - **LAN Auto-Discovery**: Automatic discovery of Family App servers on the home network via UDP broadcast beacons on port `41820`.
+  - **Dual Functionality**: Launch manually as an interactive 10-foot home command center, or configure as your official **Android TV Screensaver (`DreamService`)** to softly display family agendas, chores, and weather when idle.
+  - **OLED / Mini-LED Burn-In Protection**: Subtle 12-point orbital pixel shifting prevents static UI burn-in on televisions.
+  - **TV Remote Navigation**: D-pad navigation with instant `[PLAY/PAUSE]` carousel controls and a `[BACK/MENU]` Quick Actions HUD.
 - **Kiosk Displays**: Share custom dashboards using unique token links with auto-refresh and rotating views for kitchen tablets or wall displays.
 - **Mobile Integration**: Register iOS (APNs) and Android (FCM) device tokens via `/api/users/push-token` to receive real-time push alerts from your home server.
 

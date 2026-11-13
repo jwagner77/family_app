@@ -1,3 +1,4 @@
+import dgram from 'dgram';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
@@ -125,7 +126,15 @@ import {
   updateLeftover,
   saveUserPushToken,
   deleteUserPushToken,
-  getUserPushTokens
+  getUserPushTokens,
+  createTvDeviceCode,
+  getTvDeviceByCode,
+  pairTvDevice,
+  getTvDeviceStatus,
+  pingTvDevice,
+  getTvDevices,
+  updateTvDevice,
+  deleteTvDevice,
 } from './db.js';
 
 import { parseRecipeImage, parseIngredientLine } from './ocr.js';
@@ -8650,13 +8659,47 @@ app.delete('/api/dashboard/shares/:id', authenticate, requirePermission('setting
   }
 });
 
+async function resolveSharedDashboardOrTvToken(db, settings, rawToken) {
+  if (!rawToken) return null;
+
+  // 1. Check if token matches a paired Android TV device (by share_token or device_code)
+  const tvDevice = await db.get(
+    "SELECT * FROM tv_devices WHERE (share_token = ? OR UPPER(device_code) = UPPER(?)) AND status = 'paired'",
+    [rawToken, rawToken]
+  );
+
+  if (tvDevice) {
+    await db.run('UPDATE tv_devices SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', [tvDevice.id]);
+    if (tvDevice.share_id) {
+      const linkedShare = await db.get('SELECT * FROM dashboard_shares WHERE id = ? AND active = 1', [tvDevice.share_id]);
+      if (linkedShare) return linkedShare;
+    }
+    return {
+      name: tvDevice.device_name || 'Android TV',
+      target_type: tvDevice.target_type || 'single',
+      dashboard_id: tvDevice.dashboard_id || 'default',
+      rotation_interval: tvDevice.rotation_interval || parseInt(settings.dashboard_rotation_interval, 10) || 30,
+      rotation_dashboards: tvDevice.rotation_dashboards || settings.dashboard_rotation_dashboards || '["default"]'
+    };
+  }
+
+  // 2. Check in dashboard_shares table
+  let share = await db.get('SELECT * FROM dashboard_shares WHERE token = ? AND active = 1', [rawToken]);
+  if (share) {
+    await db.run("UPDATE tv_devices SET last_seen_at = CURRENT_TIMESTAMP WHERE share_token = ? AND status = 'paired'", [rawToken]);
+    return share;
+  }
+
+  return null;
+}
+
 app.get('/api/dashboard/shared/:token', async (req, res) => {
   try {
     const db = await getDb();
     const settings = await getSettings();
 
     // Check in dashboard_shares table
-    let share = await db.get('SELECT * FROM dashboard_shares WHERE token = ? AND active = 1', [req.params.token]);
+    let share = await resolveSharedDashboardOrTvToken(db, settings, req.params.token);
     
     // Fallback to legacy single settings token if matching
     if (!share && settings.dashboard_share_token && settings.dashboard_share_token === req.params.token) {
@@ -8758,13 +8801,16 @@ app.get('/api/dashboard/shared-widget-data/:token/:id', async (req, res) => {
     const db = await getDb();
     const settings = await getSettings();
 
-    let share = await db.get('SELECT * FROM dashboard_shares WHERE token = ? AND active = 1', [req.params.token]);
+    let share = await resolveSharedDashboardOrTvToken(db, settings, req.params.token);
     if (!share && settings.dashboard_share_token && settings.dashboard_share_token === req.params.token) {
       share = { target_type: 'single', dashboard_id: 'default' };
     }
 
     if (!share) {
       return res.status(401).json({ error: 'Invalid or expired dashboard share token' });
+
+
+
     }
 
     const widget = await db.get('SELECT * FROM dashboard_widgets WHERE id = ?', [req.params.id]);
@@ -8773,6 +8819,139 @@ app.get('/api/dashboard/shared-widget-data/:token/:id', async (req, res) => {
     }
     const data = await getWidgetData(widget, null);
     res.json(data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- ANDROID TV COMPANION & SCREENSAVER PAIRING ENDPOINTS ---
+
+// Health/Discovery probe for Android TV DiscoveryManager HEAD/GET checks
+app.head('/api/tv/request-code', (req, res) => {
+  res.status(200).end();
+});
+
+app.get('/api/tv/request-code', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json({
+      ok: true,
+      server_name: settings.app_name || 'Family Hub',
+      branding_icon: settings.branding_icon || '🏠'
+    });
+  } catch (error) {
+    res.status(200).json({ ok: true, server_name: 'Family Hub' });
+  }
+});
+
+// TV App requests a new 6-character device pairing code
+app.post('/api/tv/request-code', async (req, res) => {
+  try {
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+    const { device_name } = req.body || {};
+    const result = await createTvDeviceCode(clientIp, device_name || 'Android TV');
+    const settings = await getSettings();
+    res.json({
+      success: true,
+      device_code: result.device_code,
+      expires_at: result.expires_at,
+      expires_in_seconds: result.expires_in_seconds,
+      server_name: settings.app_name || 'Family Hub',
+      branding_icon: settings.branding_icon || '🏠'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// TV App polls pairing status every few seconds
+app.get('/api/tv/poll/:code', async (req, res) => {
+  try {
+    const status = await getTvDeviceStatus(req.params.code);
+    if (status.status === 'paired') {
+      const settings = await getSettings();
+      await pingTvDevice(req.params.code);
+      return res.json({
+        ...status,
+        appName: settings.app_name || 'Family Hub',
+        brandingIcon: settings.branding_icon || '🏠'
+      });
+    }
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// TV App keepalive ping
+app.post('/api/tv/ping', async (req, res) => {
+  try {
+    const { code, id } = req.body || {};
+    let statusInfo = null;
+    if (code || id) {
+      statusInfo = await pingTvDevice(code || id);
+    }
+    res.json({ ok: true, ...(statusInfo || {}) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Web UI: List all registered/pending TV devices
+app.get('/api/tv/devices', authenticate, async (req, res) => {
+  try {
+    const devices = await getTvDevices();
+    res.json(devices);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Web UI: Pair a TV code with a shared dashboard or rotation
+app.post('/api/tv/pair', authenticate, async (req, res) => {
+  try {
+    const { device_code, share_id, device_name, target_type, dashboard_id, rotation_interval, rotation_dashboards } = req.body || {};
+    if (!device_code || !device_code.trim()) {
+      return res.status(400).json({ error: 'Device pairing code is required' });
+    }
+
+    const device = await pairTvDevice(device_code.trim(), {
+      shareId: share_id || null,
+      deviceName: device_name ? device_name.trim() : null,
+      targetType: target_type || 'single',
+      dashboardId: dashboard_id || 'default',
+      rotationInterval: Number(rotation_interval || 30),
+      rotationDashboards: rotation_dashboards || null
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully connected ${device.device_name}!`,
+      device
+    });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Web UI: Update TV device settings (rename or change linked dashboard)
+app.put('/api/tv/devices/:id', authenticate, async (req, res) => {
+  try {
+    const device = await updateTvDevice(req.params.id, req.body);
+    if (!device) {
+      return res.status(404).json({ error: 'Device not found' });
+    }
+    res.json({ success: true, device });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Web UI: Unlink/delete a TV device
+app.delete('/api/tv/devices/:id', authenticate, async (req, res) => {
+  try {
+    await deleteTvDevice(req.params.id);
+    res.json({ success: true, message: 'TV device unlinked successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -9892,8 +10071,50 @@ app.get('*', (req, res, next) => {
 });
 
 // Start Express Server
+
+// --- ANDROID TV COMPANION UDP AUTO-DISCOVERY BEACON ---
+function startTvDiscoveryServer(port = 41820) {
+  try {
+    const udpSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+
+    udpSocket.on('error', (err) => {
+      console.warn('TV Discovery UDP Server warning (safe to ignore if port busy):', err.message);
+      try { udpSocket.close(); } catch (e) {}
+    });
+
+    udpSocket.on('message', async (msg, rinfo) => {
+      const msgStr = msg.toString().trim();
+      if (msgStr.includes('FAMILY_HUB_DISCOVER_REQUEST') || msgStr.includes('FAMILY_APP_TV_DISCOVER')) {
+        try {
+          const settings = await getSettings();
+          const responsePayload = JSON.stringify({
+            type: 'FAMILY_HUB_DISCOVER_RESPONSE',
+            name: settings.app_name || 'Family Hub',
+            port: PORT,
+            branding_icon: settings.branding_icon || '🏠',
+            timestamp: Date.now()
+          });
+          const replyBuf = Buffer.from(responsePayload);
+          udpSocket.send(replyBuf, 0, replyBuf.length, rinfo.port, rinfo.address, (err) => {
+            if (err) console.error('Failed to reply to TV discovery ping:', err.message);
+          });
+        } catch (e) {
+          console.error('Error handling TV discovery request:', e.message);
+        }
+      }
+    });
+
+    udpSocket.bind(port, '0.0.0.0', () => {
+      console.log(`Android TV Discovery beacon listening on UDP port ${port}`);
+    });
+  } catch (err) {
+    console.warn('Could not start TV UDP Discovery listener:', err.message);
+  }
+}
+
 const server = app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Server started on http://localhost:${PORT}`);
+  startTvDiscoveryServer();
   
   // Bootstrap templates folder
   try {

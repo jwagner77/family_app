@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Family Hub TV</string>
+    <string name="dream_label">Family Hub TV Screensaver</string>
+    <string name="server_connecting">Searching for Family App on home network…</string>
+    <string name="pair_title">Connect to Family App</string>
+    <string name="pair_instructions_step1">1. Open Family App on your phone, tablet, or computer.</string>
+    <string name="pair_instructions_step2">2. Navigate to Settings → Android TV &amp; Screensavers.</string>
+    <string name="pair_instructions_step3">3. Click \"Pair Android TV\" and enter the Device Code below:</string>
+    <string name="pair_code_placeholder">TV-0000</string>
+    <string name="waiting_for_pairing">Waiting for connection…</string>
+    <string name="quick_menu_title">Quick Actions</string>
+    <string name="btn_refresh">Refresh Dashboard</string>
+    <string name="btn_pause_rotation">Pause Rotation</string>
+    <string name="btn_resume_rotation">Resume Rotation</string>
+    <string name="btn_screensaver">Start Screensaver Now</string>
+    <string name="btn_unpair">Unpair &amp; Reset</string>
+    <string name="btn_close">Close Menu</string>
+</resources>

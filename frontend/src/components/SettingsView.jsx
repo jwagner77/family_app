@@ -7,7 +7,7 @@ import {
   Square, RefreshCw, Landmark, ArrowRightLeft, LogIn, LogOut, KeyRound, Radio, 
   Bookmark, Sparkles, Github, GitBranch, ChevronDown, ChevronRight, Search, 
   ChefHat, ShoppingCart, ListTodo, BookOpen, Heart, Terminal, FileText, Database,
-  Sliders, Server, Globe, ShieldCheck
+  Sliders, Server, Globe, ShieldCheck, Tv
 } from 'lucide-react';
 import WordTemplateExport from './WordTemplateExport';
 import { extractYouTubeVideoId } from '../utils/youtube';
@@ -307,6 +307,137 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
       console.error('Error fetching dashboards list:', e);
     }
   };
+
+  
+  // --- ANDROID TV COMPANION & SCREENSAVER STATE ---
+  const [tvDevices, setTvDevices] = useState([]);
+  const [loadingTvDevices, setLoadingTvDevices] = useState(false);
+  const [isPairTvModalOpen, setIsPairTvModalOpen] = useState(false);
+  const [pairingTvCode, setPairingTvCode] = useState('');
+  const [pairingTvName, setPairingTvName] = useState('');
+  const [pairingTvShareId, setPairingTvShareId] = useState('');
+  const [pairingTvSubmitting, setPairingTvSubmitting] = useState(false);
+  const [editingTvDevice, setEditingTvDevice] = useState(null);
+  const [editTvName, setEditTvName] = useState('');
+  const [editTvShareId, setEditTvShareId] = useState('');
+
+  const fetchTvDevices = async (silent = false) => {
+    if (!silent) setLoadingTvDevices(true);
+    try {
+      const res = await fetch('/api/tv/devices');
+      if (res.ok) {
+        const data = await res.json();
+        setTvDevices(data);
+      }
+    } catch (e) {
+      console.error('Error fetching TV devices:', e);
+    } finally {
+      if (!silent) setLoadingTvDevices(false);
+    }
+  };
+
+  const handlePairTv = async (e) => {
+    e.preventDefault();
+    if (!pairingTvCode.trim()) {
+      showToast('Please enter the 6-character TV pairing code.', 'error');
+      return;
+    }
+    setPairingTvSubmitting(true);
+    try {
+      const res = await fetch('/api/tv/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_code: pairingTvCode.trim().toUpperCase(),
+          device_name: pairingTvName.trim() || undefined,
+          share_id: pairingTvShareId || undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Android TV paired successfully!', 'success');
+        setIsPairTvModalOpen(false);
+        setPairingTvCode('');
+        setPairingTvName('');
+        fetchTvDevices();
+      } else {
+        showToast(data.error || 'Failed to pair Android TV', 'error');
+      }
+    } catch (err) {
+      showToast('Network error while pairing TV', 'error');
+    } finally {
+      setPairingTvSubmitting(false);
+    }
+  };
+
+  const handleDeleteTv = async (id, name) => {
+    if (!confirm(`Are you sure you want to unlink ${name || 'this TV'}?`)) return;
+    try {
+      const res = await fetch(`/api/tv/devices/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('TV device unlinked successfully', 'success');
+        fetchTvDevices();
+      } else {
+        showToast('Failed to unlink TV', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to unlink TV', 'error');
+    }
+  };
+
+  const handleUpdateTv = async (e) => {
+    e.preventDefault();
+    if (!editingTvDevice) return;
+    try {
+      const res = await fetch(`/api/tv/devices/${editingTvDevice.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_name: editTvName.trim(),
+          share_id: editTvShareId
+        })
+      });
+      if (res.ok) {
+        showToast('TV device updated successfully', 'success');
+        setEditingTvDevice(null);
+        fetchTvDevices();
+      } else {
+        showToast('Failed to update TV device', 'error');
+      }
+    } catch (e) {
+      showToast('Failed to update TV device', 'error');
+    }
+  };
+
+  useEffect(() => {
+    const handleHashCheck = () => {
+      const hash = window.location.hash || '';
+      const search = window.location.search || '';
+      if (hash.includes('tv-pair') || search.includes('tv-pair')) {
+        if (typeof setActiveSubTab === 'function') {
+          setActiveSubTab('tv');
+        }
+        setIsPairTvModalOpen(true);
+        const match = (hash + search).match(/code=([A-Za-z0-9-_]+)/i);
+        if (match && match[1]) {
+          setPairingTvCode(match[1].toUpperCase());
+        }
+      }
+    };
+    handleHashCheck();
+    window.addEventListener('hashchange', handleHashCheck);
+    return () => window.removeEventListener('hashchange', handleHashCheck);
+  }, []);
+
+  useEffect(() => {
+    if (activeSubTab === 'tv' || activeSubTab === 'dashboard' || activeSubTab === 'integrations' || isPairTvModalOpen) {
+      fetchTvDevices();
+      const pollInterval = setInterval(() => {
+        fetchTvDevices(true);
+      }, 5000);
+      return () => clearInterval(pollInterval);
+    }
+  }, [activeSubTab, isPairTvModalOpen]);
 
   const fetchDashboardShares = async () => {
     setLoadingShares(true);
@@ -1123,6 +1254,7 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
 
       await fetchDashboardsList();
       await fetchDashboardShares();
+      await fetchTvDevices();
 
       if (canReadUsers) {
         const usersRes = await fetch('/api/users');
@@ -1736,6 +1868,305 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
     }
   };
 
+  const renderTvDisplaySelectorOptions = () => (
+    <>
+      <option value="">Default Main Dashboard</option>
+      <option value="rotation">Auto-Rotate All Dashboards</option>
+      {dashboardShares.length > 0 && (
+        <optgroup label="Shared Dashboard Links">
+          {dashboardShares.map(s => (
+            <option key={`share-${s.id}`} value={s.id}>
+              {s.name} ({s.target_type === 'rotation' ? 'Rotating' : (s.dashboard_name || 'Single')})
+            </option>
+          ))}
+        </optgroup>
+      )}
+      {dashboardsList.length > 0 && (
+        <optgroup label="Individual Dashboards">
+          {dashboardsList.map(d => (
+            <option key={`dash-${d.id}`} value={`dashboard:${d.id}`}>
+              {d.name} {d.is_default ? '★ (Default)' : ''}
+            </option>
+          ))}
+        </optgroup>
+      )}
+    </>
+  );
+
+  const renderAndroidTvSection = () => {
+    const pendingDevices = tvDevices.filter(d => d.status === 'pending');
+    const pairedDevices = tvDevices.filter(d => d.status === 'paired');
+
+    return (
+      <div className="card">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Tv size={20} style={{ color: 'var(--primary)' }} />
+            <h3 style={{ fontSize: '1.125rem', margin: 0, fontWeight: '600' }}>Android TV & Screensaver Displays</h3>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={() => fetchTvDevices()}
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.65rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+              title="Refresh TV devices list"
+            >
+              <RefreshCw size={14} /> Refresh
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setPairingTvCode('');
+                setPairingTvName('');
+                setPairingTvShareId(dashboardShares[0]?.id || '');
+                setIsPairTvModalOpen(true);
+              }}
+              style={{ fontSize: '0.8rem', padding: '0.4rem 0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+            >
+              <Plus size={14} /> Pair Android TV
+            </button>
+          </div>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--muted-foreground)', marginBottom: '1rem', lineHeight: '1.5' }}>
+          Connect Android TV, Google TV, and Fire TV devices to your dashboards effortlessly using the on-screen 6-character Device Code (e.g. <strong>TV-8492</strong>). No typing URLs on your TV remote. Functions as both an interactive 10-foot home dashboard and a burn-in protected ambient screensaver.
+        </p>
+
+        {/* Inline Quick Pairing Form */}
+        <form
+          onSubmit={handlePairTv}
+          style={{
+            background: 'rgba(59, 130, 246, 0.06)',
+            border: '1px solid rgba(59, 130, 246, 0.25)',
+            borderRadius: 'var(--radius)',
+            padding: '1rem',
+            marginBottom: '1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.75rem'
+          }}
+        >
+          <div style={{ fontSize: '0.825rem', fontWeight: '700', color: 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Tv size={15} style={{ color: 'var(--primary)' }} /> Quick Pair with TV Device Code
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                6-Character TV Code *
+              </label>
+              <input
+                type="text"
+                className="input-control"
+                value={pairingTvCode}
+                onChange={e => setPairingTvCode(e.target.value.toUpperCase())}
+                placeholder="TV-8492"
+                style={{ fontWeight: '700', letterSpacing: '0.1em', textTransform: 'uppercase' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                TV Nickname
+              </label>
+              <input
+                type="text"
+                className="input-control"
+                value={pairingTvName}
+                onChange={e => setPairingTvName(e.target.value)}
+                placeholder="e.g. Living Room TV"
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--muted-foreground)', display: 'block', marginBottom: '0.25rem' }}>
+                Dashboard to Display
+              </label>
+              <select
+                className="input-control"
+                value={pairingTvShareId}
+                onChange={e => setPairingTvShareId(e.target.value)}
+              >
+                {renderTvDisplaySelectorOptions()}
+              </select>
+            </div>
+            <div>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={pairingTvSubmitting || !pairingTvCode.trim()}
+                style={{ width: '100%', height: '2.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontWeight: '700' }}
+              >
+                <Check size={15} />
+                {pairingTvSubmitting ? 'Linking...' : 'Link Android TV'}
+              </button>
+            </div>
+          </div>
+        </form>
+
+        {/* Pending TVs Detected on Network */}
+        {pendingDevices.length > 0 && (
+          <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <div style={{ fontSize: '0.78rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Radio size={14} /> Detected TVs Waiting to Pair ({pendingDevices.length})
+            </div>
+            {pendingDevices.map(ptv => (
+              <div
+                key={ptv.id}
+                style={{
+                  border: '1px solid rgba(245, 158, 11, 0.4)',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  borderRadius: 'var(--radius)',
+                  padding: '0.75rem 1rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <code style={{ fontSize: '1.05rem', fontWeight: '800', color: 'var(--primary)', background: 'var(--card)', padding: '0.25rem 0.6rem', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                    {ptv.device_code}
+                  </code>
+                  <div>
+                    <div style={{ fontWeight: '600', fontSize: '0.88rem' }}>{ptv.device_name || 'Android TV'}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                      IP: {ptv.ip_address || 'Local Network'} • Waiting for approval
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setPairingTvCode(ptv.device_code);
+                    setPairingTvName(ptv.device_name && ptv.device_name !== 'Android TV' ? ptv.device_name : 'Living Room TV');
+                    setPairingTvShareId(dashboardShares[0]?.id || '');
+                    setIsPairTvModalOpen(true);
+                  }}
+                  style={{ fontSize: '0.78rem', padding: '0.35rem 0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <Check size={14} /> Pair This TV ({ptv.device_code})
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {loadingTvDevices && tvDevices.length === 0 ? (
+          <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--muted-foreground)', fontSize: '0.85rem' }}>
+            Loading connected TVs...
+          </div>
+        ) : pairedDevices.length === 0 ? (
+          <div style={{ padding: '1.75rem 1rem', textAlign: 'center', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.6rem', background: 'rgba(59, 130, 246, 0.02)' }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Tv size={22} style={{ color: 'var(--primary)' }} />
+            </div>
+            <span style={{ fontSize: '0.92rem', fontWeight: '600' }}>No Android TVs Paired Yet</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--muted-foreground)', maxWidth: '460px', lineHeight: '1.4' }}>
+              Launch the Family Hub TV Companion app on your television to get its 6-character code, then enter it above to link your dashboard.
+            </span>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+            {pairedDevices.map((tv) => {
+              const isOnline = tv.last_seen_at && (Date.now() - new Date(tv.last_seen_at).getTime() < 120000);
+              return (
+                <div
+                  key={tv.id}
+                  style={{
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    padding: '1rem',
+                    background: 'var(--muted)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      <Tv size={18} style={{ color: 'var(--primary)' }} />
+                      <span style={{ fontWeight: '700', fontSize: '0.95rem' }}>{tv.device_name || 'Android TV'}</span>
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: '600',
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '12px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          background: isOnline ? 'rgba(34, 197, 94, 0.15)' : 'rgba(156, 163, 175, 0.15)',
+                          color: isOnline ? 'rgb(34, 197, 94)' : 'var(--muted-foreground)'
+                        }}
+                      >
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: isOnline ? 'rgb(34, 197, 94)' : 'var(--muted-foreground)' }} />
+                        {isOnline ? 'Online' : 'Standby / Idle'}
+                      </span>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        onClick={() => {
+                          setEditingTvDevice(tv);
+                          setEditTvName(tv.device_name || '');
+                          setEditTvShareId(
+                            tv.share_id
+                              ? tv.share_id
+                              : tv.target_type === 'rotation'
+                              ? 'rotation'
+                              : tv.dashboard_id && tv.dashboard_id !== 'default'
+                              ? `dashboard:${tv.dashboard_id}`
+                              : ''
+                          );
+                        }}
+                        style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                      >
+                        <Edit2 size={12} /> Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline"
+                        onClick={() => handleDeleteTv(tv.id, tv.device_name)}
+                        style={{ fontSize: '0.75rem', padding: '0.3rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--destructive)' }}
+                      >
+                        <Trash2 size={12} /> Unlink
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', fontSize: '0.8rem', background: 'var(--card)', padding: '0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div>
+                      <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.7rem' }}>Pairing Code</span>
+                      <code style={{ fontWeight: '700', color: 'var(--primary)' }}>{tv.device_code}</code>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.7rem' }}>Linked Display</span>
+                      <span style={{ fontWeight: '600' }}>
+                        {tv.share_name || (tv.target_type === 'rotation' ? 'Auto-Rotate All Dashboards' : (tv.dashboard_name || 'Main Dashboard'))}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.7rem' }}>IP Address</span>
+                      <span>{tv.ip_address || 'Local Network'}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: 'var(--muted-foreground)', display: 'block', fontSize: '0.7rem' }}>Last Activity</span>
+                      <span>{tv.last_seen_at ? new Date(tv.last_seen_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Connected'}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '4rem' }}>
@@ -2250,6 +2681,15 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               )}
             </form>
           </div>
+
+          {renderAndroidTvSection()}
+        </div>
+      )}
+
+      {/* ANDROID TV & SCREENSAVERS TAB */}
+      {activeSubTab === 'tv' && canReadGeneral && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          {renderAndroidTvSection()}
         </div>
       )}
 
@@ -4344,6 +4784,10 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               </div>
             )}
           </div>
+
+          
+          {/* Android TV & Ambient Screensavers Card */}
+          {renderAndroidTvSection()}
 
           {/* Create Share Link Modal */}
           {isCreateShareModalOpen && (
@@ -6856,6 +7300,123 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
             )}
           </div>
 
+        </div>
+      )}
+
+      {/* Pair TV Modal (Global across Settings tabs) */}
+      {isPairTvModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsPairTvModalOpen(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Tv size={18} style={{ color: 'var(--primary)' }} /> Pair Android TV Companion
+              </h2>
+              <button className="close-btn" style={{ fontSize: '1.5rem' }} onClick={() => setIsPairTvModalOpen(false)}>×</button>
+            </div>
+
+            <form onSubmit={handlePairTv}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: '0.75rem 1rem', borderRadius: 'var(--radius)', border: '1px solid rgba(59, 130, 246, 0.2)', fontSize: '0.8rem', lineHeight: '1.4' }}>
+                  💡 Launch the Family Hub app on your TV to view its on-screen 6-character Device Code (e.g. <strong>TV-8492</strong>).
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>TV Device Code *</label>
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={pairingTvCode}
+                    onChange={e => setPairingTvCode(e.target.value.toUpperCase())}
+                    placeholder="e.g. TV-8492"
+                    autoFocus
+                    required
+                    style={{ fontSize: '1.25rem', fontWeight: '700', letterSpacing: '0.15em', textAlign: 'center' }}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Device Nickname</label>
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={pairingTvName}
+                    onChange={e => setPairingTvName(e.target.value)}
+                    placeholder="e.g. Living Room Sony Bravia, Bedroom Google TV"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Select Dashboard to Display *</label>
+                  <select
+                    className="input-control"
+                    value={pairingTvShareId}
+                    onChange={e => setPairingTvShareId(e.target.value)}
+                  >
+                    {renderTvDisplaySelectorOptions()}
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setIsPairTvModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={pairingTvSubmitting}>
+                  {pairingTvSubmitting ? 'Connecting TV...' : 'Link Android TV'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit TV Modal (Global across Settings tabs) */}
+      {editingTvDevice && (
+        <div className="modal-overlay" onClick={() => setEditingTvDevice(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="modal-header">
+              <h2 style={{ fontSize: '1.25rem', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Edit2 size={18} style={{ color: 'var(--primary)' }} /> Edit Connected TV
+              </h2>
+              <button className="close-btn" style={{ fontSize: '1.5rem' }} onClick={() => setEditingTvDevice(null)}>×</button>
+            </div>
+
+            <form onSubmit={handleUpdateTv}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="form-group">
+                  <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Device Nickname</label>
+                  <input
+                    type="text"
+                    className="input-control"
+                    value={editTvName}
+                    onChange={e => setEditTvName(e.target.value)}
+                    placeholder="e.g. Living Room TV"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label style={{ fontWeight: '600', marginBottom: '0.35rem', display: 'block' }}>Change Linked Dashboard</label>
+                  <select
+                    className="input-control"
+                    value={editTvShareId}
+                    onChange={e => setEditTvShareId(e.target.value)}
+                  >
+                    {renderTvDisplaySelectorOptions()}
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditingTvDevice(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

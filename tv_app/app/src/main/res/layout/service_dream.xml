@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#070A11">
+
+    <!-- Burn-In Protected Container (Subtle orbital translations applied every 60s) -->
+    <FrameLayout
+        android:id="@+id/burn_in_wrapper"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+        <WebView
+            android:id="@+id/dream_webview"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#070A11"
+            android:scrollbars="none" />
+
+        <!-- Ambient Clock & Weather Floating HUD -->
+        <LinearLayout
+            android:id="@+id/ambient_clock_box"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom|start"
+            android:layout_marginStart="48dp"
+            android:layout_marginBottom="40dp"
+            android:background="@drawable/glass_card_bg"
+            android:paddingStart="24dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="24dp"
+            android:paddingBottom="14dp"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/dream_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#F8FAFC"
+                android:textSize="36sp"
+                android:textStyle="bold"
+                android:text="10:45 AM" />
+
+            <TextView
+                android:id="@+id/dream_date"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#94A3B8"
+                android:textSize="16sp"
+                android:text="Friday, November 13" />
+        </LinearLayout>
+    </FrameLayout>
+
+</FrameLayout>

@@ -46,7 +46,8 @@ import {
   PawPrint,
   Home,
   Folder,
-  Info
+  Info,
+  Tv
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -1421,14 +1422,24 @@ export default function App() {
                 </a>
               )}
               {canReadGeneral && (
-                <a 
-                  className={`nav-link ${settingsSubTab === 'dashboard' ? 'active' : ''}`}
-                  onClick={() => { setSettingsSubTab('dashboard'); setIsMobileMenuOpen(false); }}
-                  title="Dashboard Settings"
-                >
-                  <LayoutDashboard />
-                  <span>Dashboard Settings</span>
-                </a>
+                <>
+                  <a 
+                    className={`nav-link ${settingsSubTab === 'dashboard' ? 'active' : ''}`}
+                    onClick={() => { setSettingsSubTab('dashboard'); setIsMobileMenuOpen(false); }}
+                    title="Dashboard Settings"
+                  >
+                    <LayoutDashboard />
+                    <span>Dashboard Settings</span>
+                  </a>
+                  <a 
+                    className={`nav-link ${settingsSubTab === 'tv' ? 'active' : ''}`}
+                    onClick={() => { setSettingsSubTab('tv'); setIsMobileMenuOpen(false); }}
+                    title="Android TV & Screensavers"
+                  >
+                    <Tv />
+                    <span>Android TV & Screensavers</span>
+                  </a>
+                </>
               )}
 
               {user.role_name === 'Administrator' && (

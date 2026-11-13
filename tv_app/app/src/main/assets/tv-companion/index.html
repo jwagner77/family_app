@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Hub TV Ambient Display</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+    body {
+      background: #0B0F19;
+      color: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 48px 64px;
+      overflow: hidden;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .brand-icon {
+      font-size: 32px;
+      background: rgba(59, 130, 246, 0.15);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      padding: 12px;
+      border-radius: 16px;
+    }
+    .brand-title {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .brand-subtitle {
+      font-size: 14px;
+      color: #94A3B8;
+    }
+    .clock-display {
+      text-align: right;
+    }
+    .clock-time {
+      font-size: 56px;
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.03em;
+      color: #F8FAFC;
+    }
+    .clock-date {
+      font-size: 18px;
+      color: #94A3B8;
+      margin-top: 6px;
+    }
+    .center-stage {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 28px;
+      margin: 40px 0;
+    }
+    .card {
+      background: #151C2C;
+      border: 1px solid #232F48;
+      border-radius: 20px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    }
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #60A5FA;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-content {
+      font-size: 15px;
+      color: #CBD5E1;
+      line-height: 1.6;
+    }
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      color: #64748B;
+      border-top: 1px solid #1E293B;
+      padding-top: 20px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ADE80;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22C55E;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 0.5; }
+      50% { opacity: 1; }
+      100% { opacity: 0.5; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">🏡</div>
+      <div>
+        <div class="brand-title">Family Hub TV</div>
+        <div class="brand-subtitle">Ambient Living Room Display</div>
+      </div>
+    </div>
+    <div class="clock-display">
+      <div id="clock-time" class="clock-time">12:00 PM</div>
+      <div id="clock-date" class="clock-date">Thursday, November 13</div>
+    </div>
+  </div>
+
+  <div class="center-stage">
+    <div class="card">
+      <div class="card-title">📅 Today's Agenda</div>
+      <div class="card-content">
+        Synchronized household events, school activities, and appointments will display here automatically.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🧹 Household Tasks & Chores</div>
+      <div class="card-content">
+        Daily chores, recurring responsibilities, and point leaderboards stay in view for the entire family.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🍽️ Meal Plan & Kitchen</div>
+      <div class="card-content">
+        Tonight's scheduled dinner, pantry status, and refrigerator leftovers approaching expiration.
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      Family Hub TV Companion Active
+    </div>
+    <div>Press [BACK] or [MENU] on your TV remote for Quick Actions</div>
+  </div>
+
+  <script>
+    function updateClock() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+      const dateStr = now.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+      document.getElementById('clock-time').textContent = timeStr;
+      document.getElementById('clock-date').textContent = dateStr;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
+</body>
+</html>

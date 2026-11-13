@@ -36,3 +36,8 @@ logs/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Android TV App local/build caches
+tv_app/.gradle/
+tv_app/local.properties
+tv_app/*.png

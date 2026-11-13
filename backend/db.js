@@ -412,6 +412,23 @@ export async function getDb() {
       config TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS tv_devices (
+      id TEXT PRIMARY KEY,
+      device_code TEXT UNIQUE NOT NULL,
+      device_name TEXT NOT NULL DEFAULT 'Android TV',
+      ip_address TEXT,
+      share_id TEXT,
+      share_token TEXT,
+      target_type TEXT DEFAULT 'single',
+      dashboard_id TEXT,
+      rotation_interval INTEGER DEFAULT 30,
+      rotation_dashboards TEXT,
+      status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'paired', 'revoked')),
+      expires_at DATETIME,
+      last_seen_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS dashboard_shares (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -3229,3 +3246,279 @@ export async function getUserPushTokens(userId) {
   return await db.all('SELECT * FROM user_push_tokens WHERE user_id = ? ORDER BY updated_at DESC', [userId]);
 }
 
+
+// --- ANDROID TV COMPANION & SCREENSAVER DEVICE PAIRING ---
+
+function generateTvCode() {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let code = 'TV-';
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+export function normalizeTvCode(raw) {
+  if (!raw) return '';
+  let cleaned = String(raw).trim().toUpperCase().replace(/\s+/g, '');
+  if (/^[A-Z0-9]{4}$/.test(cleaned)) {
+    return `TV-${cleaned}`;
+  }
+  if (/^TV[A-Z0-9]{4}$/.test(cleaned)) {
+    return `TV-${cleaned.slice(2)}`;
+  }
+  return cleaned;
+}
+
+export async function createTvDeviceCode(ipAddress = '', deviceName = 'Android TV') {
+  const db = await getDb();
+  let code = '';
+  let unique = false;
+  let attempts = 0;
+  
+  try {
+    await db.run("DELETE FROM tv_devices WHERE status = 'pending' AND datetime(expires_at) < datetime('now', '-1 day')");
+  } catch (e) {}
+
+  while (!unique && attempts < 10) {
+    code = generateTvCode();
+    const existing = await db.get("SELECT id FROM tv_devices WHERE device_code = ? AND status = 'pending' AND datetime(expires_at) > datetime('now')", [code]);
+    if (!existing) unique = true;
+    attempts++;
+  }
+
+  const id = 'tv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+  await db.run(
+    `INSERT INTO tv_devices (id, device_code, device_name, ip_address, status, expires_at, created_at, last_seen_at)
+     VALUES (?, ?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    [id, code, deviceName || 'Android TV', ipAddress || null, expiresAt]
+  );
+
+  return {
+    id,
+    device_code: code,
+    expires_at: expiresAt,
+    expires_in_seconds: 900
+  };
+}
+
+export async function getTvDeviceByCode(code) {
+  if (!code) return null;
+  const db = await getDb();
+  const normalized = normalizeTvCode(code);
+  return await db.get("SELECT * FROM tv_devices WHERE device_code = ?", [normalized]);
+}
+
+export async function pairTvDevice(code, { shareId = null, shareToken = null, deviceName = null, targetType = 'single', dashboardId = 'default', rotationInterval = 30, rotationDashboards = null }) {
+  const db = await getDb();
+  const normalized = normalizeTvCode(code);
+  const tv = await db.get("SELECT * FROM tv_devices WHERE device_code = ?", [normalized]);
+
+  if (!tv) {
+    throw new Error('Device code not found. Please verify the 6-character code displayed on your TV.');
+  }
+
+  if (tv.status === 'revoked') {
+    throw new Error('This TV pairing code has been revoked.');
+  }
+
+  if (tv.status === 'pending' && new Date(tv.expires_at) < new Date()) {
+    throw new Error('This TV pairing code has expired. Please refresh the code on your TV.');
+  }
+
+  let finalShareId = null;
+  let finalShareToken = shareToken;
+  let finalTargetType = targetType || 'single';
+  let finalDashboardId = dashboardId || 'default';
+  let finalRotationInterval = rotationInterval || 30;
+  let finalRotationDashboards = rotationDashboards;
+
+  if (shareId) {
+    if (shareId === 'rotation') {
+      finalShareId = null;
+      finalTargetType = 'rotation';
+      finalDashboardId = 'default';
+    } else if (String(shareId).startsWith('dashboard:')) {
+      finalShareId = null;
+      finalTargetType = 'single';
+      finalDashboardId = String(shareId).replace(/^dashboard:/, '') || 'default';
+    } else {
+      const share = await db.get("SELECT * FROM dashboard_shares WHERE id = ?", [shareId]);
+      if (share) {
+        finalShareId = share.id;
+        finalShareToken = share.token;
+        finalTargetType = share.target_type;
+        finalDashboardId = share.dashboard_id || 'default';
+        finalRotationInterval = share.rotation_interval || 30;
+        finalRotationDashboards = share.rotation_dashboards;
+      } else {
+        const dash = await db.get("SELECT * FROM dashboards WHERE id = ?", [shareId]);
+        if (dash) {
+          finalShareId = null;
+          finalTargetType = 'single';
+          finalDashboardId = dash.id;
+        }
+      }
+    }
+  }
+
+  if (!finalShareToken) {
+    finalShareToken = tv.share_token || ('tv-' + normalized.toLowerCase().replace(/[^a-z0-9]/g, '') + '-' + Math.random().toString(36).substring(2, 6));
+  }
+
+  await db.run(
+    `UPDATE tv_devices 
+     SET status = 'paired',
+         device_name = ?,
+         share_id = ?,
+         share_token = ?,
+         target_type = ?,
+         dashboard_id = ?,
+         rotation_interval = ?,
+         rotation_dashboards = ?,
+         last_seen_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [
+      deviceName ? deviceName.trim() : tv.device_name,
+      finalShareId,
+      finalShareToken,
+      finalTargetType || 'single',
+      finalDashboardId || 'default',
+      Number(finalRotationInterval || 30),
+      typeof finalRotationDashboards === 'object' && finalRotationDashboards !== null ? JSON.stringify(finalRotationDashboards) : finalRotationDashboards,
+      tv.id
+    ]
+  );
+
+  return await db.get("SELECT * FROM tv_devices WHERE id = ?", [tv.id]);
+}
+
+export async function getTvDeviceStatus(code) {
+  if (!code) return { status: 'invalid' };
+  const db = await getDb();
+  const normalized = normalizeTvCode(code);
+  const tv = await db.get("SELECT * FROM tv_devices WHERE device_code = ? OR id = ?", [normalized, code]);
+
+  if (!tv) {
+    return { status: 'not_found' };
+  }
+
+  if (tv.status === 'paired') {
+    return {
+      status: 'paired',
+      id: tv.id,
+      device_code: tv.device_code,
+      device_name: tv.device_name,
+      share_id: tv.share_id,
+      share_token: tv.share_token,
+      target_type: tv.target_type,
+      dashboard_id: tv.dashboard_id,
+      rotation_interval: tv.rotation_interval,
+      rotation_dashboards: tv.rotation_dashboards ? JSON.parse(tv.rotation_dashboards) : []
+    };
+  }
+
+  if (tv.status === 'pending') {
+    const isExpired = new Date(tv.expires_at) < new Date();
+    if (isExpired) {
+      return { status: 'expired' };
+    }
+    const remainingSeconds = Math.max(0, Math.floor((new Date(tv.expires_at) - new Date()) / 1000));
+    return { status: 'pending', expires_in_seconds: remainingSeconds, device_code: tv.device_code };
+  }
+
+  return { status: tv.status };
+}
+
+export async function pingTvDevice(codeOrId) {
+  if (!codeOrId) return null;
+  const db = await getDb();
+  const normalized = normalizeTvCode(codeOrId);
+  await db.run(
+    "UPDATE tv_devices SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ? OR device_code = ?",
+    [codeOrId, normalized]
+  );
+  return await getTvDeviceStatus(codeOrId);
+}
+
+export async function getTvDevices() {
+  const db = await getDb();
+  const rows = await db.all(`
+    SELECT tv.*, s.name as share_name, d.name as dashboard_name
+    FROM tv_devices tv
+    LEFT JOIN dashboard_shares s ON tv.share_id = s.id
+    LEFT JOIN dashboards d ON tv.dashboard_id = d.id
+    WHERE tv.status = 'paired' OR (tv.status = 'pending' AND datetime(tv.expires_at) > datetime('now'))
+    ORDER BY CASE WHEN tv.status = 'pending' THEN 0 ELSE 1 END, tv.created_at DESC
+  `);
+  return rows.map(r => ({
+    ...r,
+    rotation_dashboards: r.rotation_dashboards ? JSON.parse(r.rotation_dashboards) : []
+  }));
+}
+
+export async function updateTvDevice(id, data = {}) {
+  const db = await getDb();
+  const existing = await db.get("SELECT * FROM tv_devices WHERE id = ?", [id]);
+  if (!existing) return null;
+
+  const fields = [];
+  const values = [];
+
+  if (data.device_name !== undefined) {
+    fields.push("device_name = ?");
+    values.push(data.device_name.trim());
+  }
+  if (data.share_id !== undefined) {
+    const rawShareId = data.share_id;
+    if (!rawShareId || rawShareId === 'default') {
+      fields.push("share_id = NULL", "target_type = 'single'", "dashboard_id = 'default'");
+    } else if (rawShareId === 'rotation') {
+      fields.push("share_id = NULL", "target_type = 'rotation'", "dashboard_id = 'default'");
+    } else if (String(rawShareId).startsWith('dashboard:')) {
+      const dashId = String(rawShareId).replace(/^dashboard:/, '') || 'default';
+      fields.push("share_id = NULL", "target_type = 'single'", "dashboard_id = ?");
+      values.push(dashId);
+    } else {
+      const share = await db.get("SELECT * FROM dashboard_shares WHERE id = ?", [rawShareId]);
+      if (share) {
+        fields.push(
+          "share_id = ?",
+          "share_token = ?",
+          "target_type = ?",
+          "dashboard_id = ?",
+          "rotation_interval = ?",
+          "rotation_dashboards = ?"
+        );
+        values.push(
+          share.id,
+          share.token,
+          share.target_type,
+          share.dashboard_id || 'default',
+          share.rotation_interval || 30,
+          share.rotation_dashboards
+        );
+      } else {
+        const dash = await db.get("SELECT * FROM dashboards WHERE id = ?", [rawShareId]);
+        if (dash) {
+          fields.push("share_id = NULL", "target_type = 'single'", "dashboard_id = ?");
+          values.push(dash.id);
+        }
+      }
+    }
+  }
+
+  if (fields.length === 0) return existing;
+  values.push(id);
+
+  await db.run(`UPDATE tv_devices SET ${fields.join(', ')} WHERE id = ?`, values);
+  return await db.get("SELECT * FROM tv_devices WHERE id = ?", [id]);
+}
+
+export async function deleteTvDevice(id) {
+  const db = await getDb();
+  await db.run("DELETE FROM tv_devices WHERE id = ?", [id]);
+  return { success: true };
+}

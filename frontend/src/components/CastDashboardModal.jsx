@@ -8,6 +8,7 @@ import { requestCastSession, stopCasting, getCastStatus, subscribeCastState } fr
 export default function CastDashboardModal({ 
   isOpen, 
   onClose, 
+  dashboardId = 'default',
   dashboardTitle = 'Home Dashboard', 
   shareUrl = '', 
   showToast = () => {} 
@@ -15,6 +16,10 @@ export default function CastDashboardModal({
   const [castState, setCastState] = useState(() => getCastStatus());
   const [isConnecting, setIsConnecting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [tvCode, setTvCode] = useState('');
+  const [tvName, setTvName] = useState('');
+  const [isPairingTv, setIsPairingTv] = useState(false);
+  const [pendingTvs, setPendingTvs] = useState([]);
 
   useEffect(() => {
     const unsubscribe = subscribeCastState((updated) => {
@@ -23,6 +28,60 @@ export default function CastDashboardModal({
     setCastState(getCastStatus());
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    if (!isOpen || !localStorage.getItem('token')) return;
+    let active = true;
+    const loadPendingTvs = async () => {
+      try {
+        const res = await fetch('/api/tv/devices');
+        if (res.ok && active) {
+          const data = await res.json();
+          setPendingTvs((data || []).filter(d => d.status === 'pending'));
+        }
+      } catch (e) {}
+    };
+    loadPendingTvs();
+    const timer = setInterval(loadPendingTvs, 5000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [isOpen]);
+
+  const handlePairTvCode = async (e) => {
+    if (e) e.preventDefault();
+    if (!tvCode.trim()) {
+      showToast('Please enter the 6-character TV pairing code.', 'error');
+      return;
+    }
+    setIsPairingTv(true);
+    try {
+      const res = await fetch('/api/tv/pair', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          device_code: tvCode.trim().toUpperCase(),
+          device_name: tvName.trim() || undefined,
+          dashboard_id: dashboardId || 'default',
+          share_id: dashboardId && dashboardId !== 'default' ? `dashboard:${dashboardId}` : undefined
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Android TV paired to this dashboard!', 'success');
+        setTvCode('');
+        setTvName('');
+        onClose();
+      } else {
+        showToast(data.error || 'Failed to pair Android TV', 'error');
+      }
+    } catch (err) {
+      showToast('Network error while pairing TV', 'error');
+    } finally {
+      setIsPairingTv(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -192,6 +251,90 @@ export default function CastDashboardModal({
                   </>
                 )}
               </button>
+            </div>
+          )}
+
+          {/* Android TV Companion App — Pair with 6-Character Device Code */}
+          {Boolean(localStorage.getItem('token')) && (
+            <div style={{
+              background: 'rgba(59, 130, 246, 0.06)',
+              border: '1px solid rgba(59, 130, 246, 0.25)',
+              borderRadius: 'var(--radius)',
+              padding: '1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <div style={{ fontSize: '0.88rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <Tv size={16} style={{ color: 'var(--primary)' }} />
+                  Pair Family Hub TV Companion App
+                </div>
+                <span style={{ fontSize: '0.7rem', color: 'var(--muted-foreground)' }}>
+                  Displays: <strong>{dashboardTitle}</strong>
+                </span>
+              </div>
+
+              {pendingTvs.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  {pendingTvs.map(ptv => (
+                    <div
+                      key={ptv.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.45rem 0.7rem',
+                        borderRadius: '6px',
+                        background: 'rgba(245, 158, 11, 0.12)',
+                        border: '1px solid rgba(245, 158, 11, 0.35)',
+                        fontSize: '0.78rem'
+                      }}
+                    >
+                      <span>
+                        <Radio size={12} style={{ marginRight: '0.35rem', color: '#f59e0b', verticalAlign: 'middle' }} />
+                        Detected TV: <strong style={{ color: 'var(--primary)' }}>{ptv.device_code}</strong> ({ptv.ip_address || 'LAN'})
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() => setTvCode(ptv.device_code)}
+                        style={{ padding: '0.2rem 0.55rem', fontSize: '0.72rem' }}
+                      >
+                        Use Code
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <form onSubmit={handlePairTvCode} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <input
+                  type="text"
+                  className="input-control"
+                  value={tvCode}
+                  onChange={e => setTvCode(e.target.value.toUpperCase())}
+                  placeholder="Code (e.g. TV-8492)"
+                  style={{ flex: '1 1 130px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase' }}
+                />
+                <input
+                  type="text"
+                  className="input-control"
+                  value={tvName}
+                  onChange={e => setTvName(e.target.value)}
+                  placeholder="TV Name (optional)"
+                  style={{ flex: '1 1 140px' }}
+                />
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={isPairingTv || !tvCode.trim()}
+                  style={{ padding: '0 1rem', height: '2.4rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                >
+                  <Check size={14} />
+                  <span>{isPairingTv ? 'Linking...' : 'Link TV'}</span>
+                </button>
+              </form>
             </div>
           )}
 
