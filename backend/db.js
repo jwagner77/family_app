@@ -666,6 +666,8 @@ export async function getDb() {
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('google_client_secret', '')");
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('google_auto_provision', 'true')");
     await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('google_default_role', 'Viewer')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('sso_mobile_enabled', 'true')");
+    await dbInstance.run("INSERT OR IGNORE INTO settings (key, value) VALUES ('sso_allowed_redirect_uris', 'familycompanion://auth/callback,com.jwagner.familycompanion://auth/callback,https://localhost,http://localhost:3000')");
   } catch (err) {}
 
   // Safe Migration to pre-populate GitHub integration settings
@@ -1728,13 +1730,17 @@ export function verifyPassword(password, storedPassword) {
 
 // User CRUD Helpers
 export async function getUserByUsername(username) {
+  const clean = String(username || '').trim();
+  if (!clean) return undefined;
   const db = await getDb();
   return await db.get(`
     SELECT u.*, r.name as role_name, r.permissions as role_permissions 
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
-    WHERE u.username = ?
-  `, [username]);
+    WHERE u.username = ? OR LOWER(u.username) = LOWER(?) OR (u.email IS NOT NULL AND u.email != '' AND LOWER(u.email) = LOWER(?))
+    ORDER BY CASE WHEN u.username = ? THEN 0 WHEN LOWER(u.username) = LOWER(?) THEN 1 ELSE 2 END
+    LIMIT 1
+  `, [clean, clean, clean, clean, clean]);
 }
 
 export async function getUserById(id) {

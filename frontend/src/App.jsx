@@ -435,9 +435,30 @@ export default function App() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const urlToken = params.get('token');
+    const ssoAuthCode = params.get('auth_code') || params.get('sso_code');
     if (urlToken) {
       localStorage.setItem('token', urlToken);
       setToken(urlToken);
+    }
+    if (ssoAuthCode) {
+      const codeVerifier = sessionStorage.getItem('sso_pkce_verifier') || '';
+      sessionStorage.removeItem('sso_pkce_verifier');
+      fetch('/api/auth/sso/exchange', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: ssoAuthCode, code_verifier: codeVerifier })
+      })
+        .then(r => r.json().then(d => ({ ok: r.ok, data: d })))
+        .then(({ ok, data }) => {
+          if (ok && data && data.token) {
+            localStorage.setItem('token', data.token);
+            setToken(data.token);
+            if (data.user) setUser(data.user);
+          } else {
+            showToast((data && data.error) || 'Failed to complete SSO login', 'error');
+          }
+        })
+        .catch(() => showToast('Failed to exchange SSO authorization code', 'error'));
     }
     
     const syncStatus = params.get('calendar_sync');
@@ -462,9 +483,11 @@ export default function App() {
       showToast(`Failed to load calendars: ${details}`, 'error');
     }
     
-    if (urlToken || syncStatus || calendarsListStatus) {
+    if (urlToken || ssoAuthCode || syncStatus || calendarsListStatus) {
       const url = new URL(window.location.href);
       url.searchParams.delete('token');
+      url.searchParams.delete('auth_code');
+      url.searchParams.delete('sso_code');
       url.searchParams.delete('calendar_sync');
       url.searchParams.delete('details');
       url.searchParams.delete('calendars_list');
@@ -2152,12 +2175,33 @@ function LoginView({ onLoginSuccess }) {
     document.title = appName;
   }, [appName]);
 
+  const startWebSsoRedirect = async (provider) => {
+    try {
+      if (window.crypto && window.crypto.getRandomValues && window.crypto.subtle) {
+        const bytes = new Uint8Array(32);
+        window.crypto.getRandomValues(bytes);
+        const toBase64Url = (buf) =>
+          btoa(String.fromCharCode(...new Uint8Array(buf)))
+            .replace(/\+/g, '-')
+            .replace(/\//g, '_')
+            .replace(/=+$/, '');
+        const verifier = toBase64Url(bytes);
+        const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+        const challenge = toBase64Url(digest);
+        sessionStorage.setItem('sso_pkce_verifier', verifier);
+        window.location.href = `/api/auth/${provider}/login?source=web&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
+        return;
+      }
+    } catch (e) {}
+    window.location.href = `/api/auth/${provider}/login?source=web`;
+  };
+
   const handleOidcLogin = () => {
-    window.location.href = '/api/auth/oidc/login';
+    startWebSsoRedirect('oidc');
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = '/api/auth/google/login';
+    startWebSsoRedirect('google');
   };
 
   const handleSubmit = async (e) => {

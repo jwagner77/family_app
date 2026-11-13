@@ -126,6 +126,8 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
   const [googleClientSecret, setGoogleClientSecret] = useState('');
   const [googleAutoProvision, setGoogleAutoProvision] = useState(true);
   const [googleDefaultRole, setGoogleDefaultRole] = useState('Viewer');
+  const [ssoMobileEnabled, setSsoMobileEnabled] = useState(true);
+  const [ssoAllowedRedirectUris, setSsoAllowedRedirectUris] = useState('familycompanion://auth/callback,com.jwagner.familycompanion://auth/callback,https://localhost,http://localhost:3000');
 
   // Branding Settings states
   const [brandingIcon, setBrandingIcon] = useState('🍳');
@@ -1198,6 +1200,12 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         setGoogleClientSecret(data.google_client_secret || '');
         setGoogleAutoProvision(data.google_auto_provision !== 'false');
         setGoogleDefaultRole(data.google_default_role || 'Viewer');
+        setSsoMobileEnabled(data.sso_mobile_enabled !== 'false');
+        setSsoAllowedRedirectUris(
+          data.sso_allowed_redirect_uris !== undefined
+            ? data.sso_allowed_redirect_uris
+            : 'familycompanion://auth/callback,com.jwagner.familycompanion://auth/callback,https://localhost,http://localhost:3000'
+        );
 
         setBrandingIcon(data.branding_icon !== undefined ? data.branding_icon : '🍳');
         setBrandingLogo(data.branding_logo || '');
@@ -1458,7 +1466,9 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
         google_client_id: googleClientId.trim(),
         google_client_secret: googleClientSecret.trim(),
         google_auto_provision: String(googleAutoProvision),
-        google_default_role: googleDefaultRole
+        google_default_role: googleDefaultRole,
+        sso_mobile_enabled: String(ssoMobileEnabled),
+        sso_allowed_redirect_uris: ssoAllowedRedirectUris.trim()
       };
       const res = await fetch('/api/settings', {
         method: 'POST',
@@ -3245,6 +3255,45 @@ export default function SettingsView({ showToast, onSettingsChange, currentUser,
               </select>
               <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
                 New accounts created via Google login will automatically be assigned this role.
+              </span>
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '1.25rem 0' }} />
+
+            <h3 style={{ fontSize: '1.125rem', marginBottom: '0.5rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', fontWeight: '600' }}>
+              Mobile & Companion App SSO (Family_App_Android)
+            </h3>
+
+            <div className="form-group">
+              <label className="switch-container">
+                <input
+                  id="sso-mobile-enabled"
+                  type="checkbox"
+                  className="switch-input"
+                  checked={ssoMobileEnabled}
+                  onChange={(e) => setSsoMobileEnabled(e.target.checked)}
+                />
+                <div className="switch-control" />
+                <span style={{ fontWeight: '500', fontSize: '0.875rem' }}>Allow Mobile & Companion App SSO Requests</span>
+              </label>
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)', display: 'block', marginTop: '0.25rem' }}>
+                Uses server-verified CSRF state, PKCE (S256), and a 60-second single-use authorization code exchange (<code>POST /api/auth/sso/exchange</code>) so bearer tokens are never exposed in redirect URLs.
+              </span>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="sso-allowed-redirects">Allowed Companion App Redirect URIs</label>
+              <input
+                id="sso-allowed-redirects"
+                type="text"
+                className="input-control"
+                value={ssoAllowedRedirectUris}
+                onChange={(e) => setSsoAllowedRedirectUris(e.target.value)}
+                placeholder="familycompanion://auth/callback,com.jwagner.familycompanion://auth/callback,https://localhost"
+                disabled={!ssoMobileEnabled}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--muted-foreground)' }}>
+                Comma-separated list of authorized custom URI schemes or origins for companion apps (in addition to built-in <code>familycompanion://</code>, <code>com.jwagner.familycompanion://</code>, and Capacitor <code>https://localhost</code>).
               </span>
             </div>
 

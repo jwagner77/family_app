@@ -776,6 +776,92 @@ app.get('/api/version', (req, res) => {
   });
 });
 
+// GET /api/health - Lightweight connectivity health check for mobile & companion apps
+app.get('/api/health', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json({
+      status: 'ok',
+      appName: settings.app_name || 'Family App',
+      app_name: settings.app_name || 'Family App',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  }
+});
+
+// GET /api/app-info - Server capabilities & SSO discovery for Family_App_Android & companion clients
+app.get('/api/app-info', async (req, res) => {
+  try {
+    const settings = await getSettings();
+    const appName = settings.app_name || 'Family App';
+    res.json({
+      appName,
+      app_name: appName,
+      branding_icon: settings.branding_icon || '⚙️',
+      branding_logo: settings.branding_logo || '',
+      version: '1.0.0',
+      sso: {
+        google_sso_enabled: settings.google_sso_enabled === 'true',
+        google_client_id: settings.google_client_id || '',
+        oidc_enabled: settings.oidc_enabled === 'true',
+        oidc_client_id: settings.oidc_client_id || '',
+        oidc_tenant_id: settings.oidc_tenant_id || '',
+        supports_pkce: true,
+        supports_code_exchange: true,
+        supports_device_session: true,
+        init_endpoint: '/api/auth/sso/init',
+        exchange_endpoint: '/api/auth/sso/exchange',
+        poll_endpoint: '/api/auth/sso/poll',
+        default_app_redirect_uri: 'familycompanion://auth/callback',
+        allowed_schemes: ['familycompanion', 'com.jwagner.familycompanion', 'familyapp', 'capacitor', 'https', 'http']
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+function formatAuthenticatedUser(user) {
+  if (!user) return null;
+  let permissions = {};
+  if (user.role_permissions) {
+    try {
+      permissions = typeof user.role_permissions === 'string'
+        ? JSON.parse(user.role_permissions)
+        : user.role_permissions;
+    } catch (e) {}
+  }
+  return {
+    id: user.id,
+    username: user.username,
+    display_name: user.display_name || user.username,
+    role_name: user.role_name,
+    role: user.role_name,
+    primary_color: user.primary_color || '#2c3e50',
+    theme: user.theme || 'system',
+    auth_provider: user.auth_provider || 'local',
+    calendar_guid: user.calendar_guid || '',
+    calendar_sync_mappings: user.calendar_sync_mappings
+      ? (typeof user.calendar_sync_mappings === 'string' ? JSON.parse(user.calendar_sync_mappings) : user.calendar_sync_mappings)
+      : {},
+    timezone: user.timezone || 'US/New_York',
+    birthday: user.birthday || '',
+    phone: user.phone || '',
+    email: user.email || '',
+    picture_url: user.picture_url || '',
+    avatar: user.picture_url || '',
+    navbar_bg: user.navbar_bg || '',
+    navbar_opacity: user.navbar_opacity !== null && user.navbar_opacity !== undefined ? user.navbar_opacity : 0.75,
+    app_bg: user.app_bg || '',
+    theme_info_cards: user.theme_info_cards || 0,
+    text_color: user.text_color || 'white',
+    dynamic_text_color: user.dynamic_text_color || 0,
+    permissions
+  };
+}
+
 // --- AUTHENTICATION ENDPOINTS ---
 
 
@@ -819,7 +905,7 @@ app.post('/api/auth/passthrough', async (req, res) => {
     }
 
     const token = generateToken({ id: user.id, username: user.username });
-    res.json({ token });
+    res.json({ token, user: formatAuthenticatedUser(user) });
   } catch (error) {
     console.error('Passthrough login failed:', error);
     res.status(500).json({ error: error.message });
@@ -1436,6 +1522,7 @@ app.get('/api/settings', authenticate, requirePermission('settings_general', 're
     if (req.user.role_name !== 'Administrator') {
       delete settings.notify_smtp_pass;
       delete settings.oidc_client_secret;
+      delete settings.google_client_secret;
       delete settings.notify_webhook_secret;
       delete settings.mtg_key;
       delete settings.library_key;
@@ -1464,6 +1551,10 @@ app.post('/api/settings', authenticate, requirePermission('settings_general', 'f
     }
     if (settings.oidc_client_secret === '••••••••' || settings.oidc_client_secret === '') {
       delete settings.oidc_client_secret;
+      delete settings.google_client_secret;
+    }
+    if (settings.google_client_secret === '••••••••' || settings.google_client_secret === '') {
+      delete settings.google_client_secret;
     }
     if (settings.notify_webhook_secret === '••••••••' || settings.notify_webhook_secret === '') {
       delete settings.notify_webhook_secret;
@@ -2265,7 +2356,862 @@ app.post('/api/webhooks/incoming-status', async (req, res) => {
   }
 });
 
-// --- OIDC SSO ENDPOINTS ---
+// --- OIDC & GOOGLE SSO ENDPOINTS (WITH SECURE PKCE & ONE-TIME CODE EXCHANGE FOR WEB & MOBILE APPS) ---
+
+const SSO_STATE_TTL_MS = 10 * 60 * 1000;        // 10 minutes for pending OAuth state
+const SSO_EXCHANGE_CODE_TTL_MS = 60 * 1000;     // 60 seconds for single-use token exchange ticket
+const SSO_DEVICE_SESSION_TTL_MS = 10 * 60 * 1000; // 10 minutes for mobile browser polling session
+
+const ssoPendingStates = new Map();
+const ssoExchangeCodes = new Map();
+const ssoDeviceSessions = new Map();
+
+function cleanupSsoStores() {
+  const now = Date.now();
+  for (const [key, val] of ssoPendingStates.entries()) {
+    if (!val || val.expiresAt <= now) ssoPendingStates.delete(key);
+  }
+  for (const [key, val] of ssoExchangeCodes.entries()) {
+    if (!val || val.used || val.expiresAt <= now) ssoExchangeCodes.delete(key);
+  }
+  for (const [key, val] of ssoDeviceSessions.entries()) {
+    if (!val || val.expiresAt <= now) ssoDeviceSessions.delete(key);
+  }
+}
+
+setInterval(cleanupSsoStores, 60 * 1000).unref?.();
+
+function generatePkcePair() {
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  return { verifier, challenge };
+}
+
+function verifyPkceCodeVerifier(codeVerifier, codeChallenge, method = 'S256') {
+  if (!codeChallenge) return true;
+  if (!codeVerifier || typeof codeVerifier !== 'string') return false;
+  try {
+    const normalizedMethod = String(method || 'S256').toUpperCase();
+    const computed = normalizedMethod === 'PLAIN'
+      ? codeVerifier
+      : crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+    const a = Buffer.from(computed, 'utf8');
+    const b = Buffer.from(String(codeChallenge), 'utf8');
+    if (a.length !== b.length) return false;
+    return crypto.timingSafeEqual(a, b);
+  } catch (e) {
+    return false;
+  }
+}
+
+function isPrivateOrLocalHostname(hostname) {
+  const h = String(hostname || '').toLowerCase().trim();
+  if (!h) return false;
+  if (h === 'localhost' || h === '127.0.0.1' || h === '10.0.2.2' || h === '[::1]' || h === '::1') return true;
+  if (h.endsWith('.local') || h.endsWith('.lan') || h.endsWith('.home') || h.endsWith('.internal')) return true;
+  if (/^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
+  if (/^192\.168\.\d{1,3}\.\d{1,3}$/.test(h)) return true;
+  const match172 = h.match(/^172\.(\d{1,3})\.\d{1,3}\.\d{1,3}$/);
+  if (match172) {
+    const second = parseInt(match172[1], 10);
+    if (second >= 16 && second <= 31) return true;
+  }
+  return false;
+}
+
+function validateAppRedirectUri(rawUri, req, settings = {}) {
+  const trimmed = String(rawUri || '').trim();
+  if (!trimmed) return null;
+
+  const rootUrl = `${req.protocol}://${req.get('host')}`;
+
+  // Allow relative path on this server (must start with single '/')
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.startsWith('/\\')) {
+    return `${rootUrl}${trimmed}`;
+  }
+
+  // Check admin-configured allowed redirect URIs
+  const configuredRaw = String(settings.sso_allowed_redirect_uris || '');
+  const configuredList = configuredRaw
+    .split(/[\s,;]+/)
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  for (const allowed of configuredList) {
+    if (trimmed === allowed || trimmed.startsWith(allowed + '/') || trimmed.startsWith(allowed + '?')) {
+      return trimmed;
+    }
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    const protocol = parsed.protocol.toLowerCase();
+
+    // Allowed native mobile companion schemes
+    const allowedCustomSchemes = [
+      'familycompanion:',
+      'com.jwagner.familycompanion:',
+      'familyapp:',
+      'capacitor:'
+    ];
+    if (allowedCustomSchemes.includes(protocol)) {
+      return trimmed;
+    }
+
+    if (protocol === 'http:' || protocol === 'https:') {
+      // Allow same origin as hosted server
+      if (parsed.origin.toLowerCase() === rootUrl.toLowerCase()) {
+        return trimmed;
+      }
+      // Allow Capacitor WebView (https://localhost), local dev servers, emulator loopback, and private LAN hosts
+      if (isPrivateOrLocalHostname(parsed.hostname)) {
+        return trimmed;
+      }
+    }
+  } catch (e) {
+    return null;
+  }
+
+  return null;
+}
+
+function extractSsoClientContext(req, settings = {}) {
+  const rootUrl = `${req.protocol}://${req.get('host')}`;
+  const explicitRedirectRaw =
+    req.query.redirect_uri ||
+    req.query.return_url ||
+    req.query.callback_url ||
+    req.query.app_redirect ||
+    '';
+
+  let redirectUri = null;
+  if (explicitRedirectRaw) {
+    redirectUri = validateAppRedirectUri(explicitRedirectRaw, req, settings);
+    if (!redirectUri) {
+      return { error: 'Invalid or unauthorized redirect_uri parameter.' };
+    }
+  }
+
+  const sessionId = req.query.session_id ? String(req.query.session_id).trim() : null;
+  const existingSession = sessionId ? ssoDeviceSessions.get(sessionId) : null;
+
+  if (!redirectUri && existingSession && existingSession.redirectUri) {
+    redirectUri = existingSession.redirectUri;
+  }
+
+  const sourceParam = String(req.query.source || '').toLowerCase();
+  const clientParam = String(req.query.client || req.query.platform || req.query.app || '').toLowerCase();
+  const mobileParam = String(req.query.mobile || '').toLowerCase();
+  const userAgent = String(req.get('user-agent') || '');
+  const referer = String(req.get('referer') || req.get('origin') || '').trim();
+
+  // If no explicit redirect_uri was given and the request was not explicitly tagged as web-only,
+  // check if Referer/Origin came from Capacitor Android WebView (https://localhost) or companion app origin
+  if (!redirectUri && sourceParam !== 'web' && referer) {
+    try {
+      const refUrl = new URL(referer);
+      if (refUrl.origin.toLowerCase() !== rootUrl.toLowerCase()) {
+        const validatedRef = validateAppRedirectUri(refUrl.origin, req, settings);
+        if (validatedRef) {
+          redirectUri = validatedRef;
+        }
+      }
+    } catch (e) {}
+  }
+
+  const isExplicitAppFlag =
+    clientParam === 'android' ||
+    clientParam === 'companion' ||
+    clientParam === 'mobile' ||
+    clientParam === 'capacitor' ||
+    mobileParam === '1' ||
+    mobileParam === 'true' ||
+    Boolean(sessionId);
+
+  const isAndroidWebView =
+    sourceParam !== 'web' &&
+    (/\bwv\b/i.test(userAgent) || /FamilyCompanionApp/i.test(userAgent));
+
+  const isExternalRedirect =
+    Boolean(redirectUri) &&
+    !redirectUri.toLowerCase().startsWith(rootUrl.toLowerCase());
+
+  const isAppRequest = isExplicitAppFlag || isAndroidWebView || isExternalRedirect;
+
+  const clientState = req.query.state
+    ? String(req.query.state)
+    : (existingSession?.state || null);
+
+  const codeChallenge = req.query.code_challenge
+    ? String(req.query.code_challenge)
+    : (existingSession?.codeChallenge || null);
+
+  const codeChallengeMethod = req.query.code_challenge_method
+    ? String(req.query.code_challenge_method).toUpperCase()
+    : (existingSession?.codeChallengeMethod || 'S256');
+
+  const responseMode = req.query.response_mode
+    ? String(req.query.response_mode).toLowerCase()
+    : null;
+
+  return {
+    rootUrl,
+    redirectUri,
+    isAppRequest,
+    clientState,
+    codeChallenge,
+    codeChallengeMethod,
+    sessionId,
+    responseMode
+  };
+}
+
+function appendParamsToRedirectUri(baseUri, paramsObj, useFragment = false) {
+  try {
+    const url = new URL(baseUri);
+    if (useFragment) {
+      const hashParams = new URLSearchParams(url.hash ? url.hash.replace(/^#/, '') : '');
+      for (const [k, v] of Object.entries(paramsObj)) {
+        if (v !== undefined && v !== null && v !== '') hashParams.set(k, String(v));
+      }
+      url.hash = hashParams.toString();
+    } else {
+      for (const [k, v] of Object.entries(paramsObj)) {
+        if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v));
+      }
+    }
+    return url.toString();
+  } catch (e) {
+    const sep = baseUri.includes('?') ? '&' : '?';
+    const qs = new URLSearchParams();
+    for (const [k, v] of Object.entries(paramsObj)) {
+      if (v !== undefined && v !== null && v !== '') qs.set(k, String(v));
+    }
+    return `${baseUri}${sep}${qs.toString()}`;
+  }
+}
+
+function renderMobileSsoHandoffPage(res, { exchangeCode, provider, clientState, rootUrl, customRedirectUri }) {
+  const paramsObj = {
+    code: exchangeCode,
+    auth_code: exchangeCode,
+    sso_provider: provider,
+    server: rootUrl,
+    ...(clientState ? { state: clientState } : {})
+  };
+
+  const deepLinkUri = customRedirectUri && !customRedirectUri.startsWith('http')
+    ? appendParamsToRedirectUri(customRedirectUri, paramsObj)
+    : appendParamsToRedirectUri('familycompanion://auth/callback', paramsObj);
+
+  const capacitorUrl = appendParamsToRedirectUri('https://localhost/', paramsObj);
+  const queryStr = new URLSearchParams(paramsObj).toString();
+  const intentUrl = `intent://auth/callback?${queryStr}#Intent;scheme=familycompanion;package=com.jwagner.familycompanion;end`;
+
+  const safePayloadJson = JSON.stringify({
+    type: 'FAMILY_APP_SSO_CALLBACK',
+    code: exchangeCode,
+    auth_code: exchangeCode,
+    sso_provider: provider,
+    state: clientState || null,
+    server: rootUrl
+  }).replace(/</g, '\\u003c');
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+
+  return res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="referrer" content="no-referrer" />
+  <title>Authentication Complete - Family Companion</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #111318;
+      color: #e2e2e9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+    .card {
+      max-width: 400px;
+      width: 100%;
+      background: #1d2024;
+      border: 1px solid rgba(168, 199, 250, 0.2);
+      border-radius: 28px;
+      padding: 32px 24px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+    }
+    .badge {
+      width: 56px;
+      height: 56px;
+      border-radius: 20px;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin-bottom: 16px;
+    }
+    h1 { font-size: 20px; margin: 0 0 8px; font-weight: 600; }
+    p { font-size: 13px; color: #93969f; line-height: 1.5; margin: 0 0 24px; }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 9999px;
+      background: #2563eb;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 14px;
+      text-decoration: none;
+      margin-bottom: 12px;
+      box-sizing: border-box;
+    }
+    .btn-secondary {
+      display: block;
+      width: 100%;
+      padding: 12px 20px;
+      border-radius: 9999px;
+      background: transparent;
+      border: 1px solid #44474f;
+      color: #c4c6d0;
+      font-weight: 500;
+      font-size: 13px;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="badge">&#10003;</div>
+    <h1>Sign-In Verified</h1>
+    <p>Returning your secure one-time authorization ticket to the Family Companion app...</p>
+    <a id="deepLinkBtn" class="btn" href="${deepLinkUri}">Return to Family Companion</a>
+    <a id="intentBtn" class="btn-secondary" href="${intentUrl}">Open Android App</a>
+  </div>
+  <script>
+    (function() {
+      var payload = ${safePayloadJson};
+      var deepLink = ${JSON.stringify(deepLinkUri)};
+      var capLink = ${JSON.stringify(capacitorUrl)};
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage(payload, '*');
+        }
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(payload, '*');
+        }
+      } catch (e) {}
+
+      var ua = navigator.userAgent || '';
+      var isAndroidWv = /\\bwv\\b/i.test(ua) || Boolean(window.Capacitor);
+      if (isAndroidWv) {
+        window.location.replace(capLink);
+      } else {
+        setTimeout(function() {
+          window.location.href = deepLink;
+        }, 100);
+      }
+    })();
+  </script>
+</body>
+</html>`);
+}
+
+async function beginSsoLoginFlow(req, res, provider) {
+  cleanupSsoStores();
+  const settings = await getSettings();
+
+  if (provider === 'oidc' && settings.oidc_enabled !== 'true') {
+    return res.status(400).send('OIDC authentication is disabled.');
+  }
+  if (provider === 'google' && settings.google_sso_enabled !== 'true') {
+    return res.status(400).send('Google authentication is disabled.');
+  }
+
+  const clientCtx = extractSsoClientContext(req, settings);
+  if (clientCtx.error) {
+    return res.status(400).json({ error: clientCtx.error });
+  }
+
+  if (clientCtx.isAppRequest && settings.sso_mobile_enabled === 'false') {
+    return res.status(403).json({ error: 'Mobile/Companion SSO authentication is disabled on this server.' });
+  }
+
+  const serverState = crypto.randomBytes(32).toString('hex');
+  const nonce = crypto.randomBytes(16).toString('hex');
+  const { verifier: upstreamCodeVerifier, challenge: upstreamCodeChallenge } = generatePkcePair();
+
+  ssoPendingStates.set(serverState, {
+    state: serverState,
+    provider,
+    clientState: clientCtx.clientState,
+    redirectUri: clientCtx.redirectUri,
+    isAppRequest: clientCtx.isAppRequest,
+    codeChallenge: clientCtx.codeChallenge,
+    codeChallengeMethod: clientCtx.codeChallengeMethod || 'S256',
+    sessionId: clientCtx.sessionId,
+    responseMode: clientCtx.responseMode,
+    upstreamCodeVerifier,
+    nonce,
+    rootUrl: clientCtx.rootUrl,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + SSO_STATE_TTL_MS
+  });
+
+  // Bind state in an HttpOnly SameSite=Lax cookie for additional CSRF defense
+  const stateSig = crypto.createHmac('sha256', JWT_SECRET).update(serverState).digest('hex');
+  res.setHeader(
+    'Set-Cookie',
+    `family_sso_state=${serverState}.${stateSig}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`
+  );
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+
+  if (provider === 'oidc') {
+    const callbackUri = (settings.oidc_redirect_uri && settings.oidc_redirect_uri.trim())
+      ? settings.oidc_redirect_uri.trim()
+      : `${clientCtx.rootUrl}/api/auth/oidc/callback`;
+    const authParams = new URLSearchParams({
+      client_id: settings.oidc_client_id,
+      response_type: 'code',
+      redirect_uri: callbackUri,
+      response_mode: 'query',
+      scope: 'openid profile email',
+      state: serverState,
+      nonce,
+      code_challenge: upstreamCodeChallenge,
+      code_challenge_method: 'S256'
+    });
+    const authUrl = `https://login.microsoftonline.com/${settings.oidc_tenant_id}/oauth2/v2.0/authorize?${authParams.toString()}`;
+    return res.redirect(authUrl);
+  } else {
+    const callbackUri = `${clientCtx.rootUrl}/api/auth/google/callback`;
+    const authParams = new URLSearchParams({
+      client_id: settings.google_client_id,
+      response_type: 'code',
+      redirect_uri: callbackUri,
+      scope: 'openid profile email',
+      state: serverState,
+      nonce,
+      code_challenge: upstreamCodeChallenge,
+      code_challenge_method: 'S256',
+      prompt: 'select_account'
+    });
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${authParams.toString()}`;
+    return res.redirect(authUrl);
+  }
+}
+
+async function completeSsoLoginCallback(req, res, provider) {
+  cleanupSsoStores();
+
+  if (req.query.error) {
+    const errDesc = req.query.error_description || req.query.error;
+    return res.status(400).send(`SSO provider returned an error: ${errDesc}`);
+  }
+
+  const code = req.query.code;
+  if (!code) {
+    return res.status(400).send(`Authorization code missing from ${provider.toUpperCase()} SSO callback`);
+  }
+
+  const rawState = req.query.state ? String(req.query.state) : '';
+  const pending = rawState ? ssoPendingStates.get(rawState) : null;
+  if (!pending || pending.provider !== provider || pending.expiresAt <= Date.now()) {
+    if (rawState) ssoPendingStates.delete(rawState);
+    return res.status(400).send('Invalid or expired SSO authentication state. Please return to the app and try signing in again.');
+  }
+
+  // Consume state immediately so it cannot be replayed
+  ssoPendingStates.delete(rawState);
+
+  try {
+    const settings = await getSettings();
+    const rootUrl = pending.rootUrl || `${req.protocol}://${req.get('host')}`;
+
+    let tokenData;
+    if (provider === 'oidc') {
+      const callbackUri = (settings.oidc_redirect_uri && settings.oidc_redirect_uri.trim())
+        ? settings.oidc_redirect_uri.trim()
+        : `${rootUrl}/api/auth/oidc/callback`;
+      const tokenUrl = `https://login.microsoftonline.com/${settings.oidc_tenant_id}/oauth2/v2.0/token`;
+      const tokenBody = new URLSearchParams({
+        client_id: settings.oidc_client_id,
+        scope: 'openid profile email',
+        code: String(code),
+        redirect_uri: callbackUri,
+        grant_type: 'authorization_code',
+        client_secret: settings.oidc_client_secret,
+        code_verifier: pending.upstreamCodeVerifier
+      });
+
+      const tokenRes = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenBody.toString()
+      });
+
+      if (!tokenRes.ok) {
+        throw new Error(`Token endpoint responded with status ${tokenRes.status}: ${await tokenRes.text()}`);
+      }
+      tokenData = await tokenRes.json();
+    } else {
+      const callbackUri = `${rootUrl}/api/auth/google/callback`;
+      const tokenUrl = 'https://oauth2.googleapis.com/token';
+      const tokenBody = new URLSearchParams({
+        client_id: settings.google_client_id,
+        client_secret: settings.google_client_secret,
+        code: String(code),
+        redirect_uri: callbackUri,
+        grant_type: 'authorization_code',
+        code_verifier: pending.upstreamCodeVerifier
+      });
+
+      const tokenRes = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: tokenBody.toString()
+      });
+
+      if (!tokenRes.ok) {
+        throw new Error(`Token endpoint responded with status ${tokenRes.status}: ${await tokenRes.text()}`);
+      }
+      tokenData = await tokenRes.json();
+    }
+
+    const idToken = tokenData.id_token;
+    if (!idToken) {
+      throw new Error('Identity provider did not return an id_token.');
+    }
+
+    const base64Url = idToken.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const idPayload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
+
+    if (pending.nonce && idPayload.nonce && idPayload.nonce !== pending.nonce) {
+      throw new Error('OIDC nonce mismatch.');
+    }
+
+    const email = idPayload.email || idPayload.preferred_username || idPayload.upn;
+    if (!email) {
+      return res.status(400).send('SSO login payload did not contain an email or username identifier.');
+    }
+
+    const db = await getDb();
+    let user = await getUserByUsername(email);
+
+    if (!user) {
+      const autoProvision = provider === 'oidc'
+        ? settings.oidc_auto_provision !== 'false' && settings.oidc_auto_provision === 'true'
+        : settings.google_auto_provision !== 'false' && settings.google_auto_provision === 'true';
+
+      if (!autoProvision) {
+        if (pending.sessionId && ssoDeviceSessions.has(pending.sessionId)) {
+          ssoDeviceSessions.set(pending.sessionId, {
+            ...ssoDeviceSessions.get(pending.sessionId),
+            status: 'failed',
+            error: 'Auto-provisioning is disabled and no local account matches this email.'
+          });
+        }
+        return res.status(403).send('Auto-provisioning is disabled and no local account matches this email.');
+      }
+
+      const roleName = (provider === 'oidc' ? settings.oidc_default_role : settings.google_default_role) || 'Viewer';
+      const role = await db.get('SELECT id FROM roles WHERE name = ?', [roleName]);
+      const roleId = role ? role.id : null;
+
+      const dummyPassword = crypto.randomBytes(32).toString('hex');
+      const displayName = idPayload.name || email.split('@')[0];
+      const pictureUrl = idPayload.picture || null;
+      const authProviderName = provider === 'oidc' ? 'sso' : 'google';
+
+      const newUserId = await createUser(email, dummyPassword, roleId, displayName, authProviderName);
+      if (pictureUrl) {
+        await db.run('UPDATE users SET picture_url = ?, email = ? WHERE id = ?', [pictureUrl, email, newUserId]);
+      } else {
+        await db.run('UPDATE users SET email = ? WHERE id = ?', [email, newUserId]);
+      }
+      user = await getUserById(newUserId);
+    } else {
+      // Keep email / picture_url synced if missing on existing user
+      const updates = [];
+      const vals = [];
+      if (!user.email && email.includes('@')) {
+        updates.push('email = ?');
+        vals.push(email);
+      }
+      if (!user.picture_url && idPayload.picture) {
+        updates.push('picture_url = ?');
+        vals.push(idPayload.picture);
+      }
+      if (updates.length > 0) {
+        vals.push(user.id);
+        await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, vals);
+        user = await getUserById(user.id);
+      }
+    }
+
+    await syncUserAsContact(user);
+
+    const appToken = generateToken({ id: user.id, username: user.username });
+    const formattedUser = formatAuthenticatedUser(user);
+
+    // Issue a short-lived (60s), single-use, 256-bit opaque authorization exchange code
+    // so the raw JWT bearer token is NEVER exposed in URL query strings, browser history, or server logs.
+    const exchangeCode = crypto.randomBytes(32).toString('hex');
+    ssoExchangeCodes.set(exchangeCode, {
+      code: exchangeCode,
+      token: appToken,
+      user: formattedUser,
+      provider,
+      clientState: pending.clientState,
+      codeChallenge: pending.codeChallenge,
+      codeChallengeMethod: pending.codeChallengeMethod || 'S256',
+      sessionId: pending.sessionId,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + SSO_EXCHANGE_CODE_TTL_MS,
+      used: false
+    });
+
+    if (pending.sessionId) {
+      ssoDeviceSessions.set(pending.sessionId, {
+        sessionId: pending.sessionId,
+        provider,
+        status: 'authenticated',
+        code: exchangeCode,
+        state: pending.clientState || null,
+        codeChallenge: pending.codeChallenge || null,
+        codeChallengeMethod: pending.codeChallengeMethod || 'S256',
+        expiresAt: Date.now() + SSO_EXCHANGE_CODE_TTL_MS
+      });
+    }
+
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+
+    // 1. Standard Hosted Web App login flow
+    if (!pending.isAppRequest && !pending.redirectUri) {
+      return res.redirect(`/?auth_code=${encodeURIComponent(exchangeCode)}`);
+    }
+
+    // 2. HTTP/HTTPS App Redirect URI (e.g. Capacitor https://localhost or companion web origin)
+    if (
+      pending.redirectUri &&
+      (pending.redirectUri.startsWith('http://') || pending.redirectUri.startsWith('https://')) &&
+      pending.responseMode !== 'page'
+    ) {
+      const targetUrl = appendParamsToRedirectUri(
+        pending.redirectUri,
+        {
+          code: exchangeCode,
+          auth_code: exchangeCode,
+          sso_provider: provider,
+          server: rootUrl,
+          ...(pending.clientState ? { state: pending.clientState } : {})
+        },
+        pending.responseMode === 'fragment'
+      );
+      return res.redirect(targetUrl);
+    }
+
+    // 3. Native Custom Scheme (familycompanion://) or Standalone Mobile Browser Handoff
+    return renderMobileSsoHandoffPage(res, {
+      exchangeCode,
+      provider,
+      clientState: pending.clientState,
+      rootUrl,
+      customRedirectUri: pending.redirectUri
+    });
+  } catch (error) {
+    console.error(`${provider.toUpperCase()} SSO callback failed:`, error);
+    if (pending?.sessionId) {
+      ssoDeviceSessions.set(pending.sessionId, {
+        sessionId: pending.sessionId,
+        provider,
+        status: 'failed',
+        error: error.message,
+        expiresAt: Date.now() + 60 * 1000
+      });
+    }
+    return res.status(500).send(`${provider.toUpperCase()} SSO authentication callback failed: ${error.message}`);
+  }
+}
+
+// POST or GET /api/auth/sso/init - Pre-initialize a mobile/companion SSO session (supports PKCE & polling)
+const handleSsoInit = async (req, res) => {
+  try {
+    cleanupSsoStores();
+    const settings = await getSettings();
+    const params = { ...(req.query || {}), ...(req.body || {}) };
+    const provider = String(params.provider || 'oidc').toLowerCase() === 'google' ? 'google' : 'oidc';
+
+    if (provider === 'oidc' && settings.oidc_enabled !== 'true') {
+      return res.status(400).json({ error: 'OIDC authentication is disabled.' });
+    }
+    if (provider === 'google' && settings.google_sso_enabled !== 'true') {
+      return res.status(400).json({ error: 'Google SSO authentication is disabled.' });
+    }
+    if (settings.sso_mobile_enabled === 'false') {
+      return res.status(403).json({ error: 'Mobile/Companion SSO authentication is disabled.' });
+    }
+
+    let redirectUri = null;
+    if (params.redirect_uri) {
+      redirectUri = validateAppRedirectUri(params.redirect_uri, req, settings);
+      if (!redirectUri) {
+        return res.status(400).json({ error: 'Invalid or unauthorized redirect_uri.' });
+      }
+    }
+
+    const sessionId = crypto.randomBytes(32).toString('hex');
+    const clientState = params.state ? String(params.state) : crypto.randomBytes(16).toString('hex');
+    const codeChallenge = params.code_challenge ? String(params.code_challenge) : null;
+    const codeChallengeMethod = params.code_challenge_method ? String(params.code_challenge_method).toUpperCase() : 'S256';
+
+    ssoDeviceSessions.set(sessionId, {
+      sessionId,
+      provider,
+      status: 'pending',
+      state: clientState,
+      redirectUri,
+      codeChallenge,
+      codeChallengeMethod,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + SSO_DEVICE_SESSION_TTL_MS
+    });
+
+    const rootUrl = `${req.protocol}://${req.get('host')}`;
+    const loginParams = new URLSearchParams({
+      session_id: sessionId,
+      client: 'android',
+      state: clientState
+    });
+    if (redirectUri) loginParams.set('redirect_uri', redirectUri);
+    if (codeChallenge) {
+      loginParams.set('code_challenge', codeChallenge);
+      loginParams.set('code_challenge_method', codeChallengeMethod);
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      provider,
+      session_id: sessionId,
+      state: clientState,
+      login_url: `${rootUrl}/api/auth/${provider}/login?${loginParams.toString()}`,
+      poll_url: `${rootUrl}/api/auth/sso/poll/${sessionId}`,
+      exchange_url: `${rootUrl}/api/auth/sso/exchange`,
+      expires_in: Math.floor(SSO_DEVICE_SESSION_TTL_MS / 1000)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+app.post('/api/auth/sso/init', handleSsoInit);
+app.get('/api/auth/sso/init', handleSsoInit);
+
+// GET /api/auth/sso/poll/:sessionId & POST /api/auth/sso/poll - Poll status of an out-of-band mobile SSO session
+const handleSsoPoll = (req, res) => {
+  cleanupSsoStores();
+  const sessionId = String(req.params.sessionId || req.body?.session_id || req.query?.session_id || '').trim();
+  if (!sessionId) {
+    return res.status(400).json({ error: 'Missing session_id' });
+  }
+
+  const session = ssoDeviceSessions.get(sessionId);
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+
+  if (!session || session.expiresAt <= Date.now()) {
+    ssoDeviceSessions.delete(sessionId);
+    return res.status(404).json({ status: 'expired', error: 'SSO session expired or not found' });
+  }
+
+  if (session.status === 'failed') {
+    ssoDeviceSessions.delete(sessionId);
+    return res.status(403).json({ status: 'failed', error: session.error || 'SSO authentication failed' });
+  }
+
+  if (session.status === 'authenticated' && session.code) {
+    return res.json({
+      status: 'authenticated',
+      code: session.code,
+      auth_code: session.code,
+      provider: session.provider,
+      state: session.state || null
+    });
+  }
+
+  return res.json({ status: 'pending' });
+};
+
+app.get('/api/auth/sso/poll/:sessionId', handleSsoPoll);
+app.post('/api/auth/sso/poll', handleSsoPoll);
+
+// POST /api/auth/sso/exchange (and aliases) - Exchange one-time authorization code (+ PKCE verifier) for JWT token
+const handleSsoTokenExchange = (req, res) => {
+  cleanupSsoStores();
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+
+  const rawCode = String(req.body?.code || req.body?.auth_code || req.query?.code || '').trim();
+  const codeVerifier = req.body?.code_verifier || req.query?.code_verifier || '';
+
+  if (!rawCode) {
+    return res.status(400).json({ error: 'Authorization exchange code is required' });
+  }
+
+  const ticket = ssoExchangeCodes.get(rawCode);
+  if (!ticket || ticket.used || ticket.expiresAt <= Date.now()) {
+    ssoExchangeCodes.delete(rawCode);
+    return res.status(401).json({ error: 'Invalid, expired, or already used authorization code' });
+  }
+
+  // Strictly single-use: invalidate and remove immediately before returning
+  ticket.used = true;
+  ssoExchangeCodes.delete(rawCode);
+
+  if (ticket.sessionId) {
+    ssoDeviceSessions.delete(ticket.sessionId);
+  }
+
+  // Verify PKCE code_verifier if a code_challenge was registered during login initiation
+  if (ticket.codeChallenge) {
+    const pkceValid = verifyPkceCodeVerifier(codeVerifier, ticket.codeChallenge, ticket.codeChallengeMethod);
+    if (!pkceValid) {
+      return res.status(401).json({ error: 'PKCE code_verifier verification failed' });
+    }
+  }
+
+  return res.json({
+    success: true,
+    token: ticket.token,
+    token_type: 'Bearer',
+    expires_in: 86400,
+    provider: ticket.provider,
+    state: ticket.clientState || null,
+    user: ticket.user
+  });
+};
+
+app.post('/api/auth/sso/exchange', handleSsoTokenExchange);
+app.post('/api/auth/exchange', handleSsoTokenExchange);
+app.post('/api/auth/token', handleSsoTokenExchange);
 
 app.get('/api/auth/oidc/config', async (req, res) => {
   try {
@@ -2273,7 +3219,16 @@ app.get('/api/auth/oidc/config', async (req, res) => {
     res.json({
       oidc_enabled: settings.oidc_enabled === 'true',
       oidc_client_id: settings.oidc_client_id || '',
-      oidc_discovery_url: settings.oidc_discovery_url || ''
+      oidc_tenant_id: settings.oidc_tenant_id || '',
+      oidc_discovery_url: settings.oidc_discovery_url || '',
+      sso_mobile_enabled: settings.sso_mobile_enabled !== 'false',
+      supports_pkce: true,
+      supports_code_exchange: true,
+      supports_device_session: true,
+      login_endpoint: '/api/auth/oidc/login',
+      init_endpoint: '/api/auth/sso/init',
+      exchange_endpoint: '/api/auth/sso/exchange',
+      poll_endpoint: '/api/auth/sso/poll'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2282,93 +3237,14 @@ app.get('/api/auth/oidc/config', async (req, res) => {
 
 app.get('/api/auth/oidc/login', async (req, res) => {
   try {
-    const settings = await getSettings();
-    if (settings.oidc_enabled !== 'true') {
-      return res.status(400).send('OIDC authentication is disabled.');
-    }
-    
-    const rootUrl = `${req.protocol}://${req.get('host')}`;
-    const redirectUri = encodeURIComponent(`${rootUrl}/api/auth/oidc/callback`);
-    const state = crypto.randomBytes(16).toString('hex');
-    
-    const scope = encodeURIComponent('openid profile email');
-    const authUrl = `https://login.microsoftonline.com/${settings.oidc_tenant_id}/oauth2/v2.0/authorize?client_id=${settings.oidc_client_id}&response_type=code&redirect_uri=${redirectUri}&response_mode=query&scope=${scope}&state=${state}`;
-    
-    res.redirect(authUrl);
+    await beginSsoLoginFlow(req, res, 'oidc');
   } catch (error) {
     res.status(500).send('OIDC login redirection failed: ' + error.message);
   }
 });
 
 app.get('/api/auth/oidc/callback', async (req, res) => {
-  const code = req.query.code;
-  if (!code) {
-    return res.status(400).send('Authorization code missing from SSO callback');
-  }
-
-  try {
-    const settings = await getSettings();
-    const rootUrl = `${req.protocol}://${req.get('host')}`;
-    const redirectUri = `${rootUrl}/api/auth/oidc/callback`;
-    
-    const tokenUrl = `https://login.microsoftonline.com/${settings.oidc_tenant_id}/oauth2/v2.0/token`;
-    const tokenBody = new URLSearchParams({
-      client_id: settings.oidc_client_id,
-      scope: 'openid profile email',
-      code: code,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
-      client_secret: settings.oidc_client_secret
-    });
-
-    const tokenRes = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenBody.toString()
-    });
-
-    if (!tokenRes.ok) {
-      throw new Error(`Token endpoint responded with status ${tokenRes.status}: ${await tokenRes.text()}`);
-    }
-
-    const tokenData = await tokenRes.json();
-    const idToken = tokenData.id_token;
-    
-    // Simple JWT parser for payload extraction
-    const base64Url = idToken.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const idPayload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
-    
-    const email = idPayload.email || idPayload.preferred_username || idPayload.upn;
-    if (!email) {
-      return res.status(400).send('SSO login payload did not contain email/username identifier');
-    }
-
-    const db = await getDb();
-    let user = await getUserByUsername(email);
-    
-    if (!user) {
-      if (settings.oidc_auto_provision !== 'true') {
-        return res.status(403).send('Auto-provisioning is disabled and no local account matches this email.');
-      }
-      
-      const roleName = settings.oidc_default_role || 'Viewer';
-      const role = await db.get('SELECT id FROM roles WHERE name = ?', [roleName]);
-      const roleId = role ? role.id : null;
-      
-      const dummyPassword = crypto.randomBytes(32).toString('hex');
-      const displayName = idPayload.name || email.split('@')[0];
-      
-      const userId = await createUser(email, dummyPassword, roleId, displayName, 'sso');
-      user = await getUserById(userId);
-    }
-
-    const appToken = generateToken({ id: user.id, username: user.username });
-    res.redirect(`/?token=${appToken}`);
-  } catch (error) {
-    console.error('SSO callback failed:', error);
-    res.status(500).send('SSO authentication callback failed: ' + error.message);
-  }
+  await completeSsoLoginCallback(req, res, 'oidc');
 });
 
 // --- GOOGLE SSO ENDPOINTS ---
@@ -2378,7 +3254,15 @@ app.get('/api/auth/google/config', async (req, res) => {
     const settings = await getSettings();
     res.json({
       google_sso_enabled: settings.google_sso_enabled === 'true',
-      google_client_id: settings.google_client_id || ''
+      google_client_id: settings.google_client_id || '',
+      sso_mobile_enabled: settings.sso_mobile_enabled !== 'false',
+      supports_pkce: true,
+      supports_code_exchange: true,
+      supports_device_session: true,
+      login_endpoint: '/api/auth/google/login',
+      init_endpoint: '/api/auth/sso/init',
+      exchange_endpoint: '/api/auth/sso/exchange',
+      poll_endpoint: '/api/auth/sso/poll'
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2387,101 +3271,14 @@ app.get('/api/auth/google/config', async (req, res) => {
 
 app.get('/api/auth/google/login', async (req, res) => {
   try {
-    const settings = await getSettings();
-    if (settings.google_sso_enabled !== 'true') {
-      return res.status(400).send('Google authentication is disabled.');
-    }
-    
-    const rootUrl = `${req.protocol}://${req.get('host')}`;
-    const redirectUri = encodeURIComponent(`${rootUrl}/api/auth/google/callback`);
-    const state = crypto.randomBytes(16).toString('hex');
-    
-    const scope = encodeURIComponent('openid profile email');
-    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${settings.google_client_id}&response_type=code&redirect_uri=${redirectUri}&scope=${scope}&state=${state}`;
-    
-    res.redirect(authUrl);
+    await beginSsoLoginFlow(req, res, 'google');
   } catch (error) {
     res.status(500).send('Google login redirection failed: ' + error.message);
   }
 });
 
 app.get('/api/auth/google/callback', async (req, res) => {
-  const code = req.query.code;
-  if (!code) {
-    return res.status(400).send('Authorization code missing from Google SSO callback');
-  }
-
-  try {
-    const settings = await getSettings();
-    const rootUrl = `${req.protocol}://${req.get('host')}`;
-    const redirectUri = `${rootUrl}/api/auth/google/callback`;
-    
-    const tokenUrl = 'https://oauth2.googleapis.com/token';
-    const tokenBody = new URLSearchParams({
-      client_id: settings.google_client_id,
-      client_secret: settings.google_client_secret,
-      code: code,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code'
-    });
-
-    const tokenRes = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: tokenBody.toString()
-    });
-
-    if (!tokenRes.ok) {
-      throw new Error(`Token endpoint responded with status ${tokenRes.status}: ${await tokenRes.text()}`);
-    }
-
-    const tokenData = await tokenRes.json();
-    const idToken = tokenData.id_token;
-    
-    // Simple JWT parser for payload extraction
-    const base64Url = idToken.split('.')[1];
-    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-    const idPayload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'));
-    
-    const email = idPayload.email;
-    if (!email) {
-      return res.status(400).send('Google SSO login payload did not contain email identifier');
-    }
-
-    const db = await getDb();
-    let user = await getUserByUsername(email);
-    
-    if (!user) {
-      if (settings.google_auto_provision !== 'true') {
-        return res.status(403).send('Auto-provisioning is disabled and no local account matches this email.');
-      }
-      
-      const roleName = settings.google_default_role || 'Viewer';
-      const role = await db.get('SELECT id FROM roles WHERE name = ?', [roleName]);
-      const roleId = role ? role.id : null;
-      
-      const dummyPassword = crypto.randomBytes(32).toString('hex');
-      const displayName = idPayload.name || email.split('@')[0];
-      const pictureUrl = idPayload.picture || null;
-      
-      const newUserId = await createUser(email, dummyPassword, roleId, displayName, 'google');
-      if (pictureUrl) {
-        await db.run("UPDATE users SET picture_url = ?, email = ? WHERE id = ?", [pictureUrl, email, newUserId]);
-      } else {
-        await db.run("UPDATE users SET email = ? WHERE id = ?", [email, newUserId]);
-      }
-      user = await getUserById(newUserId);
-    }
-
-    // Auto sync user as contact
-    await syncUserAsContact(user);
-
-    const appToken = generateToken({ id: user.id, username: user.username });
-    res.redirect(`/?token=${appToken}`);
-  } catch (error) {
-    console.error('Google SSO callback failed:', error);
-    res.status(500).send('Google SSO authentication callback failed: ' + error.message);
-  }
+  await completeSsoLoginCallback(req, res, 'google');
 });
 
 // --- MICROSOFT CALENDAR INTEGRATION ---

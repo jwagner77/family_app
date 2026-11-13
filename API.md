@@ -146,6 +146,63 @@ Change password for the authenticated user.
   }
   ```
 
+#### `GET /api/app-info` & `GET /api/health`
+Public discovery endpoints used by `Family_App_Android` to verify connectivity and inspect enabled SSO methods (`google_sso_enabled`, `oidc_enabled`, `supports_pkce`, `supports_code_exchange`, `supports_device_session`).
+
+#### `GET /api/auth/google/config` & `GET /api/auth/oidc/config`
+Return SSO provider availability, public client IDs, and endpoints for PKCE + one-time code exchange.
+
+#### `POST /api/auth/sso/init` (or `GET /api/auth/sso/init`)
+Pre-initialize a mobile/companion SSO authentication session with PKCE (`S256`) and optional custom `redirect_uri` or out-of-band polling.
+- **Body / Query**:
+  ```json
+  {
+    "provider": "google",
+    "redirect_uri": "familycompanion://auth/callback",
+    "code_challenge": "<BASE64URL_SHA256_OF_CODE_VERIFIER>",
+    "code_challenge_method": "S256",
+    "state": "<CLIENT_CSRF_STATE>"
+  }
+  ```
+- **Response**: Returns `session_id`, `state`, `login_url`, `poll_url`, `exchange_url`, and `expires_in` (`600` seconds).
+
+#### `GET /api/auth/:provider/login` (`provider` = `google` | `oidc`)
+Initiates the OAuth 2.0 / OIDC authorization code flow with server-managed CSRF `state`, `nonce`, and upstream PKCE (`S256`).
+- **Supported Query Parameters**:
+  - `redirect_uri` (optional): Validated return URI (`familycompanion://auth/callback`, `com.jwagner.familycompanion://auth/callback`, `https://localhost`, etc.). Automatically inferred from `Referer` / `Origin` if called directly from Capacitor (`https://localhost`) or a companion app origin.
+  - `code_challenge` & `code_challenge_method=S256` (recommended): Client PKCE challenge bound to the resulting exchange code.
+  - `state` (optional): Client-generated state echoed back upon completion.
+  - `session_id` (optional): Session ID from `/api/auth/sso/init` for out-of-band browser polling.
+  - `client=android` / `mobile=1` (optional): Explicitly marks the request as originating from a mobile companion app.
+
+#### `GET /api/auth/:provider/callback`
+Validates the single-use server `state` and `nonce`, exchanges the upstream authorization code with Google or Microsoft Entra ID, provisions or matches the user account (by username or email), and issues a **60-second, single-use opaque authorization exchange code (`code` / `auth_code`)** — never exposing the raw JWT bearer token in URLs, browser history, or server logs.
+
+#### `POST /api/auth/sso/exchange` (aliases: `POST /api/auth/exchange`, `POST /api/auth/token`)
+Exchanges the 60-second single-use `code` (and PKCE `code_verifier` if `code_challenge` was provided) for the signed session JWT `token` and full `user` profile over an uncached `POST` response body (`Cache-Control: no-store`).
+- **Body**:
+  ```json
+  {
+    "code": "<ONE_TIME_60S_EXCHANGE_CODE>",
+    "code_verifier": "<PKCE_CODE_VERIFIER>"
+  }
+  ```
+- **Response**:
+  ```json
+  {
+    "success": true,
+    "token": "<SIGNED_JWT_TOKEN>",
+    "token_type": "Bearer",
+    "expires_in": 86400,
+    "provider": "google",
+    "state": "<CLIENT_STATE>",
+    "user": { "id": 1, "username": "user@example.com", "display_name": "User Name", "role_name": "Administrator" }
+  }
+  ```
+
+#### `GET /api/auth/sso/poll/:sessionId` (or `POST /api/auth/sso/poll`)
+Polls an out-of-band mobile SSO session (`status`: `pending`, `authenticated` with one-time `code`, or `failed`). Once `status === "authenticated"`, the app exchanges `code` + `code_verifier` at `POST /api/auth/sso/exchange`.
+
 #### `POST /api/auth/passthrough`
 SSO passthrough integration for unified portals.
 - **Headers**: `X-API-Key: <key>`
