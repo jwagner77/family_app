@@ -233,6 +233,11 @@ export default function FamilyTrackerView({ showToast, currentUser, resolvedThem
     [users]
   );
 
+  const connectedUsers = useMemo(
+    () => users.filter((u) => Boolean(u.is_app_connected || u.has_location)),
+    [users]
+  );
+
   const fitAllUsersOnMap = useCallback(
     (targetUsers = locatedUsers) => {
       if (!targetUsers || targetUsers.length === 0) return;
@@ -527,10 +532,38 @@ export default function FamilyTrackerView({ showToast, currentUser, resolvedThem
             <MapPin size={24} />
           </div>
           <div>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Family Tracker</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Family Tracker</h2>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.35rem',
+                  fontSize: '0.73rem',
+                  fontWeight: 600,
+                  padding: '0.2rem 0.65rem',
+                  borderRadius: '999px',
+                  background: connectedUsers.length > 0 ? 'rgba(16, 185, 129, 0.14)' : 'rgba(245, 158, 11, 0.14)',
+                  color: connectedUsers.length > 0 ? '#10b981' : '#f59e0b',
+                  border: `1px solid ${connectedUsers.length > 0 ? 'rgba(16, 185, 129, 0.35)' : 'rgba(245, 158, 11, 0.35)'}`
+                }}
+              >
+                <span
+                  style={{
+                    width: '7px',
+                    height: '7px',
+                    borderRadius: '50%',
+                    background: connectedUsers.length > 0 ? '#10b981' : '#f59e0b'
+                  }}
+                />
+                {connectedUsers.length > 0
+                  ? `Android App Connected (${connectedUsers.length} Active)`
+                  : 'Waiting for Android App Connection'}
+              </span>
+            </div>
             <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--muted-foreground)' }}>
               Live family locations synced from <strong>Family Companion (Android)</strong> •{' '}
-              {locatedUsers.length} of {users.length} member{users.length === 1 ? '' : 's'} reporting
+              {locatedUsers.length} of {users.length} member{users.length === 1 ? '' : 's'} reporting GPS
             </p>
           </div>
         </div>
@@ -1096,12 +1129,13 @@ export default function FamilyTrackerView({ showToast, currentUser, resolvedThem
                 fontWeight: 600
               }}
             >
-              {locatedUsers.length}/{users.length} Active
+              {connectedUsers.length}/{users.length} Active
             </span>
           </div>
 
           {users.map((u) => {
             const isSelected = String(u.user_id) === String(selectedUserId);
+            const isActive = Boolean(u.is_app_connected || u.has_location);
             return (
               <div
                 key={u.user_id}
@@ -1125,7 +1159,7 @@ export default function FamilyTrackerView({ showToast, currentUser, resolvedThem
                 <UserAvatarBadge
                   user={u}
                   size={42}
-                  borderColor={u.has_location ? (u.primary_color || '#3b82f6') : '#64748b'}
+                  borderColor={isActive ? (u.primary_color || '#10b981') : '#64748b'}
                   borderWidth={2}
                   showShadow={false}
                 />
@@ -1152,14 +1186,47 @@ export default function FamilyTrackerView({ showToast, currentUser, resolvedThem
                     </span>
                     <span
                       style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        background: u.has_location ? '#10b981' : '#94a3b8',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.25rem',
+                        fontSize: '0.68rem',
+                        fontWeight: 600,
+                        padding: '1px 6px',
+                        borderRadius: '999px',
+                        background: u.is_app_connected
+                          ? 'rgba(16, 185, 129, 0.15)'
+                          : u.has_location
+                          ? 'rgba(59, 130, 246, 0.15)'
+                          : 'rgba(148, 163, 184, 0.15)',
+                        color: u.is_app_connected
+                          ? '#10b981'
+                          : u.has_location
+                          ? '#3b82f6'
+                          : '#94a3b8',
                         flexShrink: 0
                       }}
-                      title={u.has_location ? 'Location reported' : 'No location reported yet'}
-                    />
+                      title={
+                        u.is_app_connected
+                          ? 'Android app connected & active'
+                          : u.has_location
+                          ? 'Last known GPS location available'
+                          : 'No location reported yet'
+                      }
+                    >
+                      <span
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          background: u.is_app_connected
+                            ? '#10b981'
+                            : u.has_location
+                            ? '#3b82f6'
+                            : '#94a3b8'
+                        }}
+                      />
+                      {u.is_app_connected ? 'Connected' : u.has_location ? 'Located' : 'Offline'}
+                    </span>
                   </div>
 
                   {u.has_location ? (
@@ -1175,12 +1242,22 @@ export default function FamilyTrackerView({ showToast, currentUser, resolvedThem
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                         <Clock size={12} />
-                        <span>{formatRelativeTime(u.recorded_at)}</span>
+                        <span>{formatRelativeTime(u.last_active_at || u.recorded_at)}</span>
                         {u.accuracy ? <span>• ±{Math.round(u.accuracy)}m</span> : null}
                       </div>
                       <div style={{ fontFamily: 'monospace', fontSize: '0.7rem', opacity: 0.85 }}>
                         {Number(u.latitude).toFixed(4)}, {Number(u.longitude).toFixed(4)}
                       </div>
+                    </div>
+                  ) : u.is_app_connected ? (
+                    <div
+                      style={{
+                        fontSize: '0.75rem',
+                        color: '#10b981',
+                        marginTop: '0.2rem'
+                      }}
+                    >
+                      Android app connected • Acquiring GPS...
                     </div>
                   ) : (
                     <div

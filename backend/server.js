@@ -843,6 +843,7 @@ app.use('/api', (req, res, next) => {
 
 // GET /api/unified/version - Fast real-time revision check for Web & Android apps
 app.get(['/api/unified/version', '/api/events/version'], authenticate, (req, res) => {
+  recordCompanionPresence(req.user, req);
   res.json({
     revision: unifiedStateRevision,
     lastMutation: lastUnifiedMutation,
@@ -852,6 +853,7 @@ app.get(['/api/unified/version', '/api/events/version'], authenticate, (req, res
 
 // GET /api/unified/stream - Server-Sent Events (SSE) real-time push stream for Web & Android apps
 app.get(['/api/unified/stream', '/api/events/stream'], authenticate, (req, res) => {
+  recordCompanionPresence(req.user, req);
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -973,9 +975,77 @@ function normalizeUnifiedGroceryCategory(raw = '', itemName = '') {
   return 'Pantry';
 }
 
+// Track active Android Companion / Family Tracker connections in real time
+const companionPresenceByUserId = new Map();
+
+function recordCompanionPresence(user, req, extra = {}) {
+  if (!user || !user.id) return;
+  const clientId = String(req?.headers?.['x-client-id'] || req?.query?.client_id || extra.clientId || '');
+  const isCompanion =
+    clientId.startsWith('android_') ||
+    Boolean(extra.forceCompanion);
+  if (!isCompanion) return;
+
+  const existing = companionPresenceByUserId.get(Number(user.id)) || {};
+  companionPresenceByUserId.set(Number(user.id), {
+    userId: Number(user.id),
+    username: user.username,
+    displayName: user.display_name || user.username,
+    clientId: clientId || existing.clientId || 'android',
+    platform: extra.platform || existing.platform || 'android',
+    trackingEnabled:
+      extra.trackingEnabled !== undefined
+        ? Boolean(extra.trackingEnabled)
+        : (existing.trackingEnabled ?? true),
+    permissionStatus: extra.permissionStatus || existing.permissionStatus || 'granted',
+    lastSeenAt: new Date().toISOString(),
+  });
+}
+
+function enrichLocationsWithCompanionPresence(usersList = []) {
+  const nowMs = Date.now();
+  return (usersList || []).map((u) => {
+    const presence = companionPresenceByUserId.get(Number(u.user_id || u.id));
+    const presenceAgeSec = presence?.lastSeenAt
+      ? (nowMs - new Date(presence.lastSeenAt).getTime()) / 1000
+      : Infinity;
+    const locTimeStr = u.updated_at || u.recorded_at;
+    const locAgeSec = locTimeStr ? (nowMs - new Date(locTimeStr).getTime()) / 1000 : Infinity;
+    const isAppConnected = presenceAgeSec <= 300 || locAgeSec <= 600;
+    const hasLoc = Boolean(
+      u.has_location &&
+        u.latitude !== null &&
+        u.latitude !== undefined &&
+        u.longitude !== null &&
+        u.longitude !== undefined
+    );
+    const lastActiveAt =
+      presence?.lastSeenAt && (!locTimeStr || presence.lastSeenAt > locTimeStr)
+        ? presence.lastSeenAt
+        : locTimeStr || null;
+
+    return {
+      ...u,
+      has_location: hasLoc,
+      is_app_connected: isAppConnected,
+      tracking_enabled: presence ? Boolean(presence.trackingEnabled) : hasLoc,
+      permission_status: presence?.permissionStatus || (hasLoc ? 'granted' : 'prompt'),
+      last_active_at: lastActiveAt,
+      connection_status: isAppConnected
+        ? hasLoc
+          ? 'connected_gps'
+          : 'connected_no_gps'
+        : hasLoc
+        ? 'location_cached'
+        : 'offline',
+    };
+  });
+}
+
 // GET /api/unified/state - Authoritative real-time state snapshot for both Web App and Android App
 app.get('/api/unified/state', authenticate, async (req, res) => {
   try {
+    recordCompanionPresence(req.user, req);
     const db = await getDb();
     const userId = req.user?.id || 1;
     const todayStr = getTzTodayStr(req.user?.timezone || 'America/New_York');
@@ -1019,28 +1089,7 @@ app.get('/api/unified/state', authenticate, async (req, res) => {
     let locations = [];
     try {
       const latestLocations = await getLatestUserLocations();
-      const locByUserId = new Map();
-      for (const loc of latestLocations || []) {
-        locByUserId.set(Number(loc.user_id), loc);
-      }
-      locations = members.map((u) => {
-        const loc = locByUserId.get(Number(u.id));
-        return {
-          user_id: Number(u.id),
-          username: u.username,
-          display_name: u.display_name || u.name || u.username,
-          picture_url: u.picture_url || '',
-          primary_color: u.primary_color || '#3b82f6',
-          role_name: u.role_name || 'Member',
-          has_location: Boolean(loc),
-          latitude: loc ? Number(loc.latitude) : null,
-          longitude: loc ? Number(loc.longitude) : null,
-          accuracy: loc && loc.accuracy !== null ? Number(loc.accuracy) : null,
-          recorded_at: loc ? loc.recorded_at : null,
-          updated_at: loc ? loc.updated_at : null,
-          source: loc ? loc.source : null,
-        };
-      });
+      locations = enrichLocationsWithCompanionPresence(latestLocations);
     } catch (e) {
       console.warn('Unified state locations warning:', e.message);
     }
@@ -2371,12 +2420,18 @@ app.post('/api/users/reset-password', authenticate, async (req, res) => {
 
 const handleGetFamilyLocations = async (req, res) => {
   try {
-    const users = await getLatestUserLocations();
-    const locations = users.filter(u => u.has_location);
+    const rawUsers = await getLatestUserLocations();
+    const users = enrichLocationsWithCompanionPresence(rawUsers);
+    const locations = users.filter((u) => u.has_location);
+    const activeCompanionCount = users.filter((u) => u.is_app_connected).length;
     res.json({
       success: true,
+      companion_connected: activeCompanionCount > 0 || locations.length > 0,
+      active_companion_count: activeCompanionCount,
+      located_count: locations.length,
+      server_time: new Date().toISOString(),
       users,
-      locations
+      locations,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2390,7 +2445,14 @@ app.get('/api/users/locations', authenticate, handleGetFamilyLocations);
 
 const handlePostFamilyLocations = async (req, res) => {
   try {
-    const body = req.body;
+    const body = req.body || {};
+    recordCompanionPresence(req.user, req, {
+      forceCompanion: true,
+      trackingEnabled: body.trackingEnabled ?? body.tracking_enabled ?? true,
+      permissionStatus: body.permissionStatus || body.permission_status || 'granted',
+      platform: body.platform || 'android',
+    });
+
     let points = [];
     if (Array.isArray(body)) {
       points = body;
@@ -2398,19 +2460,30 @@ const handlePostFamilyLocations = async (req, res) => {
       points = body.locations;
     } else if (body && Array.isArray(body.points)) {
       points = body.points;
-    } else if (body && typeof body === 'object') {
+    } else if (
+      body &&
+      typeof body === 'object' &&
+      (body.latitude !== undefined || body.lat !== undefined)
+    ) {
       points = [body];
     }
 
     if (points.length === 0) {
-      return res.status(400).json({ error: 'No location points provided' });
+      // Heartbeat-only check-in (e.g., Android app connected while waiting for GPS lock)
+      return res.status(200).json({
+        success: true,
+        heartbeat: true,
+        syncedCount: 0,
+        serverTime: new Date().toISOString(),
+      });
     }
 
     const { syncedCount, latestPoint } = await saveUserLocationPoints(req.user?.id, points);
     res.status(201).json({
       success: true,
       syncedCount,
-      latestLocation: latestPoint
+      latestLocation: latestPoint,
+      serverTime: new Date().toISOString(),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -2418,6 +2491,7 @@ const handlePostFamilyLocations = async (req, res) => {
 };
 
 app.post('/api/locations', authenticate, handlePostFamilyLocations);
+app.post('/api/locations/heartbeat', authenticate, handlePostFamilyLocations);
 app.post('/api/family-track/locations', authenticate, handlePostFamilyLocations);
 app.post('/api/people/locations', authenticate, handlePostFamilyLocations);
 app.post('/api/users/location', authenticate, handlePostFamilyLocations);
