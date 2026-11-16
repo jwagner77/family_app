@@ -130,6 +130,19 @@ export default function TasksView({ showToast, permissions }) {
   }, []);
   useEffect(() => { fetchTasks(); fetchActiveLog(); }, [fetchTasks]);
 
+  useEffect(() => {
+    const handleRealtime = (e) => {
+      const m = e.detail || {};
+      if (!m.resource || m.resource === 'tasks' || m.resource === 'focus_areas' || m.domain === 'plans') {
+        fetchTasks();
+        fetchProjects();
+        fetchActiveLog();
+      }
+    };
+    window.addEventListener('unified-realtime-update', handleRealtime);
+    return () => window.removeEventListener('unified-realtime-update', handleRealtime);
+  }, [fetchTasks]);
+
   // Group tasks by project
   const groupedTasks = () => {
     const groups = {};

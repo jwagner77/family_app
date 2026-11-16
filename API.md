@@ -101,6 +101,21 @@ All standard API endpoints return JSON responses. Successful operations return s
 
 ---
 
+### 0. Unified Real-Time Backend API & Live Event Stream (Web + Android)
+
+Both the hosted **Web App** (`Family_App`) and the **Android Companion App** (`Family_App_Android`) reference this unified real-time API as a single source of truth so changes in either app are reflected immediately across all connected devices.
+
+#### `GET /api/unified/state`
+Returns the complete, canonical household state (`members`, `locations`, `people`, `plans`, `household`, `finance`, `library`, `entertainment`) along with the current monotonic `revision` and `lastMutation` metadata in a single fast response.
+
+#### `GET /api/unified/stream` (Alias: `GET /api/events/stream`)
+Server-Sent Events (`text/event-stream`) real-time push stream. Whenever any `POST`, `PUT`, `PATCH`, or `DELETE` mutation occurs on any `/api/*` endpoint from either the Web App or the Android App, the backend increments `revision` and immediately broadcasts a `mutation` event (`{ type: "mutation", revision, domain, resource, webTabs, method, path, originClientId, timestamp }`) to all connected Web and Android clients.
+
+#### `GET /api/unified/version` (Alias: `GET /api/events/version`)
+Lightweight real-time revision check returning `{ revision, lastMutation, serverTime }`.
+
+---
+
 ### 1. Authentication, Sessions & Profile
 
 #### `POST /api/login`

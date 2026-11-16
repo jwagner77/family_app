@@ -54,6 +54,21 @@ export default function ShoppingList({ showToast, user }) {
     };
   }, []);
 
+  // Real-time update listener from unified backend stream
+  useEffect(() => {
+    const handleRealtime = (e) => {
+      const m = e.detail || {};
+      if (!m.resource || m.resource === 'shopping' || m.resource === 'inventory' || m.domain === 'household') {
+        loadLists(activeListId);
+        if (activeListId) {
+          loadListDetails(activeListId);
+        }
+      }
+    };
+    window.addEventListener('unified-realtime-update', handleRealtime);
+    return () => window.removeEventListener('unified-realtime-update', handleRealtime);
+  }, [activeListId]);
+
   // Reload details when activeListId changes
   useEffect(() => {
     if (activeListId) {

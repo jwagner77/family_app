@@ -51,17 +51,22 @@ import {
   MapPin
 } from 'lucide-react';
 
-// Global fetch interceptor for auth token injection
+// Global fetch interceptor for auth token & unified real-time client ID injection
+const WEB_CLIENT_ID = `web_${Math.random().toString(36).slice(2, 10)}`;
 const originalFetch = window.fetch;
 window.fetch = async (url, options = {}) => {
   const token = localStorage.getItem('token');
-  if (token) {
-    if (!options.headers) {
-      options.headers = {};
-    }
-    if (options.headers instanceof Headers) {
+  if (!options.headers) {
+    options.headers = {};
+  }
+  if (options.headers instanceof Headers) {
+    options.headers.set('x-client-id', WEB_CLIENT_ID);
+    if (token) {
       options.headers.set('Authorization', `Bearer ${token}`);
-    } else {
+    }
+  } else {
+    options.headers['x-client-id'] = WEB_CLIENT_ID;
+    if (token) {
       options.headers['Authorization'] = `Bearer ${token}`;
     }
   }
@@ -252,6 +257,88 @@ export default function App() {
   };
 
   const [activeTab, setActiveTab] = useState('home');
+  const [tabSyncTicks, setTabSyncTicks] = useState({});
+
+  // Unified Real-Time Backend Stream (SSE + lightweight revision watcher)
+  useEffect(() => {
+    if (!token) return;
+    let lastRevision = 0;
+    let eventSource = null;
+    let pollTimer = null;
+
+    const handleRealtimeMutation = (mutation) => {
+      if (!mutation || !mutation.revision) return;
+      if (lastRevision === 0) {
+        lastRevision = Number(mutation.revision);
+        return;
+      }
+      if (Number(mutation.revision) <= lastRevision) return;
+      lastRevision = Number(mutation.revision);
+
+      // Ignore mutations initiated by this very browser tab
+      if (mutation.originClientId && mutation.originClientId === WEB_CLIENT_ID) {
+        return;
+      }
+
+      // 1. Broadcast custom DOM event for views with in-place real-time listeners
+      window.dispatchEvent(
+        new CustomEvent('unified-realtime-update', { detail: mutation })
+      );
+
+      // 2. If no modal overlay is currently open, bump tick for affected tabs
+      const isModalOpen = Boolean(document.querySelector('.modal-overlay'));
+      if (!isModalOpen) {
+        const affectedTabs = Array.isArray(mutation.webTabs) && mutation.webTabs.length > 0
+          ? mutation.webTabs
+          : ['home', 'dashboard'];
+        setTabSyncTicks((prev) => {
+          const next = { ...prev };
+          for (const t of affectedTabs) {
+            next[t] = (next[t] || 0) + 1;
+          }
+          return next;
+        });
+      }
+    };
+
+    try {
+      const streamUrl = `/api/unified/stream?token=${encodeURIComponent(token)}`;
+      eventSource = new EventSource(streamUrl);
+      eventSource.onmessage = (evt) => {
+        try {
+          const data = JSON.parse(evt.data);
+          if (data.type === 'connected' && data.revision) {
+            lastRevision = Number(data.revision);
+          } else if (data.type === 'mutation') {
+            handleRealtimeMutation(data);
+          }
+        } catch (_) {}
+      };
+    } catch (_) {}
+
+    // Lightweight fallback poll every 3s in case a reverse proxy buffers SSE
+    pollTimer = setInterval(async () => {
+      try {
+        const res = await originalFetch(`/api/unified/version?token=${encodeURIComponent(token)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.lastMutation) {
+            handleRealtimeMutation({
+              ...data.lastMutation,
+              revision: data.revision,
+            });
+          }
+        }
+      } catch (_) {}
+    }, 3000);
+
+    return () => {
+      if (eventSource) {
+        try { eventSource.close(); } catch (_) {}
+      }
+      if (pollTimer) clearInterval(pollTimer);
+    };
+  }, [token]);
   const isIframe = window.self !== window.top;
   const APP_NAV_LINKS = [
     {
@@ -1786,6 +1873,7 @@ export default function App() {
         {/* Main tabs routing */}
         {activeTab === 'home' && (
           <HomeView 
+            key={`home_${tabSyncTicks.home || 0}`}
             onOpenModal={() => setIsDemoModalOpen(true)}
             onNavigateTab={(tab) => {
               setActiveTab(tab);
@@ -1795,19 +1883,19 @@ export default function App() {
         )}
 
         {activeTab === 'contacts' && (
-          <ContactsView showToast={showToast} />
+          <ContactsView key={`contacts_${tabSyncTicks.contacts || 0}`} showToast={showToast} />
         )}
 
         {activeTab === 'birthdays' && (
-          <BirthdaysView showToast={showToast} />
+          <BirthdaysView key={`birthdays_${tabSyncTicks.birthdays || 0}`} showToast={showToast} />
         )}
 
         {activeTab === 'health' && (
-          <HealthView showToast={showToast} />
+          <HealthView key={`health_${tabSyncTicks.health || 0}`} showToast={showToast} />
         )}
 
         {activeTab === 'pets' && (
-          <PetsView showToast={showToast} />
+          <PetsView key={`pets_${tabSyncTicks.pets || 0}`} showToast={showToast} />
         )}
 
         {activeTab === 'family_tracker' && (
@@ -1816,6 +1904,7 @@ export default function App() {
 
         {activeTab === 'dashboard' && (
           <CustomDashboardView 
+            key={`dashboard_${tabSyncTicks.dashboard || 0}`}
             onOpenModal={() => setIsDemoModalOpen(true)}
             onNavigateTab={(tab) => {
               setActiveTab(tab);
@@ -1834,6 +1923,7 @@ export default function App() {
 
         {activeTab === 'focus_areas' && (
           <FocusAreasView 
+            key={`focus_areas_${tabSyncTicks.focus_areas || 0}`}
             showToast={showToast} 
             permissions={user.role_permissions ? JSON.parse(user.role_permissions).projects || 'full' : 'full'} 
           />
@@ -1841,6 +1931,7 @@ export default function App() {
 
         {activeTab === 'routines' && (
           <RoutinesView 
+            key={`routines_${tabSyncTicks.routines || 0}`}
             showToast={showToast} 
             permissions={user.role_permissions ? JSON.parse(user.role_permissions).tasks || 'full' : 'full'} 
           />
@@ -1848,6 +1939,7 @@ export default function App() {
 
         {activeTab === 'habits' && (
           <HabitsView 
+            key={`habits_${tabSyncTicks.habits || 0}`}
             showToast={showToast} 
             permissions={user.role_permissions ? JSON.parse(user.role_permissions).tasks || 'full' : 'full'} 
           />
@@ -1855,6 +1947,7 @@ export default function App() {
 
         {activeTab === 'focus' && (
           <FocusView 
+            key={`focus_${tabSyncTicks.focus || 0}`}
             showToast={showToast} 
             permissions={user.role_permissions ? JSON.parse(user.role_permissions).time_logs || 'full' : 'full'} 
           />
@@ -1862,6 +1955,7 @@ export default function App() {
 
         {activeTab === 'calendar' && (
           <CalendarView 
+            key={`calendar_${tabSyncTicks.calendar || 0}`}
             showToast={showToast} 
             currentUser={user} 
           />
@@ -1869,6 +1963,7 @@ export default function App() {
 
         {activeTab === 'money' && (
           <MoneyView 
+            key={`money_${tabSyncTicks.money || 0}`}
             showToast={showToast}
             onNavigateToSettings={(subTab) => {
               setActiveTab('settings');
@@ -1879,12 +1974,14 @@ export default function App() {
 
         {activeTab === 'subscriptions' && (
           <SubscriptionsView 
+            key={`subscriptions_${tabSyncTicks.subscriptions || 0}`}
             showToast={showToast} 
           />
         )}
 
         {activeTab === 'bills' && (
           <BillsView 
+            key={`bills_${tabSyncTicks.bills || 0}`}
             showToast={showToast} 
           />
         )}
@@ -1905,21 +2002,22 @@ export default function App() {
 
         {activeTab === 'games' && (
           <GamesView 
+            key={`games_${tabSyncTicks.games || 0}`}
             showToast={showToast}
             currentUser={user}
           />
         )}
 
         {activeTab === 'recipes' && (
-          <RecipesView showToast={showToast} user={user} />
+          <RecipesView key={`recipes_${tabSyncTicks.recipes || 0}`} showToast={showToast} user={user} />
         )}
 
         {activeTab === 'planner' && (
-          <WeeklyMenu showToast={showToast} handleExportWord={handleExportWord} user={user} />
+          <WeeklyMenu key={`planner_${tabSyncTicks.planner || 0}`} showToast={showToast} handleExportWord={handleExportWord} user={user} />
         )}
 
         {activeTab === 'leftovers' && (
-          <LeftoversView showToast={showToast} user={user} />
+          <LeftoversView key={`leftovers_${tabSyncTicks.leftovers || 0}`} showToast={showToast} user={user} />
         )}
 
         {activeTab === 'inventory' && (
@@ -1935,15 +2033,15 @@ export default function App() {
         )}
 
         {activeTab === 'library' && canReadLibrary && (
-          <LibraryView showToast={showToast} currentUser={user} permissions="full" />
+          <LibraryView key={`library_${tabSyncTicks.library || 0}`} showToast={showToast} currentUser={user} permissions="full" />
         )}
 
         {activeTab === 'reading_list' && canReadReadingList && (
-          <ReadingListView showToast={showToast} currentUser={user} permissions="full" />
+          <ReadingListView key={`reading_list_${tabSyncTicks.reading_list || 0}`} showToast={showToast} currentUser={user} permissions="full" />
         )}
 
         {activeTab === 'reading_log' && canReadReadingLog && (
-          <ReadingLogView showToast={showToast} currentUser={user} permissions="full" />
+          <ReadingLogView key={`reading_log_${tabSyncTicks.reading_log || 0}`} showToast={showToast} currentUser={user} permissions="full" />
         )}
 
         {activeTab === 'ocr' && (

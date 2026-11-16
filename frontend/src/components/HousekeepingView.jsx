@@ -34,9 +34,18 @@ export default function HousekeepingView({ showToast, currentUser }) {
         handleOpenCreateModal();
       }
     };
+    const handleRealtime = (e) => {
+      const m = e.detail || {};
+      if (!m.resource || m.resource === 'chores' || m.domain === 'household') {
+        fetchTasks();
+        fetchLogs();
+      }
+    };
     window.addEventListener('trigger-add-action', handleAddTrigger);
+    window.addEventListener('unified-realtime-update', handleRealtime);
     return () => {
       window.removeEventListener('trigger-add-action', handleAddTrigger);
+      window.removeEventListener('unified-realtime-update', handleRealtime);
     };
   }, []);
 

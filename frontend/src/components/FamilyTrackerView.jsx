@@ -189,7 +189,17 @@ export default function FamilyTrackerView({ showToast, currentUser, resolvedThem
     const interval = setInterval(() => {
       fetchLocations(true);
     }, 15000);
-    return () => clearInterval(interval);
+    const handleRealtime = (e) => {
+      const m = e.detail || {};
+      if (!m.resource || m.resource === 'locations' || m.resource === 'users' || m.domain === 'people') {
+        fetchLocations(true);
+      }
+    };
+    window.addEventListener('unified-realtime-update', handleRealtime);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('unified-realtime-update', handleRealtime);
+    };
   }, [fetchLocations]);
 
   // Measure map container dimensions

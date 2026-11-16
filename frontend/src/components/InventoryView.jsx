@@ -287,6 +287,14 @@ export default function InventoryView({ showToast, user }) {
 
   useEffect(() => {
     fetchInventory();
+    const handleRealtime = (e) => {
+      const m = e.detail || {};
+      if (!m.resource || m.resource === 'inventory' || m.resource === 'shopping' || m.domain === 'household') {
+        fetchInventory();
+      }
+    };
+    window.addEventListener('unified-realtime-update', handleRealtime);
+    return () => window.removeEventListener('unified-realtime-update', handleRealtime);
   }, []);
 
   // Format date helper

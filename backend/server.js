@@ -696,6 +696,1017 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// ============================================================================
+// UNIFIED REAL-TIME BACKEND API & EVENT STREAM (Web App + Android App)
+// ============================================================================
+let unifiedStateRevision = 1;
+let lastUnifiedMutation = {
+  revision: 1,
+  domain: 'system',
+  resource: 'init',
+  webTabs: [],
+  method: 'INIT',
+  path: '/api/unified/state',
+  originClientId: 'server',
+  timestamp: new Date().toISOString(),
+};
+const unifiedSseClients = new Set();
+
+function classifyUnifiedMutation(reqPath = '') {
+  const p = String(reqPath || '').toLowerCase();
+  if (p.includes('/contacts')) {
+    return { domain: 'people', resource: 'contacts', webTabs: ['contacts', 'birthdays', 'home', 'dashboard'] };
+  }
+  if (p.includes('/health-logs') || p.includes('/medications') || p.includes('/appointments')) {
+    return { domain: 'people', resource: 'health', webTabs: ['health', 'home', 'dashboard'] };
+  }
+  if (p.includes('/pets')) {
+    return { domain: 'people', resource: 'pets', webTabs: ['pets', 'home', 'dashboard'] };
+  }
+  if (p.includes('/locations') || p.includes('/family-track') || p.includes('/users/location')) {
+    return { domain: 'people', resource: 'locations', webTabs: ['family_tracker', 'home', 'dashboard'] };
+  }
+  if (p.includes('/focusflow/projects')) {
+    return { domain: 'plans', resource: 'focus_areas', webTabs: ['focus_areas', 'todo', 'home', 'dashboard'] };
+  }
+  if (p.includes('/focusflow/routines')) {
+    return { domain: 'plans', resource: 'routines', webTabs: ['routines', 'home', 'dashboard'] };
+  }
+  if (p.includes('/focusflow/habits')) {
+    return { domain: 'plans', resource: 'habits', webTabs: ['habits', 'home', 'dashboard'] };
+  }
+  if (p.includes('/focusflow/tasks') || p.includes('/todo') || p === '/api/tasks' || p.startsWith('/api/tasks/')) {
+    return { domain: 'plans', resource: 'tasks', webTabs: ['todo', 'focus', 'home', 'dashboard'] };
+  }
+  if (p.includes('/calendar')) {
+    return { domain: 'plans', resource: 'calendar', webTabs: ['calendar', 'home', 'dashboard'] };
+  }
+  if (p.includes('/housekeeping')) {
+    return { domain: 'household', resource: 'chores', webTabs: ['housekeeping', 'home', 'dashboard'] };
+  }
+  if (p.includes('/shopping-lists')) {
+    return { domain: 'household', resource: 'shopping', webTabs: ['shopping', 'inventory', 'home', 'dashboard'] };
+  }
+  if (p.includes('/recipes') || p.includes('/cookbook')) {
+    return { domain: 'household', resource: 'recipes', webTabs: ['recipes', 'planner', 'home', 'dashboard'] };
+  }
+  if (p.includes('/menu') || p.includes('/meals') || p.includes('/meal-plan')) {
+    return { domain: 'household', resource: 'meals', webTabs: ['planner', 'home', 'dashboard'] };
+  }
+  if (p.includes('/inventory') || p.includes('/pantry')) {
+    return { domain: 'household', resource: 'inventory', webTabs: ['inventory', 'shopping', 'home', 'dashboard'] };
+  }
+  if (p.includes('/leftovers')) {
+    return { domain: 'household', resource: 'leftovers', webTabs: ['leftovers', 'planner', 'home', 'dashboard'] };
+  }
+  if (p.includes('/bills')) {
+    return { domain: 'finance', resource: 'bills', webTabs: ['bills', 'money', 'home', 'dashboard'] };
+  }
+  if (p.includes('/subscriptions')) {
+    return { domain: 'finance', resource: 'subscriptions', webTabs: ['subscriptions', 'money', 'home', 'dashboard'] };
+  }
+  if (p.includes('/monarch') || p.includes('/money')) {
+    return { domain: 'finance', resource: 'monarch', webTabs: ['money', 'bills', 'subscriptions', 'home', 'dashboard'] };
+  }
+  if (p.includes('/books') || p.includes('/reading-list') || p.includes('/reading-log')) {
+    return { domain: 'library', resource: 'books', webTabs: ['library', 'reading_list', 'reading_log', 'home', 'dashboard'] };
+  }
+  if (p.includes('/games')) {
+    return { domain: 'entertainment', resource: 'games', webTabs: ['games', 'home', 'dashboard'] };
+  }
+  if (p.includes('/users')) {
+    return { domain: 'people', resource: 'users', webTabs: ['profile', 'settings', 'family_tracker', 'home', 'dashboard'] };
+  }
+  return { domain: 'general', resource: 'general', webTabs: ['home', 'dashboard'] };
+}
+
+function broadcastUnifiedMutation(meta = {}) {
+  unifiedStateRevision += 1;
+  lastUnifiedMutation = {
+    revision: unifiedStateRevision,
+    domain: meta.domain || 'general',
+    resource: meta.resource || 'general',
+    webTabs: Array.isArray(meta.webTabs) ? meta.webTabs : ['home'],
+    method: meta.method || 'POST',
+    path: meta.path || '/api/unified/state',
+    originClientId: meta.originClientId || '',
+    timestamp: new Date().toISOString(),
+  };
+
+  const payloadStr = `data: ${JSON.stringify({
+    type: 'mutation',
+    ...lastUnifiedMutation,
+  })}\n\n`;
+
+  for (const clientRes of unifiedSseClients) {
+    try {
+      clientRes.write(payloadStr);
+    } catch (e) {
+      unifiedSseClients.delete(clientRes);
+    }
+  }
+}
+
+// Intercept all mutating /api/* calls and broadcast real-time change events
+app.use('/api', (req, res, next) => {
+  const method = (req.method || 'GET').toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return next();
+  }
+  const cleanPath = (req.originalUrl || req.url || '').split('?')[0];
+  const lowerPath = cleanPath.toLowerCase();
+  // Skip non-data auth/ping/proxy routes
+  if (
+    lowerPath.startsWith('/api/auth/') ||
+    lowerPath.startsWith('/api/tv/ping') ||
+    lowerPath.startsWith('/api/tv/request-code') ||
+    lowerPath.startsWith('/api/family-proxy') ||
+    lowerPath.startsWith('/api/monarch/test')
+  ) {
+    return next();
+  }
+
+  res.on('finish', () => {
+    if (res.statusCode >= 200 && res.statusCode < 400) {
+      const classified = classifyUnifiedMutation(cleanPath);
+      const originClientId = String(req.headers['x-client-id'] || req.query.client_id || '');
+      broadcastUnifiedMutation({
+        ...classified,
+        method,
+        path: cleanPath,
+        originClientId,
+      });
+    }
+  });
+  next();
+});
+
+// GET /api/unified/version - Fast real-time revision check for Web & Android apps
+app.get(['/api/unified/version', '/api/events/version'], authenticate, (req, res) => {
+  res.json({
+    revision: unifiedStateRevision,
+    lastMutation: lastUnifiedMutation,
+    serverTime: new Date().toISOString(),
+  });
+});
+
+// GET /api/unified/stream - Server-Sent Events (SSE) real-time push stream for Web & Android apps
+app.get(['/api/unified/stream', '/api/events/stream'], authenticate, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  if (typeof res.flushHeaders === 'function') {
+    res.flushHeaders();
+  }
+
+  unifiedSseClients.add(res);
+
+  // Immediately push current revision state upon connection
+  res.write(
+    `data: ${JSON.stringify({
+      type: 'connected',
+      revision: unifiedStateRevision,
+      lastMutation: lastUnifiedMutation,
+      serverTime: new Date().toISOString(),
+    })}\n\n`
+  );
+
+  // Keepalive heartbeat every 20 seconds
+  const heartbeatInterval = setInterval(() => {
+    try {
+      res.write(`: heartbeat ${Date.now()}\n\n`);
+    } catch (e) {
+      clearInterval(heartbeatInterval);
+      unifiedSseClients.delete(res);
+    }
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(heartbeatInterval);
+    unifiedSseClients.delete(res);
+  });
+});
+
+// Helper to normalize grocery category for unified state
+function normalizeUnifiedGroceryCategory(raw = '', itemName = '') {
+  const checkStr = `${raw || ''} ${itemName || ''}`.toLowerCase().trim();
+  if (!checkStr) return 'Pantry';
+  if (
+    checkStr.includes('produce') ||
+    checkStr.includes('fruit') ||
+    checkStr.includes('veg') ||
+    checkStr.includes('fresh') ||
+    checkStr.includes('apple') ||
+    checkStr.includes('banana') ||
+    checkStr.includes('spinach') ||
+    checkStr.includes('avocado') ||
+    checkStr.includes('berry') ||
+    checkStr.includes('onion') ||
+    checkStr.includes('garlic') ||
+    checkStr.includes('tomato') ||
+    checkStr.includes('salad')
+  )
+    return 'Produce';
+  if (
+    checkStr.includes('dairy') ||
+    checkStr.includes('egg') ||
+    checkStr.includes('cheese') ||
+    checkStr.includes('milk') ||
+    checkStr.includes('yogurt') ||
+    checkStr.includes('butter') ||
+    checkStr.includes('cream')
+  )
+    return 'Dairy & Eggs';
+  if (
+    checkStr.includes('meat') ||
+    checkStr.includes('seafood') ||
+    checkStr.includes('poultry') ||
+    checkStr.includes('beef') ||
+    checkStr.includes('fish') ||
+    checkStr.includes('chicken') ||
+    checkStr.includes('pork') ||
+    checkStr.includes('steak') ||
+    checkStr.includes('deli')
+  )
+    return 'Meat & Seafood';
+  if (
+    checkStr.includes('bakery') ||
+    checkStr.includes('bread') ||
+    checkStr.includes('bagel') ||
+    checkStr.includes('pastry') ||
+    checkStr.includes('tortilla') ||
+    checkStr.includes('croissant') ||
+    checkStr.includes('bun')
+  )
+    return 'Bakery';
+  if (
+    checkStr.includes('frozen') ||
+    checkStr.includes('ice cream') ||
+    checkStr.includes('freezer') ||
+    checkStr.includes('pizza') ||
+    checkStr.includes('waffle')
+  )
+    return 'Frozen';
+  if (
+    checkStr.includes('snack') ||
+    checkStr.includes('candy') ||
+    checkStr.includes('chip') ||
+    checkStr.includes('cookie') ||
+    checkStr.includes('cracker') ||
+    checkStr.includes('nuts') ||
+    checkStr.includes('chocolate')
+  )
+    return 'Snacks';
+  if (
+    checkStr.includes('house') ||
+    checkStr.includes('clean') ||
+    checkStr.includes('paper') ||
+    checkStr.includes('soap') ||
+    checkStr.includes('detergent') ||
+    checkStr.includes('bath') ||
+    checkStr.includes('laundry') ||
+    checkStr.includes('trash') ||
+    checkStr.includes('shampoo')
+  )
+    return 'Household';
+  return 'Pantry';
+}
+
+// GET /api/unified/state - Authoritative real-time state snapshot for both Web App and Android App
+app.get('/api/unified/state', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const userId = req.user?.id || 1;
+    const todayStr = getTzTodayStr(req.user?.timezone || 'America/New_York');
+
+    // 1. Household Members & Users Map
+    let members = [];
+    const usersMap = new Map();
+    try {
+      const allUsers = await getAllUsers();
+      members = (allUsers || []).map((u) => {
+        const displayName = u.display_name || u.username || `Member ${u.id}`;
+        usersMap.set(Number(u.id), { displayName, username: u.username });
+        const roleStr = String(u.role_name || '').toLowerCase();
+        const normalizedRole =
+          roleStr.includes('admin') || Number(u.id) === 1
+            ? 'admin'
+            : roleStr.includes('kid') || roleStr.includes('child')
+            ? 'kid'
+            : 'member';
+        return {
+          id: String(u.id),
+          username: u.username,
+          name: displayName,
+          display_name: displayName,
+          role: normalizedRole,
+          role_name: u.role_name,
+          avatar: displayName.charAt(0).toUpperCase(),
+          picture_url: u.picture_url || '',
+          color: u.primary_color || '#3b82f6',
+          primary_color: u.primary_color || '#3b82f6',
+          email: u.email || '',
+          phone: u.phone || '',
+          birthday: u.birthday || '',
+        };
+      });
+    } catch (e) {
+      console.warn('Unified state members warning:', e.message);
+    }
+
+    // 2. Locations (Family Tracker)
+    let locations = [];
+    try {
+      const latestLocations = await getLatestUserLocations();
+      const locByUserId = new Map();
+      for (const loc of latestLocations || []) {
+        locByUserId.set(Number(loc.user_id), loc);
+      }
+      locations = members.map((u) => {
+        const loc = locByUserId.get(Number(u.id));
+        return {
+          user_id: Number(u.id),
+          username: u.username,
+          display_name: u.display_name || u.name || u.username,
+          picture_url: u.picture_url || '',
+          primary_color: u.primary_color || '#3b82f6',
+          role_name: u.role_name || 'Member',
+          has_location: Boolean(loc),
+          latitude: loc ? Number(loc.latitude) : null,
+          longitude: loc ? Number(loc.longitude) : null,
+          accuracy: loc && loc.accuracy !== null ? Number(loc.accuracy) : null,
+          recorded_at: loc ? loc.recorded_at : null,
+          updated_at: loc ? loc.updated_at : null,
+          source: loc ? loc.source : null,
+        };
+      });
+    } catch (e) {
+      console.warn('Unified state locations warning:', e.message);
+    }
+
+    // 3. People (Contacts, Birthdays, Health, Pets)
+    const people = {
+      contacts: [],
+      birthdays: [],
+      health: [],
+      pets: [],
+    };
+    try {
+      const rawContacts = await db.all('SELECT * FROM contacts ORDER BY name ASC');
+      const rawImportantDates = await db.all('SELECT * FROM contact_important_dates ORDER BY date ASC');
+      const datesByContact = new Map();
+      for (const d of rawImportantDates || []) {
+        const cId = Number(d.contact_id);
+        if (!datesByContact.has(cId)) datesByContact.set(cId, []);
+        datesByContact.get(cId).push(d);
+      }
+
+      people.contacts = (rawContacts || []).map((c) => {
+        const impDates = datesByContact.get(Number(c.id)) || [];
+        return {
+          ...c,
+          id: String(c.id),
+          name: c.name || 'Contact',
+          relationship: c.relationship || 'Family',
+          phone: c.phone || '',
+          email: c.email || '',
+          birthday: c.birthday || undefined,
+          address: c.address || '',
+          notes: c.notes || '',
+          isEmergency: Boolean(c.is_emergency),
+          is_emergency: c.is_emergency ? 1 : 0,
+          isPinned: Boolean(c.is_pinned),
+          is_pinned: c.is_pinned ? 1 : 0,
+          important_dates: impDates,
+        };
+      });
+
+      people.birthdays = people.contacts
+        .filter((c) => c.birthday)
+        .map((c) => ({
+          id: `b_${c.id}`,
+          contact_id: c.id,
+          name: c.name,
+          date: c.birthday,
+          relationship: c.relationship,
+          category: ['Family', 'Self', 'Spouse', 'Child', 'Parent', 'Sibling'].includes(c.relationship)
+            ? 'Family'
+            : 'Friends',
+        }));
+    } catch (e) {
+      console.warn('Unified state contacts warning:', e.message);
+    }
+
+    try {
+      const rawHealth = await db.all(`
+        SELECT h.*, u.display_name as user_display_name, u.username as user_username
+        FROM health_logs h
+        LEFT JOIN users u ON h.user_id = u.id
+        ORDER BY h.log_date DESC, h.id DESC
+      `);
+      people.health = (rawHealth || []).map((h) => {
+        const memberName =
+          h.member_name || h.user_display_name || h.user_username || 'Family Member';
+        const type = h.record_type || (h.steps ? 'condition' : 'medication');
+        const title =
+          h.title || (h.mood ? `Mood: ${h.mood}` : `Log: ${h.log_date || 'Health Entry'}`);
+        const detail =
+          h.detail ||
+          [
+            h.steps ? `Steps: ${h.steps}` : '',
+            h.sleep_hours ? `Sleep: ${h.sleep_hours}h` : '',
+            h.water_ml ? `Water: ${h.water_ml}ml` : '',
+            h.weight ? `Weight: ${h.weight}lbs` : '',
+            h.notes ? `${h.notes}` : '',
+          ]
+            .filter(Boolean)
+            .join(' • ') ||
+          'Daily health record';
+        return {
+          ...h,
+          id: String(h.id),
+          memberName,
+          member_name: memberName,
+          type,
+          record_type: type,
+          title,
+          detail,
+          frequency: h.frequency || h.log_date || '',
+        };
+      });
+    } catch (e) {
+      console.warn('Unified state health warning:', e.message);
+    }
+
+    try {
+      const rawPets = await db.all('SELECT * FROM pets ORDER BY name ASC');
+      people.pets = (rawPets || []).map((p) => ({
+        ...p,
+        id: String(p.id),
+        name: p.name || 'Pet',
+        species: ['Dog', 'Cat', 'Bird', 'Fish'].includes(p.type) ? p.type : 'Other',
+        type: p.type || 'Dog',
+        breed: p.breed || '',
+        birthDate: p.birthdate || '',
+        birthdate: p.birthdate || '',
+        vetContact: p.vet_phone || p.vet_contact || '',
+        vet_contact: p.vet_phone || p.vet_contact || '',
+        microchipNumber: p.microchip_number || '',
+        microchip_number: p.microchip_number || '',
+        notes: p.notes || '',
+      }));
+    } catch (e) {
+      console.warn('Unified state pets warning:', e.message);
+    }
+
+    // 4. Plans (Tasks, Focus Areas, Routines, Habits, Calendar Events)
+    const plans = {
+      tasks: [],
+      focusAreas: [],
+      routines: [],
+      habits: [],
+      events: [],
+    };
+    try {
+      const rawTasks = await getAllTasks({});
+      const seenTitles = new Set();
+      const unifiedTasks = [];
+      for (const t of rawTasks || []) {
+        const isCompleted =
+          t.status === 'completed' || Boolean(t.is_completed) || Boolean(t.completed);
+        const title = (t.title || 'Untitled Task').trim();
+        seenTitles.add(title.toLowerCase());
+        unifiedTasks.push({
+          ...t,
+          id: String(t.id),
+          title,
+          priority: t.priority === 'high' || t.priority === 'low' ? t.priority : 'medium',
+          estimatedMins: Number(t.estimated_time || 25),
+          estimated_time: Number(t.estimated_time || 25),
+          completed: isCompleted,
+          project: t.project_name || 'General',
+          project_name: t.project_name || 'General',
+          isPinned: Boolean(t.is_pinned),
+          is_pinned: t.is_pinned ? 1 : 0,
+          dueDate: t.due_date || undefined,
+          due_date: t.due_date || null,
+          notes: t.description || '',
+        });
+      }
+      try {
+        const todoRows = await db.all(`
+          SELECT t.*, l.name as list_name
+          FROM todo_tasks t
+          LEFT JOIN todo_lists l ON t.list_id = l.id
+          ORDER BY t.created_at DESC
+        `);
+        for (const td of todoRows || []) {
+          const title = (td.title || 'Untitled Task').trim();
+          if (!seenTitles.has(title.toLowerCase())) {
+            seenTitles.add(title.toLowerCase());
+            unifiedTasks.push({
+              ...td,
+              id: `todo-${td.id}`,
+              title,
+              priority: td.priority === 'high' || td.priority === 'low' ? td.priority : 'medium',
+              estimatedMins: 25,
+              completed: Boolean(td.is_completed),
+              project: td.list_name || 'Household Todos',
+              isPinned: false,
+              dueDate: td.due_date || undefined,
+              notes: td.description || '',
+            });
+          }
+        }
+      } catch (_) {}
+      plans.tasks = unifiedTasks;
+    } catch (e) {
+      console.warn('Unified state tasks warning:', e.message);
+    }
+
+    try {
+      const rawProjects = await getAllProjects();
+      const allSchedules = await db.all('SELECT * FROM project_schedules ORDER BY day_of_week, start_time');
+      const schedByProject = new Map();
+      for (const s of allSchedules || []) {
+        const pId = Number(s.project_id);
+        if (!schedByProject.has(pId)) schedByProject.set(pId, []);
+        schedByProject.get(pId).push(s);
+      }
+
+      plans.focusAreas = (rawProjects || []).map((p) => {
+        const schedules = schedByProject.get(Number(p.id)) || [];
+        const firstTimed = schedules.find((b) => b.start_time && b.end_time);
+        const days = schedules.map((b) => Number(b.day_of_week));
+        const workHours = p.schedule_enabled
+          ? {
+              enabled: true,
+              startTime: firstTimed?.start_time || '09:00',
+              endTime: firstTimed?.end_time || '17:00',
+              days: days.length > 0 ? days : [1, 2, 3, 4, 5],
+            }
+          : undefined;
+        return {
+          ...p,
+          id: String(p.id),
+          title: p.name || 'Focus Area',
+          name: p.name || 'Focus Area',
+          description: p.description || '',
+          tasksCount: Number(p.task_count || 0),
+          task_count: Number(p.task_count || 0),
+          color: p.color || '#10b981',
+          icon: p.icon || 'Folder',
+          schedule_enabled: Boolean(p.schedule_enabled),
+          schedules,
+          workHours,
+        };
+      });
+    } catch (e) {
+      console.warn('Unified state focusAreas warning:', e.message);
+    }
+
+    try {
+      const rawRoutines = await db.all(
+        'SELECT * FROM routines WHERE user_id = ? OR is_shared = 1 ORDER BY created_at ASC',
+        [userId]
+      );
+      plans.routines = await Promise.all(
+        (rawRoutines || []).map(async (r) => {
+          const rTasks = await db.all(
+            'SELECT * FROM routine_tasks WHERE routine_id = ? ORDER BY sort_order ASC, id ASC',
+            [r.id]
+          );
+          const logs = await db.all(
+            'SELECT routine_task_id FROM routine_logs WHERE user_id = ? AND completed_date = ?',
+            [userId, todayStr]
+          );
+          const doneSet = new Set((logs || []).map((l) => Number(l.routine_task_id)));
+          const steps = (rTasks || []).map((st) => {
+            const isDone = doneSet.has(Number(st.id));
+            return {
+              ...st,
+              id: String(st.id),
+              text: st.title || '',
+              title: st.title || '',
+              done: isDone,
+              completed: isDone,
+              completed_today: isDone,
+            };
+          });
+          return {
+            ...r,
+            id: String(r.id),
+            title: r.title || 'Routine',
+            timeOfDay: r.time_of_day || 'Morning',
+            time_of_day: r.time_of_day || 'Morning',
+            tasks: steps,
+            steps,
+          };
+        })
+      );
+    } catch (e) {
+      console.warn('Unified state routines warning:', e.message);
+    }
+
+    try {
+      const rawHabits = await db.all(
+        'SELECT * FROM habits WHERE user_id = ? OR is_shared = 1 ORDER BY created_at DESC',
+        [userId]
+      );
+      plans.habits = await Promise.all(
+        (rawHabits || []).map(async (h) => {
+          const logs = await db.all(
+            'SELECT completed_date FROM habit_logs WHERE habit_id = ? AND user_id = ? ORDER BY completed_date DESC',
+            [h.id, userId]
+          );
+          const dateSet = new Set((logs || []).map((l) => l.completed_date));
+          const completedToday = dateSet.has(todayStr);
+          let streak = 0;
+          const checkDate = new Date(todayStr + 'T12:00:00');
+          if (!completedToday) checkDate.setDate(checkDate.getDate() - 1);
+          while (true) {
+            const ds = checkDate.toISOString().split('T')[0];
+            if (dateSet.has(ds)) {
+              streak++;
+              checkDate.setDate(checkDate.getDate() - 1);
+            } else {
+              break;
+            }
+          }
+          return {
+            ...h,
+            id: String(h.id),
+            name: h.title || 'Habit',
+            title: h.title || 'Habit',
+            streak,
+            completedToday,
+            completed_today: completedToday,
+            frequency: h.frequency === 'weekly' ? 'weekly' : 'daily',
+            category: h.category || 'Personal',
+            lastCompletedDate: logs?.[0]?.completed_date || undefined,
+          };
+        })
+      );
+    } catch (e) {
+      console.warn('Unified state habits warning:', e.message);
+    }
+
+    try {
+      const rawEvents = await db.all(
+        'SELECT * FROM calendar_events WHERE start_time >= ? ORDER BY start_time ASC LIMIT 200',
+        [`${todayStr}T00:00:00`]
+      );
+      plans.events = (rawEvents || []).map((e) => {
+        const rawStart = String(e.start_time || '');
+        const isAllDay = Boolean(e.all_day || !rawStart.includes(':'));
+        let eventDate = todayStr;
+        let eventTime = 'All Day';
+        if (rawStart.includes('T')) {
+          const [dPart, tPart] = rawStart.split('T');
+          eventDate = dPart;
+          if (tPart && !isAllDay) eventTime = tPart.substring(0, 5);
+        } else if (rawStart.includes(' ')) {
+          const [dPart, tPart] = rawStart.split(' ');
+          eventDate = dPart;
+          if (tPart && !isAllDay) eventTime = tPart.substring(0, 5);
+        } else if (rawStart.includes('-')) {
+          eventDate = rawStart;
+        }
+        return {
+          ...e,
+          id: String(e.id),
+          title: e.title || 'Event',
+          time: eventTime,
+          endTime: e.end_time && e.end_time.includes('T') ? e.end_time.split('T')[1].substring(0, 5) : '',
+          allDay: isAllDay,
+          date: eventDate,
+          category: e.event_type || 'Family',
+          calendarId: 'events',
+          calendarName: 'Events',
+          calendarColor: e.color || '#10b981',
+          location: e.location || '',
+          memberIds: e.user_id ? [String(e.user_id)] : [],
+          notes: e.description || '',
+        };
+      });
+    } catch (e) {
+      console.warn('Unified state events warning:', e.message);
+    }
+
+    // 5. Household (Chores, Shopping Lists & Items, Recipes, Meals, Inventory, Leftovers)
+    const household = {
+      chores: [],
+      shoppingLists: [],
+      shoppingItems: [],
+      recipes: [],
+      meals: [],
+      inventory: [],
+      leftovers: [],
+    };
+
+    try {
+      const rawChores = await db.all(`
+        SELECT t.*, u.username as assigned_username, u.display_name as assigned_display_name
+        FROM housekeeping_tasks t
+        LEFT JOIN users u ON t.assigned_to_user_id = u.id
+        ORDER BY CASE WHEN t.status = 'pending' THEN 1 ELSE 2 END, t.due_date ASC
+      `);
+      household.chores = (rawChores || []).map((t) => {
+        let assignee =
+          t.assigned_display_name ||
+          t.assigned_username ||
+          (t.assigned_to_user_id && usersMap.get(Number(t.assigned_to_user_id))?.displayName) ||
+          'Unassigned';
+        if (!assignee || assignee === 'Family') assignee = 'Unassigned';
+        return {
+          ...t,
+          id: String(t.id),
+          title: t.title,
+          assignedTo: assignee,
+          recurrence: t.reoccurrence === 'none' ? 'as_needed' : t.reoccurrence || 'daily',
+          completed: t.status === 'completed',
+          dueTime: t.due_date ? t.due_date.split('T')[0] : undefined,
+          iconName: 'Sparkles',
+        };
+      });
+    } catch (e) {
+      console.warn('Unified state chores warning:', e.message);
+    }
+
+    try {
+      let lists = await getShoppingListsForUser(userId);
+      if (!lists || lists.length === 0) {
+        const newListId = await createShoppingList(userId, 'Household Shopping List', 0);
+        lists = await getShoppingListsForUser(userId);
+      }
+      const mappedLists = [];
+      const allShopItems = [];
+      for (let i = 0; i < (lists || []).length; i++) {
+        const l = lists[i];
+        const details = await getShoppingListDetails(l.id, userId);
+        const rawItems = details?.items || [];
+        mappedLists.push({
+          ...l,
+          id: String(l.id),
+          name: l.name || 'Shopping List',
+          itemCount: rawItems.length,
+          item_count: rawItems.length,
+          isDefault: i === 0,
+          ownerId: l.owner_id,
+          ownerUsername: l.owner_username,
+          permission: l.permission || 'owner',
+          auto_add_inventory: l.auto_add_inventory,
+        });
+        for (const item of rawItems) {
+          const rawAmount = item.amount ?? '';
+          const unit = item.unit ? String(item.unit).trim() : '';
+          const quantity = rawAmount ? `${rawAmount} ${unit}`.trim() : unit || '1';
+          const itemName = String(item.name || 'Grocery Item').trim();
+          allShopItems.push({
+            ...item,
+            id: String(item.id),
+            listId: String(l.id),
+            list_id: l.id,
+            name: itemName,
+            quantity,
+            category: normalizeUnifiedGroceryCategory(item.department, itemName),
+            checked: Boolean(item.is_checked),
+            addedBy: 'Family App',
+            urgent: false,
+            createdAt: todayStr,
+          });
+        }
+      }
+      household.shoppingLists = mappedLists;
+      household.shoppingItems = allShopItems;
+    } catch (e) {
+      console.warn('Unified state shopping warning:', e.message);
+    }
+
+    try {
+      const rawRecipes = await getAllRecipes();
+      household.recipes = (rawRecipes || []).map((r) => {
+        const ingList = Array.isArray(r.ingredients)
+          ? r.ingredients.map((i) =>
+              typeof i === 'string'
+                ? i
+                : [i.amount, i.measurement, i.name].filter(Boolean).join(' ').trim()
+            )
+          : [];
+        const instList = Array.isArray(r.instructions)
+          ? r.instructions.map((s) => (typeof s === 'string' ? s : s.instruction_text || '')).filter(Boolean)
+          : [];
+        const notesText = Array.isArray(r.notes)
+          ? r.notes.map((n) => (typeof n === 'string' ? n : n.note_text || '')).filter(Boolean).join('\n\n')
+          : typeof r.notes === 'string'
+          ? r.notes
+          : '';
+        const tagsArr = typeof r.tags === 'string' && r.tags.trim()
+          ? r.tags.split(',').map((t) => t.trim()).filter(Boolean)
+          : Array.isArray(r.tags)
+          ? r.tags
+          : [];
+        return {
+          ...r,
+          id: String(r.id),
+          title: r.title || 'Untitled Recipe',
+          category: r.category || tagsArr[0] || 'Dinner',
+          prepTime: r.prep_time ? (String(r.prep_time).endsWith('m') ? String(r.prep_time) : `${r.prep_time}m`) : '15m',
+          cookTime: r.cook_time ? (String(r.cook_time).endsWith('m') ? String(r.cook_time) : `${r.cook_time}m`) : '20m',
+          servings: Number(r.servings || 4),
+          description: r.description || '',
+          ingredients: ingList,
+          raw_ingredients: r.ingredients,
+          instructions: instList,
+          raw_instructions: r.instructions,
+          notes: notesText,
+          raw_notes: r.notes,
+          tags: tagsArr,
+          imageUrl: r.image_path || undefined,
+          isFavorite: Boolean(r.favorite),
+        };
+      });
+    } catch (e) {
+      console.warn('Unified state recipes warning:', e.message);
+    }
+
+    try {
+      const rawMenuRows = await db.all(`
+        SELECT wm.*, r.title as recipe_title, r.prep_time, r.cook_time, r.servings as recipe_servings,
+               l.name as leftover_name
+        FROM weekly_menu wm
+        LEFT JOIN recipes r ON wm.recipe_id = r.id
+        LEFT JOIN leftovers l ON wm.leftover_id = l.id
+        ORDER BY wm.id ASC
+      `);
+      const recipesById = new Map(household.recipes.map((r) => [String(r.id), r]));
+      const mealMap = new Map();
+      for (const m of rawMenuRows || []) {
+        const rawDay = m.day_of_week || 'Monday';
+        const normalizedDay = rawDay.charAt(0).toUpperCase() + rawDay.slice(1).toLowerCase();
+        const rawMealType = String(m.meal_type || 'Dinner').toLowerCase();
+        const normalizedMealType = rawMealType.includes('break')
+          ? 'Breakfast'
+          : rawMealType.includes('lunch')
+          ? 'Lunch'
+          : rawMealType.includes('snack')
+          ? 'Snack'
+          : 'Dinner';
+        const recipeIdStr = m.recipe_id ? String(m.recipe_id) : undefined;
+        const matchedRecipe = recipeIdStr ? recipesById.get(recipeIdStr) : undefined;
+        const mealTitle =
+          m.custom_meal ||
+          m.recipe_title ||
+          m.leftover_name ||
+          (matchedRecipe ? matchedRecipe.title : undefined) ||
+          (typeof m.tags === 'string' && m.tags.trim() ? m.tags.trim() : undefined) ||
+          'Family Meal';
+        const assignedName = m.assigned_people || 'Family';
+        const mappedMeal = {
+          ...m,
+          id: String(m.id),
+          day: normalizedDay,
+          mealType: normalizedMealType,
+          title: mealTitle,
+          recipeId: recipeIdStr,
+          recipeName: matchedRecipe ? matchedRecipe.title : m.recipe_title || undefined,
+          prepTime: matchedRecipe ? matchedRecipe.prepTime : undefined,
+          cookTime: matchedRecipe ? matchedRecipe.cookTime : undefined,
+          servings: m.servings ? Number(m.servings) : matchedRecipe ? matchedRecipe.servings : 4,
+          ingredients: matchedRecipe ? matchedRecipe.ingredients : [],
+          isCooked: false,
+          assignedMemberId: '1',
+          assignedMemberName: assignedName,
+          assignedTo: assignedName,
+          week_start: m.week_start || undefined,
+        };
+        mealMap.set(`${mappedMeal.week_start || ''}_${normalizedDay.toLowerCase()}_${normalizedMealType.toLowerCase()}`, mappedMeal);
+      }
+      household.meals = Array.from(mealMap.values());
+    } catch (e) {
+      console.warn('Unified state meals warning:', e.message);
+    }
+
+    try {
+      const rawInv = await getAllInventory();
+      household.inventory = (rawInv || []).map((item) => ({
+        ...item,
+        id: String(item.id),
+        name: item.name || item.title || 'Pantry Item',
+        title: item.title || item.name || 'Pantry Item',
+        category: item.category || 'Pantry Staples',
+        quantity: Number(item.quantity ?? item.size_number ?? 1),
+        unit: item.unit || item.size_unit || 'items',
+        location: item.location || 'Main Pantry',
+        expiresDate: item.expiration_date || undefined,
+        minThreshold: Number(item.min_threshold || 1),
+        notes: item.notes || undefined,
+        barcode: item.barcode || undefined,
+        lastUpdated: item.updated_at ? String(item.updated_at).split('T')[0] : todayStr,
+      }));
+    } catch (e) {
+      console.warn('Unified state inventory warning:', e.message);
+    }
+
+    try {
+      const rawLeftovers = await getAllLeftovers();
+      household.leftovers = (rawLeftovers || []).map((l) => ({
+        ...l,
+        id: String(l.id),
+        name: l.name,
+        portions: Number(l.servings || l.portions || 1),
+        expiresDate: l.expiration_date ? String(l.expiration_date).split('T')[0] : todayStr,
+        dateLogged: l.date_added ? String(l.date_added).split('T')[0] : todayStr,
+        storageLocation: l.location || 'Fridge Top Shelf',
+        notes: l.notes || undefined,
+      }));
+    } catch (e) {
+      console.warn('Unified state leftovers warning:', e.message);
+    }
+
+    // 6. Finance (Bills, Subscriptions)
+    const finance = {
+      bills: [],
+      subscriptions: [],
+    };
+    try {
+      const rawBills = await db.all('SELECT * FROM recurring_bills ORDER BY next_billing_date ASC');
+      finance.bills = (rawBills || []).map((b) => ({
+        ...b,
+        id: String(b.id),
+        name: b.name || 'Bill',
+        amount: parseFloat(b.amount) || 0,
+        dueDate: b.next_billing_date || todayStr,
+        isPaid: Boolean(b.is_paid || b.active === 0),
+        category: b.tag || 'Utilities',
+        tag: b.tag || undefined,
+        billingCycle: b.billing_cycle || 'monthly',
+        active: b.active !== undefined ? Boolean(b.active) : true,
+        paymentMethod: b.payment_method || undefined,
+      }));
+    } catch (e) {
+      console.warn('Unified state bills warning:', e.message);
+    }
+
+    try {
+      const rawSubs = await db.all('SELECT * FROM subscriptions ORDER BY next_billing_date ASC');
+      finance.subscriptions = (rawSubs || []).map((s) => ({
+        ...s,
+        id: String(s.id),
+        name: s.name || 'Subscription',
+        cost: parseFloat(s.amount ?? s.cost) || 0,
+        billingCycle: s.billing_cycle || 'monthly',
+        nextBillingDate: s.next_billing_date || todayStr,
+        category: s.category || 'Entertainment',
+        autoRenew: true,
+        active: s.active !== undefined ? Boolean(s.active) : true,
+        paymentMethod: s.payment_method || undefined,
+        notes: s.notes || undefined,
+      }));
+    } catch (e) {
+      console.warn('Unified state subscriptions warning:', e.message);
+    }
+
+    // 7. Library & Games
+    const library = { books: [] };
+    const entertainment = { games: [] };
+    try {
+      const rawBooks = await getAllBooks({});
+      library.books = (rawBooks || []).map((b) => ({
+        ...b,
+        id: String(b.id),
+      }));
+    } catch (_) {}
+
+    try {
+      const rawGames = await db.all('SELECT * FROM board_games ORDER BY title ASC');
+      entertainment.games = (rawGames || []).map((g) => ({
+        ...g,
+        id: String(g.id),
+      }));
+    } catch (_) {}
+
+    res.json({
+      success: true,
+      revision: unifiedStateRevision,
+      lastMutation: lastUnifiedMutation,
+      serverTime: new Date().toISOString(),
+      members,
+      locations,
+      people,
+      plans,
+      household,
+      finance,
+      library,
+      entertainment,
+    });
+  } catch (error) {
+    console.error('Error building unified state:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Set up storage folders
 const DATA_DIR = process.env.DATA_DIR || './data';
 const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
