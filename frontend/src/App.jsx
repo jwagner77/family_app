@@ -47,7 +47,8 @@ import {
   Home,
   Folder,
   Info,
-  Tv
+  Tv,
+  MapPin
 } from 'lucide-react';
 
 // Global fetch interceptor for auth token injection
@@ -86,6 +87,7 @@ import ContactsView from './components/ContactsView';
 import BirthdaysView from './components/BirthdaysView';
 import HealthView from './components/HealthView';
 import PetsView from './components/PetsView';
+import FamilyTrackerView from './components/FamilyTrackerView';
 import FeatureRequestsView from './components/FeatureRequestsView';
 import BugReportsView from './components/BugReportsView';
 import FocusFlowTasksView from './components/FocusFlowTasksView';
@@ -1152,6 +1154,14 @@ export default function App() {
                     <PawPrint />
                     <span>Pets</span>
                   </a>
+                  <a 
+                    className={`nav-link ${activeTab === 'family_tracker' ? 'active' : ''}`}
+                    onClick={() => { setActiveTab('family_tracker'); setIsMobileMenuOpen(false); }}
+                    title="Family Tracker"
+                  >
+                    <MapPin />
+                    <span>Family Tracker</span>
+                  </a>
                 </>
               )}
 
@@ -1798,6 +1808,10 @@ export default function App() {
 
         {activeTab === 'pets' && (
           <PetsView showToast={showToast} />
+        )}
+
+        {activeTab === 'family_tracker' && (
+          <FamilyTrackerView showToast={showToast} currentUser={user} resolvedTheme={resolvedTheme} />
         )}
 
         {activeTab === 'dashboard' && (

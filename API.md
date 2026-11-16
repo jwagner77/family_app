@@ -670,7 +670,35 @@ Retrieve custom family reading lists.
 
 ---
 
-### 12. Contacts & Family Relationships
+### 12. Contacts, Family Relationships & Family Tracker
+
+#### `GET /api/locations` (Aliases: `/api/family-track/locations`, `/api/people/locations`, `/api/users/locations`)
+Retrieve the latest reported GPS location for all household users along with their profile avatar (`picture_url`), `display_name`, and `primary_color`.
+
+#### `POST /api/locations` (Aliases: `/api/family-track/locations`, `/api/people/locations`, `/api/users/location`)
+Sync one or more GPS location breadcrumbs from the Android companion app (`Family_App_Android`) or web check-in.
+- **Body**:
+  ```json
+  {
+    "points": [
+      {
+        "id": "loc_1731750000_abc12",
+        "userId": "1",
+        "userName": "Joshua",
+        "latitude": 38.8977,
+        "longitude": -77.0365,
+        "accuracy": 12.5,
+        "recordedAt": "2026-11-16T14:30:00.000Z"
+      }
+    ]
+  }
+  ```
+
+#### `GET /api/locations/:userId/history`
+Retrieve recent GPS location history for a specific household user.
+
+#### `DELETE /api/locations/:userId`
+Clear stored GPS location history for a specific user.
 
 #### `GET /api/contacts`
 List family, friends, and emergency contacts.

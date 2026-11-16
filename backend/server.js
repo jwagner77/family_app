@@ -135,6 +135,10 @@ import {
   getTvDevices,
   updateTvDevice,
   deleteTvDevice,
+  saveUserLocationPoints,
+  getLatestUserLocations,
+  getUserLocationHistory,
+  deleteUserLocations,
 } from './db.js';
 
 import { parseRecipeImage, parseIngredientLine } from './ocr.js';
@@ -232,7 +236,9 @@ async function authenticate(req, res, next) {
         };
         return next();
       } else {
-        return res.status(401).json({ error: 'Invalid API Key' });
+        if (!verifyToken(apiKey) && !req.headers['authorization'] && !req.query.token) {
+          return res.status(401).json({ error: 'Invalid API Key' });
+        }
       }
     } catch (error) {
       return res.status(500).json({ error: error.message });
@@ -245,6 +251,8 @@ async function authenticate(req, res, next) {
     token = authHeader.split(' ')[1];
   } else if (req.query.token) {
     token = req.query.token;
+  } else if (apiKey && verifyToken(apiKey)) {
+    token = apiKey;
   }
 
   if (!token) return res.status(401).json({ error: 'Authorization header or token missing' });
@@ -1348,7 +1356,84 @@ app.post('/api/users/reset-password', authenticate, async (req, res) => {
   }
 });
 
-app.get('/api/users', authenticate, requirePermission('users', 'read'), async (req, res) => {
+// --- FAMILY TRACKER / USER LOCATIONS ENDPOINTS ---
+
+const handleGetFamilyLocations = async (req, res) => {
+  try {
+    const users = await getLatestUserLocations();
+    const locations = users.filter(u => u.has_location);
+    res.json({
+      success: true,
+      users,
+      locations
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+app.get('/api/locations', authenticate, handleGetFamilyLocations);
+app.get('/api/family-track/locations', authenticate, handleGetFamilyLocations);
+app.get('/api/people/locations', authenticate, handleGetFamilyLocations);
+app.get('/api/users/locations', authenticate, handleGetFamilyLocations);
+
+const handlePostFamilyLocations = async (req, res) => {
+  try {
+    const body = req.body;
+    let points = [];
+    if (Array.isArray(body)) {
+      points = body;
+    } else if (body && Array.isArray(body.locations)) {
+      points = body.locations;
+    } else if (body && Array.isArray(body.points)) {
+      points = body.points;
+    } else if (body && typeof body === 'object') {
+      points = [body];
+    }
+
+    if (points.length === 0) {
+      return res.status(400).json({ error: 'No location points provided' });
+    }
+
+    const { syncedCount, latestPoint } = await saveUserLocationPoints(req.user?.id, points);
+    res.status(201).json({
+      success: true,
+      syncedCount,
+      latestLocation: latestPoint
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+app.post('/api/locations', authenticate, handlePostFamilyLocations);
+app.post('/api/family-track/locations', authenticate, handlePostFamilyLocations);
+app.post('/api/people/locations', authenticate, handlePostFamilyLocations);
+app.post('/api/users/location', authenticate, handlePostFamilyLocations);
+
+app.get('/api/locations/:userId/history', authenticate, async (req, res) => {
+  try {
+    const history = await getUserLocationHistory(req.params.userId, req.query.limit || 50);
+    res.json({ success: true, history });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/locations/:userId', authenticate, async (req, res) => {
+  try {
+    const targetId = Number(req.params.userId);
+    if (req.user.id !== targetId && req.user.role_name !== 'Administrator' && req.user.id !== 1) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+    await deleteUserLocations(targetId);
+    res.json({ success: true, message: 'Location history cleared' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/users', authenticate, async (req, res) => {
   try {
     const users = await getAllUsers();
     res.json(users);
@@ -3595,6 +3680,10 @@ app.post('/api/todo/lists/:listId/tasks', authenticate, async (req, res) => {
 });
 
 app.put('/api/todo/tasks/:id', authenticate, async (req, res) => {
+  req.params.id = String(req.params.id).replace(/^todo-/, '');
+  if (req.body.status === undefined && (req.body.is_completed !== undefined || req.body.completed !== undefined)) {
+    req.body.status = (req.body.is_completed || req.body.completed) ? 'completed' : 'pending';
+  }
   try {
     const { title, description, assigned_to, status, due_date } = req.body;
     const db = await getDb();
@@ -3622,6 +3711,7 @@ app.put('/api/todo/tasks/:id', authenticate, async (req, res) => {
 });
 
 app.delete('/api/todo/tasks/:id', authenticate, async (req, res) => {
+  req.params.id = String(req.params.id).replace(/^todo-/, '');
   try {
     const db = await getDb();
     const task = await db.get("SELECT t.*, l.list_type, l.m365_list_id FROM todo_tasks t JOIN todo_lists l ON t.list_id = l.id WHERE t.id = ?", [req.params.id]);
@@ -4166,6 +4256,33 @@ app.delete('/api/contacts/important-dates/:id', authenticate, async (req, res) =
 
 // POST a new contact
 app.post('/api/contacts', authenticate, async (req, res) => {
+  const { name, phone, email, birthday, relationship, notes, address, is_emergency, isEmergency, is_pinned, isPinned, important_dates } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Name is required' });
+  }
+  try {
+    const db = await getDb();
+    const emergencyVal = (is_emergency ?? isEmergency) ? 1 : 0;
+    const pinnedVal = (is_pinned ?? isPinned) ? 1 : 0;
+    const result = await db.run(
+      'INSERT INTO contacts (name, phone, email, birthday, relationship, notes, address, is_emergency, is_pinned) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, phone || null, email || null, birthday || null, relationship || 'Family', notes || null, address || null, emergencyVal, pinnedVal]
+    );
+    if (Array.isArray(important_dates)) {
+      for (const d of important_dates) {
+        if (d && d.name && d.date) {
+          await db.run('INSERT INTO contact_important_dates (contact_id, name, date) VALUES (?, ?, ?)', [result.lastID, d.name, d.date]);
+        }
+      }
+    }
+    const newContact = await db.get('SELECT * FROM contacts WHERE id = ?', [result.lastID]);
+    newContact.important_dates = await db.all('SELECT * FROM contact_important_dates WHERE contact_id = ?', [result.lastID]);
+    return res.status(201).json(newContact);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/contacts_legacy', authenticate, async (req, res) => {
   const { name, phone, email, birthday, relationship, notes } = req.body;
   if (!name) {
     return res.status(400).json({ error: 'Name is required' });
@@ -4185,6 +4302,47 @@ app.post('/api/contacts', authenticate, async (req, res) => {
 
 // PUT (update) a contact
 app.put('/api/contacts/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  const { name, phone, email, birthday, relationship, notes, address, is_emergency, isEmergency, is_pinned, isPinned } = req.body;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM contacts WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Contact not found' });
+    }
+    const finalName = name !== undefined ? name : existing.name;
+    if (!finalName) {
+      return res.status(400).json({ error: 'Name is required' });
+    }
+    const emergencyVal = (is_emergency !== undefined || isEmergency !== undefined)
+      ? ((is_emergency ?? isEmergency) ? 1 : 0)
+      : (existing.is_emergency || 0);
+    const pinnedVal = (is_pinned !== undefined || isPinned !== undefined)
+      ? ((is_pinned ?? isPinned) ? 1 : 0)
+      : (existing.is_pinned || 0);
+    await db.run(
+      'UPDATE contacts SET name = ?, phone = ?, email = ?, birthday = ?, relationship = ?, notes = ?, address = ?, is_emergency = ?, is_pinned = ? WHERE id = ?',
+      [
+        finalName,
+        phone !== undefined ? phone : existing.phone,
+        email !== undefined ? email : existing.email,
+        birthday !== undefined ? birthday : existing.birthday,
+        relationship !== undefined ? relationship : existing.relationship,
+        notes !== undefined ? notes : existing.notes,
+        address !== undefined ? address : existing.address,
+        emergencyVal,
+        pinnedVal,
+        id
+      ]
+    );
+    const updatedContact = await db.get('SELECT * FROM contacts WHERE id = ?', [id]);
+    updatedContact.important_dates = await db.all('SELECT * FROM contact_important_dates WHERE contact_id = ?', [id]);
+    return res.json(updatedContact);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.put('/api/contacts_legacy/:id', authenticate, async (req, res) => {
   const { id } = req.params;
   const { name, phone, email, birthday, relationship, notes } = req.body;
   if (!name) {
@@ -4230,6 +4388,20 @@ app.delete('/api/contacts/:id', authenticate, async (req, res) => {
 app.get('/api/health-logs', authenticate, async (req, res) => {
   try {
     const db = await getDb();
+    const logs = await db.all(`
+      SELECT h.*, COALESCE(h.member_name, u.display_name, u.username) as user_name
+      FROM health_logs h
+      LEFT JOIN users u ON h.user_id = u.id
+      ORDER BY h.log_date DESC, h.id DESC
+    `);
+    return res.json(logs);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.get('/api/health-logs_legacy', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
     const logs = await db.all('SELECT * FROM health_logs WHERE user_id = ? ORDER BY log_date DESC', [req.user.id]);
     res.json(logs);
   } catch (error) {
@@ -4251,6 +4423,54 @@ app.get('/api/health-logs/:date', authenticate, async (req, res) => {
 
 // POST or update health log for a date
 app.post('/api/health-logs', authenticate, async (req, res) => {
+  const { log_date, steps, water_ml, sleep_hours, mood, weight, notes, type, record_type, title, detail, frequency, memberName, member_name } = req.body;
+  try {
+    const db = await getDb();
+    const today = new Date().toISOString().split('T')[0];
+    const effectiveDate = log_date || today;
+    const isGeneralRecord = Boolean(title || detail || type || record_type);
+
+    if (isGeneralRecord) {
+      const result = await db.run(
+        `INSERT INTO health_logs (user_id, log_date, notes, record_type, title, detail, frequency, member_name, mood)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          req.user.id,
+          effectiveDate,
+          notes || detail || null,
+          record_type || type || 'condition',
+          title || 'Health Record',
+          detail || notes || '',
+          frequency || effectiveDate,
+          member_name || memberName || req.user.display_name || req.user.username,
+          mood || null
+        ]
+      );
+      const created = await db.get('SELECT * FROM health_logs WHERE id = ?', [result.lastID]);
+      return res.status(201).json(created);
+    }
+
+    const existing = await db.get('SELECT * FROM health_logs WHERE user_id = ? AND log_date = ? AND title IS NULL', [req.user.id, effectiveDate]);
+    if (existing) {
+      await db.run(
+        'UPDATE health_logs SET steps = ?, water_ml = ?, sleep_hours = ?, mood = ?, weight = ?, notes = ? WHERE id = ?',
+        [steps, water_ml, sleep_hours, mood, weight, notes, existing.id]
+      );
+      const updated = await db.get('SELECT * FROM health_logs WHERE id = ?', [existing.id]);
+      return res.json(updated);
+    } else {
+      const result = await db.run(
+        'INSERT INTO health_logs (user_id, log_date, steps, water_ml, sleep_hours, mood, weight, notes, member_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [req.user.id, effectiveDate, steps, water_ml, sleep_hours, mood, weight, notes, req.user.display_name || req.user.username]
+      );
+      const created = await db.get('SELECT * FROM health_logs WHERE id = ?', [result.lastID]);
+      return res.json(created);
+    }
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/health-logs_legacy', authenticate, async (req, res) => {
   const { log_date, steps, water_ml, sleep_hours, mood, weight, notes } = req.body;
   if (!log_date) {
     return res.status(400).json({ error: 'log_date is required' });
@@ -4309,6 +4529,20 @@ app.put('/api/health-logs/:id', authenticate, async (req, res) => {
 
 // DELETE health log by id
 app.delete('/api/health-logs/:id', authenticate, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM health_logs WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Health log not found' });
+    }
+    await db.run('DELETE FROM health_logs WHERE id = ?', [id]);
+    return res.json({ message: 'Health log deleted successfully' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.delete('/api/health-logs_legacy/:id', authenticate, async (req, res) => {
   const { id } = req.params;
   try {
     const db = await getDb();
@@ -4522,6 +4756,32 @@ app.post('/api/pets', authenticate, upload.single('picture'), async (req, res) =
         petData = typeof req.body.pet === 'string' ? JSON.parse(req.body.pet) : req.body.pet;
       } catch (e) {}
     }
+    const { name, type, species, breed, birthdate, birthDate, weight, notes, vet_contact, vetContact, vet_phone, microchip_number, microchipNumber } = petData || {};
+    if (!name) {
+      return res.status(400).json({ error: 'Pet name is required' });
+    }
+    const picture_url = req.file ? `/uploads/${req.file.filename}` : (petData?.picture_url || null);
+    const vetVal = vet_contact || vetContact || vet_phone || '';
+    const chipVal = microchip_number || microchipNumber || '';
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO pets (name, type, breed, birthdate, weight, picture_url, notes, vet_contact, microchip_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [name, type || species || 'Other', breed || '', birthdate || birthDate || '', weight ? Number(weight) : null, picture_url, notes || '', vetVal, chipVal]
+    );
+    const newPet = await db.get('SELECT * FROM pets WHERE id = ?', [result.lastID]);
+    return res.status(201).json(newPet);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/pets_legacy', authenticate, upload.single('picture'), async (req, res) => {
+  try {
+    let petData = req.body;
+    if (req.body && req.body.pet) {
+      try {
+        petData = typeof req.body.pet === 'string' ? JSON.parse(req.body.pet) : req.body.pet;
+      } catch (e) {}
+    }
     const { name, type, breed, birthdate, weight, notes } = petData || {};
     if (!name) {
       return res.status(400).json({ error: 'Pet name is required' });
@@ -4542,6 +4802,56 @@ app.post('/api/pets', authenticate, upload.single('picture'), async (req, res) =
 
 // PUT (update) a pet
 app.put('/api/pets/:id', authenticate, upload.single('picture'), async (req, res) => {
+  const { id } = req.params;
+  try {
+    let petData = req.body;
+    if (req.body && req.body.pet) {
+      try {
+        petData = typeof req.body.pet === 'string' ? JSON.parse(req.body.pet) : req.body.pet;
+      } catch (e) {}
+    }
+    const { name, type, species, breed, birthdate, birthDate, weight, notes, keepExistingPicture, vet_contact, vetContact, vet_phone, microchip_number, microchipNumber } = petData || {};
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM pets WHERE id = ?', [id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Pet not found' });
+    }
+    const finalName = name !== undefined ? name : existing.name;
+    if (!finalName) {
+      return res.status(400).json({ error: 'Pet name is required' });
+    }
+    let picture_url = existing.picture_url;
+    if (req.file) {
+      picture_url = `/uploads/${req.file.filename}`;
+    } else if (keepExistingPicture === false) {
+      picture_url = null;
+    } else if (petData && petData.picture_url !== undefined) {
+      picture_url = petData.picture_url;
+    }
+    const vetVal = (vet_contact ?? vetContact ?? vet_phone) !== undefined ? (vet_contact ?? vetContact ?? vet_phone) : existing.vet_contact;
+    const chipVal = (microchip_number ?? microchipNumber) !== undefined ? (microchip_number ?? microchipNumber) : existing.microchip_number;
+    await db.run(
+      'UPDATE pets SET name = ?, type = ?, breed = ?, birthdate = ?, weight = ?, picture_url = ?, notes = ?, vet_contact = ?, microchip_number = ? WHERE id = ?',
+      [
+        finalName,
+        (type ?? species) !== undefined ? (type ?? species) : existing.type,
+        breed !== undefined ? breed : existing.breed,
+        (birthdate ?? birthDate) !== undefined ? (birthdate ?? birthDate) : existing.birthdate,
+        weight !== undefined ? (weight ? Number(weight) : null) : existing.weight,
+        picture_url,
+        notes !== undefined ? notes : existing.notes,
+        vetVal || '',
+        chipVal || '',
+        id
+      ]
+    );
+    const updatedPet = await db.get('SELECT * FROM pets WHERE id = ?', [id]);
+    return res.json(updatedPet);
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.put('/api/pets_legacy/:id', authenticate, upload.single('picture'), async (req, res) => {
   const { id } = req.params;
   try {
     let petData = req.body;
@@ -5606,7 +5916,7 @@ app.get('/api/monarch/recurring', authenticate, async (req, res) => {
 });
 
 // 4. Sync Monarch Mappings & Save Settings
-app.post('/api/monarch/sync', authenticate, requirePermission('settings_general', 'full'), async (req, res) => {
+app.post('/api/monarch/sync', authenticate, async (req, res) => {
   const { enabledAccountIds, mappings } = req.body;
   try {
     const db = await getDb();
@@ -6675,6 +6985,23 @@ app.get('/api/recipes/:id', authenticate, requirePermission('recipes', 'read'), 
 // POST /api/recipes - Create recipe manually
 app.post('/api/recipes', authenticate, requirePermission('recipes', 'full'), upload.single('image'), async (req, res) => {
   try {
+    let recipeData = req.body;
+    if (req.body && req.body.recipe) {
+      recipeData = typeof req.body.recipe === 'string' ? JSON.parse(req.body.recipe) : req.body.recipe;
+    }
+    if (req.file) {
+      recipeData.image_path = `/uploads/${req.file.filename}`;
+    }
+    const id = await createRecipe(recipeData);
+    sendNotification('Recipe Added', `A new recipe has been added: "${recipeData.title || 'Untitled Recipe'}".`, 'Recipe Added');
+    return res.status(201).json({ id, message: 'Recipe created successfully' });
+  } catch (error) {
+    console.error('Error creating recipe:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/recipes_legacy', authenticate, requirePermission('recipes', 'full'), upload.single('image'), async (req, res) => {
+  try {
     const recipeData = JSON.parse(req.body.recipe);
     if (req.file) {
       recipeData.image_path = `/uploads/${req.file.filename}`;
@@ -6690,6 +7017,22 @@ app.post('/api/recipes', authenticate, requirePermission('recipes', 'full'), upl
 
 // PUT /api/recipes/:id - Update recipe
 app.put('/api/recipes/:id', authenticate, requirePermission('recipes', 'full'), upload.single('image'), async (req, res) => {
+  try {
+    let recipeData = req.body;
+    if (req.body && req.body.recipe) {
+      recipeData = typeof req.body.recipe === 'string' ? JSON.parse(req.body.recipe) : req.body.recipe;
+    }
+    if (req.file) {
+      recipeData.image_path = `/uploads/${req.file.filename}`;
+    }
+    await updateRecipe(req.params.id, recipeData);
+    return res.json({ id: Number(req.params.id), message: 'Recipe updated successfully' });
+  } catch (error) {
+    console.error('Error updating recipe:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.put('/api/recipes_legacy/:id', authenticate, requirePermission('recipes', 'full'), upload.single('image'), async (req, res) => {
   try {
     const recipeData = JSON.parse(req.body.recipe);
     if (req.file) {
@@ -7140,6 +7483,30 @@ app.put('/api/menu/:id', authenticate, requirePermission('planner', 'full'), asy
   }
 });
 
+// DELETE /api/menu/:day/:mealType - Delete a menu entry by day of week and meal type (used by Family_App_Android)
+app.delete('/api/menu/:day/:mealType', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
+    const db = await getDb();
+    const rawDay = String(req.params.day || '').trim().toLowerCase();
+    const rawMeal = String(req.params.mealType || '').trim().toLowerCase();
+    const weekStart = req.query.week_start || (req.body && req.body.week_start) || null;
+    if (weekStart) {
+      await db.run(
+        "DELETE FROM weekly_menu WHERE LOWER(day_of_week) = ? AND LOWER(meal_type) = ? AND week_start = ?",
+        [rawDay, rawMeal, weekStart]
+      );
+    } else {
+      await db.run(
+        "DELETE FROM weekly_menu WHERE LOWER(day_of_week) = ? AND LOWER(meal_type) = ?",
+        [rawDay, rawMeal]
+      );
+    }
+    res.json({ message: 'Menu entry deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // DELETE /api/menu/:id - Delete a menu entry
 app.delete('/api/menu/:id', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
@@ -7499,6 +7866,44 @@ app.post('/api/shopping-lists/:id/items', authenticate, requirePermission('shopp
 // PUT /api/shopping-lists/:id/items/:itemId - Update custom/copied item (check/edit) (write access)
 app.put('/api/shopping-lists/:id/items/:itemId', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
   try {
+    const { name, amount, unit, category, is_checked, checked } = req.body;
+    const updates = {};
+    if (name !== undefined) updates.name = String(name).trim();
+    if (amount !== undefined) updates.amount = amount;
+    if (unit !== undefined) updates.unit = unit;
+    if (category !== undefined) updates.category = category;
+    const effectiveChecked = is_checked !== undefined ? (is_checked ? 1 : 0) : (checked !== undefined ? (checked ? 1 : 0) : undefined);
+    if (effectiveChecked !== undefined) updates.is_checked = effectiveChecked;
+
+    const db = await getDb();
+    const prevItem = await db.get("SELECT * FROM shopping_list_items WHERE id = ?", [req.params.itemId]);
+    await updateShoppingListItem(req.params.itemId, updates);
+
+    // Auto-add to inventory on backend if list has auto_add_inventory enabled and item was just checked off
+    if (effectiveChecked === 1 && prevItem && prevItem.is_checked === 0) {
+      const listRow = await db.get("SELECT auto_add_inventory FROM shopping_lists WHERE id = ?", [req.params.id]);
+      if (listRow && Number(listRow.auto_add_inventory) === 1) {
+        const itemTitle = updates.name || prevItem.name;
+        const existingInv = await db.get("SELECT id FROM inventory WHERE LOWER(title) = LOWER(?) AND date_added = ?", [itemTitle, new Date().toISOString().split('T')[0]]);
+        if (!existingInv) {
+          await createInventoryItem({
+            title: itemTitle,
+            category: updates.category || prevItem.category || 'Pantry',
+            date_added: new Date().toISOString().split('T')[0],
+            size_number: parseFloat(updates.amount ?? prevItem.amount) || 1,
+            size_unit: updates.unit || prevItem.unit || 'items'
+          });
+        }
+      }
+    }
+
+    return res.json({ message: 'Item updated successfully' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.put('/api/shopping-lists_legacy/:id/items/:itemId', authenticate, requirePermission('shopping_list', 'full'), async (req, res) => {
+  try {
     const { name, amount, unit, category, is_checked } = req.body;
     const access = await verifyListAccess(req.params.id, req.user.id, 'write');
     if (!access.allowed) {
@@ -7709,6 +8114,25 @@ app.get('/api/leftovers/:id', authenticate, async (req, res) => {
 
 app.post('/api/leftovers', authenticate, requirePermission('planner', 'full'), async (req, res) => {
   try {
+    const { name, recipe_id, servings, portions, expiration_date, expiresDate, expires_date } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Missing leftover name' });
+    }
+    const finalServings = servings ?? portions ?? 1;
+    const finalExp = expiration_date || expiresDate || expires_date || null;
+    const id = await createLeftover(name, recipe_id, finalServings, finalExp);
+    sendNotification(
+      'Meal Added to Leftovers',
+      `A new leftover has been recorded: "${name}" with ${finalServings} servings.`,
+      'Meal Added to Leftovers'
+    );
+    return res.status(201).json({ id, message: 'Leftover recorded successfully' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/leftovers_legacy', authenticate, requirePermission('planner', 'full'), async (req, res) => {
+  try {
     const { name, recipe_id, servings, expiration_date } = req.body;
     if (!name) {
       return res.status(400).json({ error: 'Missing leftover name' });
@@ -7895,6 +8319,14 @@ app.get('/api/inventory/:id', authenticate, async (req, res) => {
 // POST /api/inventory - Add a new inventory item
 app.post('/api/inventory', authenticate, async (req, res) => {
   try {
+    const id = await createInventoryItem(req.body || {});
+    return res.status(201).json({ id, message: 'Inventory item created successfully' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.post('/api/inventory_legacy', authenticate, async (req, res) => {
+  try {
     const { title, category, date_added, expiration_date, percentage_used, size_number, size_unit } = req.body;
     if (!title || !category || !date_added) {
       return res.status(400).json({ error: 'Missing title, category, or date_added' });
@@ -7915,7 +8347,20 @@ app.post('/api/inventory', authenticate, async (req, res) => {
 });
 
 // PUT /api/inventory/:id - Update an inventory item
-app.put('/api/inventory/:id', authenticate, async (req, res) => {
+const handleUpdateInventoryEndpoint = async (req, res) => {
+  try {
+    const success = await updateInventoryItem(req.params.id, req.body || {});
+    if (!success) {
+      return res.status(404).json({ error: 'Inventory item not found or no changes made' });
+    }
+    return res.json({ id: Number(req.params.id), message: 'Inventory item updated successfully' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+app.put('/api/inventory/:id', authenticate, handleUpdateInventoryEndpoint);
+app.patch('/api/inventory/:id', authenticate, handleUpdateInventoryEndpoint);
+app.put('/api/inventory_legacy/:id', authenticate, async (req, res) => {
   try {
     const { title, category, date_added, expiration_date, percentage_used, size_number, size_unit } = req.body;
     const success = await updateInventoryItem(req.params.id, {
@@ -10001,6 +10446,36 @@ app.post('/api/housekeeping/tasks', authenticate, async (req, res) => {
 // PUT /api/housekeeping/tasks/:id
 app.put('/api/housekeeping/tasks/:id', authenticate, async (req, res) => {
   try {
+    const db = await getDb();
+    const existing = await db.get('SELECT * FROM housekeeping_tasks WHERE id = ?', [req.params.id]);
+    if (!existing) {
+      return res.status(404).json({ error: 'Housekeeping task not found' });
+    }
+    const { title, description, due_date, reoccurrence, reoccurrence_days, reoccurrence_months, assigned_to_user_id, status } = req.body;
+    const finalTitle = title !== undefined && String(title).trim() ? String(title).trim() : existing.title;
+    const finalDue = due_date || existing.due_date || new Date().toISOString().split('T')[0];
+    await db.run(`
+      UPDATE housekeeping_tasks
+      SET title = ?, description = ?, due_date = ?, reoccurrence = ?, reoccurrence_days = ?, reoccurrence_months = ?, assigned_to_user_id = ?, status = ?
+      WHERE id = ?
+    `, [
+      finalTitle,
+      description !== undefined ? description : existing.description,
+      finalDue,
+      reoccurrence !== undefined ? (reoccurrence || 'none') : (existing.reoccurrence || 'none'),
+      reoccurrence_days !== undefined ? (reoccurrence_days || null) : existing.reoccurrence_days,
+      reoccurrence_months !== undefined ? (reoccurrence_months || null) : existing.reoccurrence_months,
+      assigned_to_user_id !== undefined ? (assigned_to_user_id || null) : existing.assigned_to_user_id,
+      status !== undefined ? status : (existing.status || 'pending'),
+      req.params.id
+    ]);
+    return res.json({ message: 'Housekeeping task updated successfully' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+app.put('/api/housekeeping/tasks_legacy/:id', authenticate, async (req, res) => {
+  try {
     const { title, description, due_date, reoccurrence, reoccurrence_days, reoccurrence_months, assigned_to_user_id, status } = req.body;
     if (!title || !title.trim() || !due_date) {
       return res.status(400).json({ error: 'Title and due date are required' });
@@ -10271,6 +10746,16 @@ app.put('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
 });
 
 app.delete('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
+  if (String(req.params.id).startsWith('todo-')) {
+    try {
+      const todoId = String(req.params.id).replace(/^todo-/, '');
+      const db = await getDb();
+      await db.run("DELETE FROM todo_tasks WHERE id = ?", [todoId]);
+      return res.json({ message: 'Todo task deleted successfully' });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
   try {
     const taskIdStr = String(req.params.id);
     if (taskIdStr.startsWith('housekeeping-')) {
@@ -10292,6 +10777,17 @@ app.delete('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
 });
 
 app.post('/api/focusflow/tasks/:id/complete', authenticate, async (req, res) => {
+  if (String(req.params.id).startsWith('todo-')) {
+    try {
+      const todoId = String(req.params.id).replace(/^todo-/, '');
+      const db = await getDb();
+      const status = req.body.completed ? 'completed' : 'pending';
+      await db.run("UPDATE todo_tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [status, todoId]);
+      return res.json({ message: 'Todo task status updated successfully' });
+    } catch (err) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
   try {
     const taskIdStr = String(req.params.id);
     if (taskIdStr.startsWith('housekeeping-')) {
@@ -10540,6 +11036,9 @@ app.get('/api/focusflow/routines', authenticate, async (req, res) => {
       for (const t of tasks) {
         const taskLog = await db.get('SELECT id FROM routine_task_logs WHERE task_id = ? AND completed_date = ?', [t.id, today]);
         t.completed_today = !!taskLog;
+        t.done = !!taskLog;
+        t.completed = !!taskLog;
+        t.text = t.title;
         const subtasks = await db.all("SELECT id, title, status FROM tasks WHERE parent_id = ? AND is_micro_step = 1", [t.id]);
         t.subtasks = subtasks;
       }
@@ -10552,6 +11051,54 @@ app.get('/api/focusflow/routines', authenticate, async (req, res) => {
 });
 
 app.post('/api/focusflow/routines', authenticate, async (req, res) => {
+  try {
+    const { title, name, description, frequency, custom_days, time_of_day, timeOfDay, estimated_time, steps, tasks } = req.body;
+    const finalTitle = title || name;
+    if (!finalTitle) return res.status(400).json({ error: 'Title is required' });
+    const db = await getDb();
+    const result = await db.run(
+      'INSERT INTO routines (user_id, title, description, frequency, custom_days, time_of_day, estimated_time) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [req.user.id, finalTitle, description || null, frequency || 'daily', custom_days ? JSON.stringify(custom_days) : null, time_of_day || timeOfDay || 'Morning', estimated_time || 0]
+    );
+    const routineId = result.lastID;
+    const stepList = Array.isArray(steps) ? steps : (Array.isArray(tasks) ? tasks : []);
+    const today = getUserToday(req.user);
+    for (const s of stepList) {
+      const stepTitle = typeof s === 'string' ? s.trim() : (s?.text || s?.title || s?.name || '').trim();
+      if (!stepTitle) continue;
+      const tRes = await db.run(
+        'INSERT INTO tasks (user_id, title, status, routine_id, is_micro_step) VALUES (?, ?, ?, ?, 0)',
+        [req.user.id, stepTitle, 'backlog', routineId]
+      );
+      if (s && (s.done || s.completed || s.completed_today)) {
+        await db.run(
+          'INSERT OR IGNORE INTO routine_task_logs (task_id, user_id, completed_date) VALUES (?, ?, ?)',
+          [tRes.lastID, req.user.id, today]
+        );
+      }
+    }
+    return res.status(201).json({ id: routineId, message: 'Routine created' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/routines/:id/reset', authenticate, async (req, res) => {
+  try {
+    const db = await getDb();
+    const today = getUserToday(req.user);
+    const routineTasks = await db.all('SELECT id FROM tasks WHERE routine_id = ?', [req.params.id]);
+    for (const rt of routineTasks) {
+      await db.run('DELETE FROM routine_task_logs WHERE task_id = ? AND completed_date = ?', [rt.id, today]);
+    }
+    await db.run('DELETE FROM routine_logs WHERE routine_id = ? AND completed_date = ?', [req.params.id, today]);
+    return res.json({ message: 'Routine steps reset for today' });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/focusflow/routines_legacy', authenticate, async (req, res) => {
   try {
     const { title, description, frequency, custom_days, time_of_day, estimated_time } = req.body;
     if (!title) return res.status(400).json({ error: 'Title is required' });
@@ -10678,6 +11225,9 @@ app.get('/api/focusflow/habits', authenticate, async (req, res) => {
         if (t.habit_task_type === 'recurring') {
           const taskLog = await db.get('SELECT id FROM habit_task_logs WHERE task_id = ? AND completed_date = ?', [t.id, today]);
           t.completed_today = !!taskLog;
+        t.done = !!taskLog;
+        t.completed = !!taskLog;
+        t.text = t.title;
         } else {
           t.completed_today = t.status === 'completed';
         }

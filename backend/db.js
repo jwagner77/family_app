@@ -714,6 +714,49 @@ export async function getDb() {
   try {
     await dbInstance.run("ALTER TABLE bug_reports ADD COLUMN screenshot_path TEXT");
   } catch (err) {}
+
+  // Family Tracker user_locations table & bi-directional sync column migrations
+  try {
+    await dbInstance.exec(`
+      CREATE TABLE IF NOT EXISTS user_locations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        point_id TEXT UNIQUE,
+        user_id INTEGER NOT NULL,
+        username TEXT,
+        display_name TEXT,
+        latitude REAL NOT NULL,
+        longitude REAL NOT NULL,
+        accuracy REAL DEFAULT 0,
+        altitude REAL,
+        speed REAL,
+        heading REAL,
+        address TEXT,
+        recorded_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_locations_user_recorded ON user_locations (user_id, recorded_at DESC);
+    `);
+  } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE contacts ADD COLUMN address TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE contacts ADD COLUMN is_emergency INTEGER DEFAULT 0"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE contacts ADD COLUMN is_pinned INTEGER DEFAULT 0"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE pets ADD COLUMN vet_contact TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE pets ADD COLUMN microchip_number TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE health_logs ADD COLUMN record_type TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE health_logs ADD COLUMN title TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE health_logs ADD COLUMN detail TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE health_logs ADD COLUMN frequency TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE health_logs ADD COLUMN member_name TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE inventory ADD COLUMN location TEXT DEFAULT 'Pantry'"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE inventory ADD COLUMN notes TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE inventory ADD COLUMN min_threshold REAL DEFAULT 1"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE inventory ADD COLUMN barcode TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE inventory ADD COLUMN updated_at DATETIME"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE leftovers ADD COLUMN location TEXT DEFAULT 'Fridge'"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE leftovers ADD COLUMN notes TEXT"); } catch (err) {}
+  try { await dbInstance.run("ALTER TABLE tasks ADD COLUMN is_pinned INTEGER DEFAULT 0");
+  } catch (err) {}
   try {
     await dbInstance.run("UPDATE feature_requests SET completed_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE status = 'completed' AND completed_at IS NULL");
   } catch (err) {}
@@ -1756,7 +1799,7 @@ export async function getUserById(id) {
 export async function getAllUsers() {
   const db = await getDb();
   return await db.all(`
-    SELECT u.id, u.username, u.role_id, u.display_name, u.auth_provider, u.timezone, u.hide_from_contacts, u.created_at, r.name as role_name 
+    SELECT u.id, u.username, u.role_id, u.display_name, u.auth_provider, u.timezone, u.hide_from_contacts, u.picture_url, u.email, u.birthday, u.phone, u.primary_color, u.created_at, r.name as role_name 
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
     ORDER BY u.username ASC
@@ -1862,6 +1905,34 @@ export async function deleteRole(id) {
 
 export async function getShoppingListsForUser(userId) {
   const db = await getDb();
+  let lists = await db.all(`
+    SELECT sl.id, sl.name, sl.owner_id, sl.created_at, COALESCE(sl.auto_add_inventory, 0) as auto_add_inventory, u.username as owner_username,
+           (SELECT COUNT(*) FROM shopping_list_items sli WHERE sli.list_id = sl.id) as item_count,
+           CASE WHEN sl.owner_id = ? THEN 'owner'
+                ELSE IFNULL(sls.permission, 'edit')
+           END as permission
+    FROM shopping_lists sl
+    JOIN users u ON sl.owner_id = u.id
+    LEFT JOIN shopping_list_shares sls ON sl.id = sls.list_id AND sls.shared_with_user_id = ?
+    WHERE sl.owner_id = ? OR sls.shared_with_user_id = ?
+    ORDER BY sl.name ASC
+  `, [userId, userId, userId, userId]);
+
+  if (!lists || lists.length === 0) {
+    lists = await db.all(`
+      SELECT sl.id, sl.name, sl.owner_id, sl.created_at, COALESCE(sl.auto_add_inventory, 0) as auto_add_inventory, u.username as owner_username,
+             (SELECT COUNT(*) FROM shopping_list_items sli WHERE sli.list_id = sl.id) as item_count,
+             CASE WHEN sl.owner_id = ? THEN 'owner' ELSE 'edit' END as permission
+      FROM shopping_lists sl
+      JOIN users u ON sl.owner_id = u.id
+      ORDER BY sl.name ASC
+    `, [userId]);
+  }
+  return lists;
+}
+
+export async function getShoppingListsForUser_OLD(userId) {
+  const db = await getDb();
   
   // Get all lists owned by the user or shared with the user
   const lists = await db.all(`
@@ -1907,6 +1978,48 @@ export async function deleteShoppingList(id) {
 }
 
 export async function getShoppingListDetails(id, userId) {
+  const db = await getDb();
+  let listInfo = await db.get(`
+    SELECT sl.id, sl.name, sl.owner_id, COALESCE(sl.auto_add_inventory, 0) as auto_add_inventory, u.username as owner_username,
+           CASE WHEN sl.owner_id = ? THEN 'owner'
+                ELSE IFNULL(sls.permission, 'edit')
+           END as permission
+    FROM shopping_lists sl
+    JOIN users u ON sl.owner_id = u.id
+    LEFT JOIN shopping_list_shares sls ON sl.id = sls.list_id AND sls.shared_with_user_id = ?
+    WHERE sl.id = ?
+  `, [userId, userId, id]);
+
+  if (!listInfo) return null;
+
+  const items = await db.all(
+    "SELECT * FROM shopping_list_items WHERE list_id = ? ORDER BY id ASC",
+    [id]
+  );
+
+  const recipes = await db.all(`
+    SELECT slr.recipe_id, r.title as recipe_title
+    FROM shopping_list_recipes slr
+    JOIN recipes r ON slr.recipe_id = r.id
+    WHERE slr.list_id = ?
+    ORDER BY r.title ASC
+  `, [id]);
+
+  let shares = [];
+  if (listInfo.owner_id === userId) {
+    shares = await db.all(`
+      SELECT sls.id, sls.shared_with_user_id, sls.permission, u.username as shared_username
+      FROM shopping_list_shares sls
+      JOIN users u ON sls.shared_with_user_id = u.id
+      WHERE sls.list_id = ?
+      ORDER BY u.username ASC
+    `, [id]);
+  }
+
+  return { list: listInfo, items, recipes, shares };
+}
+
+export async function getShoppingListDetails_OLD(id, userId) {
   const db = await getDb();
   
   // Verify access and get list info
@@ -2082,6 +2195,45 @@ export async function clearShoppingListItems(listId) {
 
 export async function getAllRecipes(search = '') {
   const db = await getDb();
+  const rows = search
+    ? await db.all(
+        'SELECT * FROM recipes WHERE title LIKE ? OR description LIKE ? ORDER BY title ASC',
+        [`%${search}%`, `%${search}%`]
+      )
+    : await db.all('SELECT * FROM recipes ORDER BY title ASC');
+
+  if (rows.length === 0) return rows;
+
+  const allIngredients = await db.all('SELECT * FROM ingredients ORDER BY id ASC');
+  const allInstructions = await db.all('SELECT * FROM instructions ORDER BY step_number ASC');
+  const allNotes = await db.all('SELECT * FROM recipe_notes ORDER BY step_number ASC, id ASC');
+
+  const ingByRecipe = new Map();
+  for (const ing of allIngredients) {
+    if (!ingByRecipe.has(ing.recipe_id)) ingByRecipe.set(ing.recipe_id, []);
+    ingByRecipe.get(ing.recipe_id).push(ing);
+  }
+  const instByRecipe = new Map();
+  for (const inst of allInstructions) {
+    if (!instByRecipe.has(inst.recipe_id)) instByRecipe.set(inst.recipe_id, []);
+    instByRecipe.get(inst.recipe_id).push(inst);
+  }
+  const notesByRecipe = new Map();
+  for (const n of allNotes) {
+    if (!notesByRecipe.has(n.recipe_id)) notesByRecipe.set(n.recipe_id, []);
+    notesByRecipe.get(n.recipe_id).push(n);
+  }
+
+  for (const r of rows) {
+    r.ingredients = ingByRecipe.get(r.id) || [];
+    r.instructions = instByRecipe.get(r.id) || [];
+    r.notes = notesByRecipe.get(r.id) || [];
+  }
+  return rows;
+}
+
+export async function getAllRecipes_OLD(search = '') {
+  const db = await getDb();
   if (search) {
     return await db.all(
       'SELECT * FROM recipes WHERE title LIKE ? OR description LIKE ? ORDER BY title ASC',
@@ -2103,7 +2255,102 @@ export async function getRecipeById(id) {
   return recipe;
 }
 
-export async function createRecipe(recipe) {
+function normalizeRecipePayload(recipe = {}) {
+  let rawIngredients = recipe.ingredients;
+  if (typeof rawIngredients === 'string') {
+    try {
+      rawIngredients = JSON.parse(rawIngredients);
+    } catch {
+      rawIngredients = rawIngredients.split(/\r?\n/).filter(Boolean);
+    }
+  }
+  const ingredients = Array.isArray(rawIngredients)
+    ? rawIngredients
+        .map((ing) => {
+          if (typeof ing === 'string') {
+            const trimmed = ing.trim();
+            if (!trimmed) return null;
+            const m = trimmed.match(/^([\d./\s-]+)?\s*(cups?|tbsp|tsp|oz|lbs?|g|kg|ml|l|cloves?|cans?|packages?|pinch|slices?|pieces?)?\s+(.+)$/i);
+            if (m && m[3] && (m[1] || m[2])) {
+              return {
+                amount: (m[1] || '').trim(),
+                unit: (m[2] || '').trim(),
+                name: m[3].trim(),
+                raw_text: trimmed
+              };
+            }
+            return { amount: '', unit: '', name: trimmed, raw_text: trimmed };
+          }
+          if (ing && typeof ing === 'object') {
+            const name = ing.name || ing.title || ing.item || ing.raw_text || '';
+            const amount = ing.amount !== undefined && ing.amount !== null ? String(ing.amount) : '';
+            const unit = ing.unit || '';
+            const raw_text = ing.raw_text || `${amount} ${unit} ${name}`.trim();
+            return { name, amount, unit, raw_text };
+          }
+          return null;
+        })
+        .filter(Boolean)
+    : [];
+
+  let rawInstructions = recipe.instructions;
+  if (typeof rawInstructions === 'string') {
+    try {
+      rawInstructions = JSON.parse(rawInstructions);
+    } catch {
+      rawInstructions = rawInstructions.split(/\r?\n/).filter(Boolean);
+    }
+  }
+  const instructions = Array.isArray(rawInstructions)
+    ? rawInstructions
+        .map((inst, idx) => {
+          if (typeof inst === 'string') {
+            return { step_number: idx + 1, instruction_text: inst.trim() };
+          }
+          if (inst && typeof inst === 'object') {
+            return {
+              step_number: inst.step_number || idx + 1,
+              instruction_text: (inst.instruction_text || inst.instruction || inst.text || inst.step || '').trim()
+            };
+          }
+          return null;
+        })
+        .filter((i) => i && i.instruction_text)
+    : [];
+
+  let rawNotes = recipe.notes;
+  if (typeof rawNotes === 'string') {
+    try {
+      const parsed = JSON.parse(rawNotes);
+      rawNotes = Array.isArray(parsed) ? parsed : [rawNotes];
+    } catch {
+      rawNotes = rawNotes.trim() ? [rawNotes.trim()] : [];
+    }
+  }
+  const notes = Array.isArray(rawNotes) ? rawNotes : [];
+
+  let tags = recipe.tags;
+  if (Array.isArray(tags)) {
+    tags = tags.filter(Boolean).join(', ');
+  }
+  if (!tags && recipe.category) {
+    tags = String(recipe.category).trim();
+  }
+
+  return {
+    ...recipe,
+    prep_time: recipe.prep_time ?? recipe.prepTime ?? null,
+    cook_time: recipe.cook_time ?? recipe.cookTime ?? null,
+    favorite: Boolean(recipe.favorite ?? recipe.isFavorite) ? 1 : 0,
+    tags: tags || null,
+    ingredients,
+    instructions,
+    notes
+  };
+}
+
+export async function createRecipe(rawRecipe) {
+  const recipe = normalizeRecipePayload(rawRecipe);
   const db = await getDb();
   
   // Start transaction
@@ -2169,7 +2416,8 @@ export async function createRecipe(recipe) {
   }
 }
 
-export async function updateRecipe(id, recipe) {
+export async function updateRecipe(id, rawRecipe) {
+  const recipe = normalizeRecipePayload(rawRecipe);
   const db = await getDb();
   
   await db.run('BEGIN TRANSACTION');
@@ -2579,17 +2827,86 @@ export async function getRecentRecipes(limit = 4) {
 }
 
 // Inventory CRUD Helpers
+function mapInventoryItemForSync(row) {
+  if (!row) return row;
+  const qty = row.size_number !== undefined && row.size_number !== null && row.size_number !== ''
+    ? Number(row.size_number)
+    : 1;
+  return {
+    ...row,
+    title: row.title || row.name || 'Pantry Item',
+    name: row.title || row.name || 'Pantry Item',
+    quantity: Number.isFinite(qty) ? qty : 1,
+    unit: row.size_unit || row.unit || 'items',
+    location: row.location || 'Pantry',
+    expires_date: row.expiration_date || null,
+    min_threshold: row.min_threshold !== undefined && row.min_threshold !== null ? Number(row.min_threshold) : 1,
+    notes: row.notes || '',
+    barcode: row.barcode || null,
+    updated_at: row.updated_at || row.date_added || new Date().toISOString().split('T')[0]
+  };
+}
+
 export async function getAllInventory() {
+  const db = await getDb();
+  const rows = await db.all("SELECT * FROM inventory ORDER BY date_added DESC, id DESC");
+  return rows.map(mapInventoryItemForSync);
+}
+
+export async function getAllInventory_OLD() {
   const db = await getDb();
   return await db.all("SELECT * FROM inventory ORDER BY date_added DESC");
 }
 
 export async function getInventoryItemById(id) {
   const db = await getDb();
+  const row = await db.get("SELECT * FROM inventory WHERE id = ?", [id]);
+  return mapInventoryItemForSync(row);
+}
+
+export async function getInventoryItemById_OLD(id) {
+  const db = await getDb();
   return await db.get("SELECT * FROM inventory WHERE id = ?", [id]);
 }
 
-export async function createInventoryItem(item) {
+export async function createInventoryItem(item = {}) {
+  const db = await getDb();
+  const today = new Date().toISOString().split('T')[0];
+  const title = (item.title || item.name || 'Pantry Item').trim();
+  const category = item.category || 'Pantry';
+  const dateAdded = item.date_added || today;
+  const expirationDate = item.expiration_date || item.expiresDate || item.expires_date || null;
+  const percentageUsed = item.percentage_used !== undefined ? Number(item.percentage_used) : 0;
+  const rawQty = item.size_number !== undefined && item.size_number !== '' ? item.size_number : item.quantity;
+  const sizeNumber = rawQty !== undefined && rawQty !== null && rawQty !== '' ? Number(rawQty) : 1;
+  const sizeUnit = item.size_unit || item.unit || 'items';
+  const location = item.location || 'Pantry';
+  const notes = item.notes || null;
+  const minThreshold = item.min_threshold !== undefined ? Number(item.min_threshold) : (item.minThreshold !== undefined ? Number(item.minThreshold) : 1);
+  const barcode = item.barcode || null;
+
+  const result = await db.run(
+    `INSERT INTO inventory (title, category, date_added, expiration_date, percentage_used, size_number, size_unit, location, notes, min_threshold, barcode, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      title,
+      category,
+      dateAdded,
+      expirationDate,
+      percentageUsed,
+      Number.isFinite(sizeNumber) ? sizeNumber : 1,
+      sizeUnit,
+      location,
+      notes,
+      Number.isFinite(minThreshold) ? minThreshold : 1,
+      barcode,
+      today
+    ]
+  );
+  return result.lastID;
+}
+
+export async function createInventoryItem_OLD(item) {
   const db = await getDb();
   const result = await db.run(
     `INSERT INTO inventory (title, category, date_added, expiration_date, percentage_used, size_number, size_unit)
@@ -2607,7 +2924,53 @@ export async function createInventoryItem(item) {
   return result.lastID;
 }
 
-export async function updateInventoryItem(id, item) {
+export async function updateInventoryItem(id, item = {}) {
+  const db = await getDb();
+  const existing = await db.get("SELECT * FROM inventory WHERE id = ?", [id]);
+  if (!existing) return false;
+
+  const today = new Date().toISOString().split('T')[0];
+  const title = (item.title ?? item.name ?? existing.title ?? 'Pantry Item').trim();
+  const category = item.category ?? existing.category ?? 'Pantry';
+  const dateAdded = item.date_added ?? existing.date_added ?? today;
+  const expirationDate = item.expiration_date !== undefined
+    ? item.expiration_date
+    : (item.expiresDate !== undefined ? item.expiresDate : existing.expiration_date);
+  const percentageUsed = item.percentage_used !== undefined ? Number(item.percentage_used) : (existing.percentage_used || 0);
+  const rawQty = item.size_number !== undefined ? item.size_number : item.quantity;
+  const sizeNumber = rawQty !== undefined && rawQty !== null && rawQty !== '' ? Number(rawQty) : existing.size_number;
+  const sizeUnit = item.size_unit ?? item.unit ?? existing.size_unit ?? 'items';
+  const location = item.location ?? existing.location ?? 'Pantry';
+  const notes = item.notes !== undefined ? item.notes : existing.notes;
+  const minThreshold = item.min_threshold !== undefined
+    ? Number(item.min_threshold)
+    : (item.minThreshold !== undefined ? Number(item.minThreshold) : (existing.min_threshold ?? 1));
+  const barcode = item.barcode !== undefined ? item.barcode : existing.barcode;
+
+  const result = await db.run(
+    `UPDATE inventory 
+     SET title = ?, category = ?, date_added = ?, expiration_date = ?, percentage_used = ?, size_number = ?, size_unit = ?, location = ?, notes = ?, min_threshold = ?, barcode = ?, updated_at = ?
+     WHERE id = ?`,
+    [
+      title,
+      category,
+      dateAdded,
+      expirationDate || null,
+      percentageUsed,
+      sizeNumber !== undefined && sizeNumber !== null && Number.isFinite(Number(sizeNumber)) ? Number(sizeNumber) : null,
+      sizeUnit || null,
+      location,
+      notes || null,
+      minThreshold,
+      barcode || null,
+      today,
+      id
+    ]
+  );
+  return result.changes > 0;
+}
+
+export async function updateInventoryItem_OLD(id, item) {
   const db = await getDb();
   const result = await db.run(
     `UPDATE inventory 
@@ -2691,6 +3054,16 @@ export async function updateInventoryItemsBulk(ids, updates) {
 
 // --- PROJECT HELPERS ---
 export async function getAllProjects() {
+  const db = await getDb();
+  return await db.all(`
+    SELECT p.*,
+           (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.is_micro_step = 0 AND t.status != 'completed') as task_count
+    FROM projects p
+    ORDER BY p.name ASC
+  `);
+}
+
+export async function getAllProjects_OLD() {
   const db = await getDb();
   return await db.all("SELECT * FROM projects ORDER BY name ASC");
 }
@@ -2915,7 +3288,15 @@ export async function getTaskById(id) {
   return task;
 }
 
-export async function createTask(userId, task) {
+export async function createTask(userId, task = {}) {
+  if (!task.project_id && (task.project || task.project_name)) {
+    const db0 = await getDb();
+    const pName = String(task.project || task.project_name).trim();
+    const matchedProj = await db0.get("SELECT id FROM projects WHERE LOWER(name) = LOWER(?)", [pName]);
+    if (matchedProj) task = { ...task, project_id: matchedProj.id };
+  }
+  const estimatedTime = task.estimated_time ?? task.estimated_mins ?? task.estimatedMins ?? 0;
+  task = { ...task, estimated_time: estimatedTime };
   const db = await getDb();
   let projectId = task.project_id;
   
@@ -3521,6 +3902,177 @@ export async function updateTvDevice(id, data = {}) {
 
   await db.run(`UPDATE tv_devices SET ${fields.join(', ')} WHERE id = ?`, values);
   return await db.get("SELECT * FROM tv_devices WHERE id = ?", [id]);
+}
+
+export async function saveUserLocationPoints(defaultUserId, pointsInput) {
+  const db = await getDb();
+  const points = Array.isArray(pointsInput) ? pointsInput : [pointsInput];
+  let syncedCount = 0;
+  let latestPoint = null;
+
+  for (const raw of points) {
+    if (!raw || typeof raw !== 'object') continue;
+    const lat = Number(raw.latitude ?? raw.lat);
+    const lon = Number(raw.longitude ?? raw.lon ?? raw.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+
+    // Resolve user from point.userId / point.userName if provided, falling back to defaultUserId
+    let resolvedUser = null;
+    const candidateId = raw.userId ?? raw.user_id;
+    const candidateName = String(raw.userName || raw.username || raw.display_name || '').trim();
+
+    if (candidateId !== undefined && candidateId !== null && String(candidateId).trim() !== '') {
+      const numId = Number(candidateId);
+      if (Number.isInteger(numId) && numId > 0) {
+        resolvedUser = await db.get("SELECT id, username, display_name FROM users WHERE id = ?", [numId]);
+      }
+      if (!resolvedUser) {
+        resolvedUser = await getUserByUsername(String(candidateId));
+      }
+    }
+    if (!resolvedUser && candidateName) {
+      resolvedUser = await db.get(
+        "SELECT id, username, display_name FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(display_name) = LOWER(?) LIMIT 1",
+        [candidateName, candidateName]
+      );
+    }
+    if (!resolvedUser && defaultUserId) {
+      resolvedUser = await db.get("SELECT id, username, display_name FROM users WHERE id = ?", [defaultUserId]);
+    }
+    if (!resolvedUser) {
+      resolvedUser = await db.get("SELECT id, username, display_name FROM users ORDER BY id ASC LIMIT 1");
+    }
+    if (!resolvedUser) continue;
+
+    const pointId = String(raw.id || raw.point_id || `loc_${resolvedUser.id}_${raw.timestamp || Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+    const recordedAt = raw.recordedAt || raw.recorded_at || (raw.timestamp ? new Date(Number(raw.timestamp)).toISOString() : new Date().toISOString());
+    const accuracy = Number.isFinite(Number(raw.accuracy)) ? Number(raw.accuracy) : 0;
+    const altitude = raw.altitude !== undefined && raw.altitude !== null && Number.isFinite(Number(raw.altitude)) ? Number(raw.altitude) : null;
+    const speed = raw.speed !== undefined && raw.speed !== null && Number.isFinite(Number(raw.speed)) ? Number(raw.speed) : null;
+    const heading = raw.heading !== undefined && raw.heading !== null && Number.isFinite(Number(raw.heading)) ? Number(raw.heading) : null;
+    const address = raw.address ? String(raw.address).trim() : null;
+
+    await db.run(`
+      INSERT INTO user_locations (point_id, user_id, username, display_name, latitude, longitude, accuracy, altitude, speed, heading, address, recorded_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(point_id) DO UPDATE SET
+        latitude = excluded.latitude,
+        longitude = excluded.longitude,
+        accuracy = excluded.accuracy,
+        altitude = excluded.altitude,
+        speed = excluded.speed,
+        heading = excluded.heading,
+        address = COALESCE(excluded.address, user_locations.address),
+        recorded_at = excluded.recorded_at
+    `, [
+      pointId,
+      resolvedUser.id,
+      resolvedUser.username,
+      resolvedUser.display_name || resolvedUser.username,
+      lat,
+      lon,
+      accuracy,
+      altitude,
+      speed,
+      heading,
+      address,
+      recordedAt
+    ]);
+
+    // Prune older entries beyond latest 200 per user
+    await db.run(`
+      DELETE FROM user_locations
+      WHERE user_id = ? AND id NOT IN (
+        SELECT id FROM user_locations WHERE user_id = ? ORDER BY datetime(recorded_at) DESC, id DESC LIMIT 200
+      )
+    `, [resolvedUser.id, resolvedUser.id]);
+
+    syncedCount++;
+    latestPoint = {
+      id: pointId,
+      user_id: resolvedUser.id,
+      username: resolvedUser.username,
+      display_name: resolvedUser.display_name || resolvedUser.username,
+      latitude: lat,
+      longitude: lon,
+      accuracy,
+      altitude,
+      speed,
+      heading,
+      address,
+      recorded_at: recordedAt
+    };
+  }
+
+  return { syncedCount, latestPoint };
+}
+
+export async function getLatestUserLocations() {
+  const db = await getDb();
+  const users = await db.all(`
+    SELECT u.id, u.username, u.display_name, u.picture_url, u.primary_color, u.email, r.name as role_name
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    ORDER BY u.display_name ASC, u.username ASC
+  `);
+
+  const results = [];
+  for (const u of users) {
+    const latest = await db.get(`
+      SELECT *
+      FROM user_locations
+      WHERE user_id = ?
+      ORDER BY datetime(recorded_at) DESC, id DESC
+      LIMIT 1
+    `, [u.id]);
+
+    const recentHistory = await db.all(`
+      SELECT id, point_id, latitude, longitude, accuracy, altitude, speed, heading, address, recorded_at
+      FROM user_locations
+      WHERE user_id = ?
+      ORDER BY datetime(recorded_at) DESC, id DESC
+      LIMIT 15
+    `, [u.id]);
+
+    results.push({
+      user_id: u.id,
+      username: u.username,
+      display_name: u.display_name || u.username,
+      picture_url: u.picture_url || '',
+      primary_color: u.primary_color || '#3b82f6',
+      role_name: u.role_name || 'Member',
+      has_location: Boolean(latest && latest.latitude !== null && latest.longitude !== null),
+      point_id: latest ? latest.point_id : null,
+      latitude: latest ? Number(latest.latitude) : null,
+      longitude: latest ? Number(latest.longitude) : null,
+      accuracy: latest ? Number(latest.accuracy || 0) : null,
+      altitude: latest && latest.altitude !== null ? Number(latest.altitude) : null,
+      speed: latest && latest.speed !== null ? Number(latest.speed) : null,
+      heading: latest && latest.heading !== null ? Number(latest.heading) : null,
+      address: latest ? (latest.address || null) : null,
+      recorded_at: latest ? latest.recorded_at : null,
+      recent_history: recentHistory || []
+    });
+  }
+
+  return results;
+}
+
+export async function getUserLocationHistory(userId, limit = 50) {
+  const db = await getDb();
+  return await db.all(`
+    SELECT *
+    FROM user_locations
+    WHERE user_id = ?
+    ORDER BY datetime(recorded_at) DESC, id DESC
+    LIMIT ?
+  `, [userId, Math.min(200, Math.max(1, Number(limit) || 50))]);
+}
+
+export async function deleteUserLocations(userId) {
+  const db = await getDb();
+  await db.run("DELETE FROM user_locations WHERE user_id = ?", [userId]);
+  return { success: true };
 }
 
 export async function deleteTvDevice(id) {
