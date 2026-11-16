@@ -1218,64 +1218,48 @@ app.get('/api/unified/state', authenticate, async (req, res) => {
       events: [],
     };
     try {
-      const rawTasks = await getAllTasks({});
-      const seenTitles = new Set();
+      // Auto-update tasks due today to status = 'today' if they are pending (matches GET /api/focusflow/tasks)
+      await db.run(
+        "UPDATE tasks SET status = 'today' WHERE user_id = ? AND due_date = ? AND status NOT IN ('completed', 'archived')",
+        [userId, todayStr]
+      );
+
+      // Pull from the authoritative Family_App tasks dataset (tasks + projects + Housekeeping)
+      const rawTasks = await getAllTasks(userId, {}, todayStr);
       const unifiedTasks = [];
       for (const t of rawTasks || []) {
+        if (t.status === 'archived') continue;
+        if (t.routine_id || t.habit_id || Number(t.is_micro_step) === 1) continue;
+
         const isCompleted =
           t.status === 'completed' || Boolean(t.is_completed) || Boolean(t.completed);
         const title = (t.title || 'Untitled Task').trim();
-        seenTitles.add(title.toLowerCase());
+        const projectName = t.project_name || 'Inbox';
         unifiedTasks.push({
           ...t,
           id: String(t.id),
           title,
-          priority: t.priority === 'high' || t.priority === 'low' ? t.priority : 'medium',
+          priority: t.priority === 'urgent' || t.priority === 'high' ? 'high' : t.priority === 'low' ? 'low' : 'medium',
+          raw_priority: t.priority || 'medium',
           estimatedMins: Number(t.estimated_time || 25),
           estimated_time: Number(t.estimated_time || 25),
           completed: isCompleted,
-          project: t.project_name || 'General',
-          project_name: t.project_name || 'General',
-          isPinned: Boolean(t.is_pinned),
-          is_pinned: t.is_pinned ? 1 : 0,
+          project: projectName,
+          project_name: projectName,
+          isPinned: Boolean(t.is_pinned || t.status === 'today'),
+          is_pinned: t.is_pinned || t.status === 'today' ? 1 : 0,
           dueDate: t.due_date || undefined,
           due_date: t.due_date || null,
           notes: t.description || '',
         });
       }
-      try {
-        const todoRows = await db.all(`
-          SELECT t.*, l.name as list_name
-          FROM todo_tasks t
-          LEFT JOIN todo_lists l ON t.list_id = l.id
-          ORDER BY t.created_at DESC
-        `);
-        for (const td of todoRows || []) {
-          const title = (td.title || 'Untitled Task').trim();
-          if (!seenTitles.has(title.toLowerCase())) {
-            seenTitles.add(title.toLowerCase());
-            unifiedTasks.push({
-              ...td,
-              id: `todo-${td.id}`,
-              title,
-              priority: td.priority === 'high' || td.priority === 'low' ? td.priority : 'medium',
-              estimatedMins: 25,
-              completed: Boolean(td.is_completed),
-              project: td.list_name || 'Household Todos',
-              isPinned: false,
-              dueDate: td.due_date || undefined,
-              notes: td.description || '',
-            });
-          }
-        }
-      } catch (_) {}
       plans.tasks = unifiedTasks;
     } catch (e) {
       console.warn('Unified state tasks warning:', e.message);
     }
 
     try {
-      const rawProjects = await getAllProjects();
+      const rawProjects = await getAllProjects(userId);
       const allSchedules = await db.all('SELECT * FROM project_schedules ORDER BY day_of_week, start_time');
       const schedByProject = new Map();
       for (const s of allSchedules || []) {
@@ -1317,32 +1301,33 @@ app.get('/api/unified/state', authenticate, async (req, res) => {
 
     try {
       const rawRoutines = await db.all(
-        'SELECT * FROM routines WHERE user_id = ? OR is_shared = 1 ORDER BY created_at ASC',
+        'SELECT * FROM routines WHERE user_id = ? ORDER BY sort_order, created_at ASC',
         [userId]
       );
       plans.routines = await Promise.all(
         (rawRoutines || []).map(async (r) => {
           const rTasks = await db.all(
-            'SELECT * FROM routine_tasks WHERE routine_id = ? ORDER BY sort_order ASC, id ASC',
+            'SELECT * FROM tasks WHERE routine_id = ? AND is_micro_step = 0 ORDER BY id ASC',
             [r.id]
           );
-          const logs = await db.all(
-            'SELECT routine_task_id FROM routine_logs WHERE user_id = ? AND completed_date = ?',
-            [userId, todayStr]
+          const steps = await Promise.all(
+            (rTasks || []).map(async (st) => {
+              const taskLog = await db.get(
+                'SELECT id FROM routine_task_logs WHERE task_id = ? AND completed_date = ?',
+                [st.id, todayStr]
+              );
+              const isDone = Boolean(taskLog);
+              return {
+                ...st,
+                id: String(st.id),
+                text: st.title || '',
+                title: st.title || '',
+                done: isDone,
+                completed: isDone,
+                completed_today: isDone,
+              };
+            })
           );
-          const doneSet = new Set((logs || []).map((l) => Number(l.routine_task_id)));
-          const steps = (rTasks || []).map((st) => {
-            const isDone = doneSet.has(Number(st.id));
-            return {
-              ...st,
-              id: String(st.id),
-              text: st.title || '',
-              title: st.title || '',
-              done: isDone,
-              completed: isDone,
-              completed_today: isDone,
-            };
-          });
           return {
             ...r,
             id: String(r.id),
@@ -1360,7 +1345,7 @@ app.get('/api/unified/state', authenticate, async (req, res) => {
 
     try {
       const rawHabits = await db.all(
-        'SELECT * FROM habits WHERE user_id = ? OR is_shared = 1 ORDER BY created_at DESC',
+        'SELECT * FROM habits WHERE user_id = ? ORDER BY sort_order, created_at DESC',
         [userId]
       );
       plans.habits = await Promise.all(
@@ -1391,7 +1376,7 @@ app.get('/api/unified/state', authenticate, async (req, res) => {
             streak,
             completedToday,
             completed_today: completedToday,
-            frequency: h.frequency === 'weekly' ? 'weekly' : 'daily',
+            frequency: (h.target_frequency || h.frequency) === 'weekly' ? 'weekly' : 'daily',
             category: h.category || 'Personal',
             lastCompletedDate: logs?.[0]?.completed_date || undefined,
           };
@@ -11691,7 +11676,7 @@ function getUserToday(user) {
 // PROJECTS
 app.get('/api/focusflow/projects', authenticate, async (req, res) => {
   try {
-    const projects = await getAllProjects();
+    const projects = await getAllProjects(req.user?.id || 1);
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: error.message });

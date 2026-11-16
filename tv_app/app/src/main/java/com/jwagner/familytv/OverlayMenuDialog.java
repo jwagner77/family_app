@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.View;
 import android.view.Window;
 import android.widget.Button;
+import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
@@ -21,15 +22,24 @@ public class OverlayMenuDialog extends Dialog {
         void onToggleRotation();
         void onToggleScreensaver();
         void onUnpairDevice();
+        void onZoomIn();
+        void onZoomOut();
+        void onZoomReset();
+        void onToggleVideoSmoothMode();
+        void onToggleVideoAudio();
+        void onResyncVideo();
     }
 
     private final MenuActionListener listener;
-    private final boolean isRotationPaused;
+    private final TvPreferences preferences;
+    private TextView tvZoomDisplay;
+    private Button btnVideoSmoothMode;
+    private Button btnVideoAudio;
 
-    public OverlayMenuDialog(@NonNull Context context, boolean isRotationPaused, MenuActionListener listener) {
+    public OverlayMenuDialog(@NonNull Context context, TvPreferences preferences, MenuActionListener listener) {
         super(context);
+        this.preferences = preferences;
         this.listener = listener;
-        this.isRotationPaused = isRotationPaused;
     }
 
     @Override
@@ -42,13 +52,76 @@ public class OverlayMenuDialog extends Dialog {
             getWindow().setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
         }
 
+        // Zoom Controls
+        Button btnZoomOut = findViewById(R.id.menu_btn_zoom_out);
+        Button btnZoomIn = findViewById(R.id.menu_btn_zoom_in);
+        Button btnZoomReset = findViewById(R.id.menu_btn_zoom_reset);
+        tvZoomDisplay = findViewById(R.id.menu_tv_zoom_display);
+
+        updateZoomText();
+
+        btnZoomOut.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listener != null) listener.onZoomOut();
+                updateZoomText();
+            }
+        });
+
+        btnZoomIn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listener != null) listener.onZoomIn();
+                updateZoomText();
+            }
+        });
+
+        btnZoomReset.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listener != null) listener.onZoomReset();
+                updateZoomText();
+            }
+        });
+
+        // Video Background Controls
+        btnVideoSmoothMode = findViewById(R.id.menu_btn_video_smooth_mode);
+        btnVideoAudio = findViewById(R.id.menu_btn_video_audio);
+        Button btnVideoResync = findViewById(R.id.menu_btn_video_resync);
+
+        updateVideoButtons();
+
+        btnVideoSmoothMode.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listener != null) listener.onToggleVideoSmoothMode();
+                updateVideoButtons();
+            }
+        });
+
+        btnVideoAudio.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listener != null) listener.onToggleVideoAudio();
+                updateVideoButtons();
+            }
+        });
+
+        btnVideoResync.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listener != null) listener.onResyncVideo();
+            }
+        });
+
+        // Dashboard Navigation Controls
         Button btnRefresh = findViewById(R.id.menu_btn_refresh);
         Button btnToggleRotation = findViewById(R.id.menu_btn_toggle_rotation);
         Button btnScreensaver = findViewById(R.id.menu_btn_screensaver);
         Button btnUnpair = findViewById(R.id.menu_btn_unpair);
         Button btnClose = findViewById(R.id.menu_btn_close);
 
-        btnToggleRotation.setText(isRotationPaused ? "▶️ Resume Rotation" : "⏸️ Pause Rotation");
+        btnToggleRotation.setText(preferences.isRotationPaused() ? "▶️ Resume Rotation" : "⏸️ Pause Rotation");
 
         btnRefresh.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -89,7 +162,24 @@ public class OverlayMenuDialog extends Dialog {
             }
         });
 
-        // Set initial focus for D-Pad
+        // Focus first control for D-pad navigation
         btnRefresh.requestFocus();
+    }
+
+    private void updateZoomText() {
+        if (tvZoomDisplay != null) {
+            tvZoomDisplay.setText(preferences.getZoomLevel() + "%");
+        }
+    }
+
+    private void updateVideoButtons() {
+        if (btnVideoSmoothMode != null) {
+            boolean smooth = preferences.isVideoSmoothMode();
+            btnVideoSmoothMode.setText(smooth ? "⚡ Smooth Video Mode (60FPS): ON" : "✨ Smooth Video Mode: OFF");
+        }
+        if (btnVideoAudio != null) {
+            boolean muted = preferences.isVideoMuted();
+            btnVideoAudio.setText(muted ? "🔇 Video Audio: Muted" : "🔊 Video Audio: Unmuted");
+        }
     }
 }

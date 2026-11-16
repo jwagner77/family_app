@@ -99,31 +99,32 @@ export function useDashboardScale({ widgets = [], isShared = false, headerRef = 
 
     // --- AUTO-FIT MODE ---
     // Measure available height for the grid:
-    // Header height is roughly 65-80px + padding top/bottom (30-60px) + bottom clearance (20px)
-    const headerH = isShared ? 75 : 95;
-    const paddingTotal = vh < 750 ? 30 : (vh < 950 ? 45 : 60);
-    const availableHeight = Math.max(300, vh - headerH - paddingTotal);
+    // Dynamically measure actual header height if headerRef provided, plus safe margins
+    const headerH = (headerRef && headerRef.current) ? headerRef.current.offsetHeight : (isShared ? 80 : 95);
+    const paddingTotal = vh < 750 ? 24 : (vh < 950 ? 36 : 48);
+    const bottomClearance = 20; // Safe area clearance for TV bezel
+    const availableHeight = Math.max(250, vh - headerH - paddingTotal - bottomClearance);
 
     // Determine ideal gap based on viewport height and width
-    const gapPx = vh < 700 ? 10 : (vh < 950 ? 14 : 18);
+    const gapPx = vh < 700 ? 8 : (vh < 950 ? 12 : 16);
     const gapRem = `${gapPx / 16}rem`;
 
     // Calculate row height so that all rows fit in availableHeight
     const totalGaps = (maxRows - 1) * gapPx;
     const calculatedRowH = Math.floor((availableHeight - totalGaps) / maxRows);
 
-    // Clamp between 52px (small screens/tablets) and 130px (large 4K TVs)
-    const clampedRowH = Math.max(52, Math.min(130, calculatedRowH));
+    // Clamp between 44px (compact TV / tablets) and 130px (large 4K TVs)
+    const clampedRowH = Math.max(44, Math.min(130, calculatedRowH));
 
     // Calculate font scale proportional to row height
     let fontScale = 1.0;
-    if (clampedRowH < 65) fontScale = 0.82;
-    else if (clampedRowH < 80) fontScale = 0.9;
-    else if (clampedRowH < 100) fontScale = 1.0;
-    else if (clampedRowH < 120) fontScale = 1.08;
-    else fontScale = 1.18;
+    if (clampedRowH < 58) fontScale = 0.78;
+    else if (clampedRowH < 72) fontScale = 0.86;
+    else if (clampedRowH < 90) fontScale = 0.94;
+    else if (clampedRowH < 110) fontScale = 1.0;
+    else fontScale = 1.12;
 
-    const containerPadding = vh < 700 ? '0.75rem' : (vh < 950 ? '1.25rem' : '1.75rem');
+    const containerPadding = vh < 700 ? '0.5rem 1rem' : (vh < 950 ? '0.85rem 1.5rem' : '1.25rem 2rem');
 
     return {
       '--dashboard-row-height': `${clampedRowH}px`,

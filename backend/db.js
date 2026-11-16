@@ -3053,13 +3053,21 @@ export async function updateInventoryItemsBulk(ids, updates) {
 
 
 // --- PROJECT HELPERS ---
-export async function getAllProjects() {
+export async function getAllProjects(userId = null) {
   const db = await getDb();
+  if (userId) {
+    return await db.all(`
+      SELECT p.*,
+             (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND (t.user_id = ? OR p.is_shared = 1) AND t.routine_id IS NULL AND t.habit_id IS NULL AND t.is_micro_step = 0 AND t.status NOT IN ('completed', 'archived')) as task_count
+      FROM projects p
+      ORDER BY CASE WHEN p.name = 'Inbox' THEN 0 ELSE 1 END, p.name ASC
+    `, [userId]);
+  }
   return await db.all(`
     SELECT p.*,
-           (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.is_micro_step = 0 AND t.status != 'completed') as task_count
+           (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.routine_id IS NULL AND t.habit_id IS NULL AND t.is_micro_step = 0 AND t.status NOT IN ('completed', 'archived')) as task_count
     FROM projects p
-    ORDER BY p.name ASC
+    ORDER BY CASE WHEN p.name = 'Inbox' THEN 0 ELSE 1 END, p.name ASC
   `);
 }
 
@@ -3345,25 +3353,35 @@ export async function createTask(userId, task = {}) {
 
 export async function updateTask(id, task) {
   const db = await getDb();
+  const existing = await db.get("SELECT * FROM tasks WHERE id = ?", [id]);
+  if (!existing) return false;
+
+  let resolvedProjectId = task.project_id !== undefined ? task.project_id : existing.project_id;
+  if (task.project_id === undefined && (task.project || task.project_name)) {
+    const pName = String(task.project || task.project_name).trim();
+    const matchedProj = await db.get("SELECT id FROM projects WHERE LOWER(name) = LOWER(?)", [pName]);
+    if (matchedProj) resolvedProjectId = matchedProj.id;
+  }
+
   await db.run(
     `UPDATE tasks 
      SET project_id = ?, title = ?, description = ?, status = ?, priority = ?, due_date = ?, estimated_time = ?, is_recurring = ?, recurrence_pattern = ?, parent_id = ?, is_micro_step = ?, routine_id = ?, habit_id = ?, habit_task_type = ?
      WHERE id = ?`,
     [
-      task.project_id || null,
-      task.title,
-      task.description || null,
-      task.status || 'backlog',
-      task.priority || 'medium',
-      task.due_date || null,
-      task.estimated_time || 0,
-      task.is_recurring ? 1 : 0,
-      task.recurrence_pattern || null,
-      task.parent_id || null,
-      task.is_micro_step ? 1 : 0,
-      task.routine_id || null,
-      task.habit_id || null,
-      task.habit_task_type || null,
+      resolvedProjectId || null,
+      task.title !== undefined ? task.title : existing.title,
+      task.description !== undefined ? (task.description || null) : existing.description,
+      task.status !== undefined ? (task.status || 'backlog') : existing.status,
+      task.priority !== undefined ? (task.priority || 'medium') : existing.priority,
+      task.due_date !== undefined ? (task.due_date || null) : existing.due_date,
+      task.estimated_time !== undefined ? (Number(task.estimated_time) || 0) : existing.estimated_time,
+      task.is_recurring !== undefined ? (task.is_recurring ? 1 : 0) : existing.is_recurring,
+      task.recurrence_pattern !== undefined ? (task.recurrence_pattern || null) : existing.recurrence_pattern,
+      task.parent_id !== undefined ? (task.parent_id || null) : existing.parent_id,
+      task.is_micro_step !== undefined ? (task.is_micro_step ? 1 : 0) : existing.is_micro_step,
+      task.routine_id !== undefined ? (task.routine_id || null) : existing.routine_id,
+      task.habit_id !== undefined ? (task.habit_id || null) : existing.habit_id,
+      task.habit_task_type !== undefined ? (task.habit_task_type || null) : existing.habit_task_type,
       id
     ]
   );

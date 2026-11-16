@@ -22,7 +22,8 @@ import java.util.Locale;
  * Android TV Screensaver DreamService.
  * When the Android TV is left idle, this service is automatically launched
  * by the system to present an ambient view of the Family Hub dashboard with
- * real-time clock, weather, agenda updates, and continuous OLED burn-in protection.
+ * real-time clock, weather, agenda updates, video background optimizations,
+ * and continuous OLED burn-in protection.
  */
 public class FamilyAppDreamService extends DreamService {
 
@@ -74,17 +75,26 @@ public class FamilyAppDreamService extends DreamService {
     private void setupAmbientWebView() {
         if (dreamWebView == null) return;
 
+        // Hardware-accelerated GPU layer for smooth video and 60fps rendering
+        dreamWebView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+
         WebSettings webSettings = dreamWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
         webSettings.setDatabaseEnabled(true);
         webSettings.setLoadsImagesAutomatically(true);
         webSettings.setMediaPlaybackRequiresUserGesture(false);
+        webSettings.setAllowFileAccess(true);
+        webSettings.setAllowContentAccess(true);
         webSettings.setUseWideViewPort(true);
         webSettings.setLoadWithOverviewMode(true);
         webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
         webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         webSettings.setUserAgentString(webSettings.getUserAgentString() + " FamilyHubTV-Screensaver/1.0");
+
+        // Apply saved zoom level
+        int zoomLevel = preferences.getZoomLevel();
+        webSettings.setTextZoom(zoomLevel);
 
         dreamWebView.setWebChromeClient(new WebChromeClient());
         dreamWebView.setWebViewClient(new WebViewClient() {
@@ -96,13 +106,13 @@ public class FamilyAppDreamService extends DreamService {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // Inject screensaver ambient mode styles: softer card opacity, hidden scrollbars, overscan padding
-                String ambientCssJs = "javascript:(function() {" +
-                        "  var style = document.createElement('style');" +
-                        "  style.innerHTML = '::-webkit-scrollbar { display: none !important; } body { padding: 32px 48px !important; box-sizing: border-box !important; user-select: none !important; filter: brightness(0.92); }';" +
-                        "  document.head.appendChild(style);" +
-                        "})()";
-                view.evaluateJavascript(ambientCssJs, null);
+                
+                // Dynamically fit screensaver dashboard to TV viewport
+                TvScreenFitter.applyAutoFit(view, preferences.getZoomLevel());
+
+                // Apply video background performance enhancements & watchdog
+                VideoBackgroundHelper.applyPerformanceStyles(view, preferences.isVideoSmoothMode());
+                VideoBackgroundHelper.startVideoWatchdog(view, preferences.isVideoMuted());
             }
         });
 

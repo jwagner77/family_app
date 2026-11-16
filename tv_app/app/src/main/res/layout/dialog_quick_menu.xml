@@ -1,59 +1,185 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="480dp"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="520dp"
     android:layout_height="wrap_content"
-    android:background="@drawable/glass_card_bg"
-    android:padding="32dp"
-    android:orientation="vertical"
-    android:gravity="center_horizontal">
+    android:fillViewport="true">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="📺 TV Quick Menu"
-        android:textColor="@color/text_primary"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="20dp" />
-
-    <Button
-        android:id="@+id/menu_btn_refresh"
-        style="@style/Widget.FamilyHubTV.Button"
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🔄 Refresh Dashboard"
-        android:layout_marginBottom="12dp" />
+        android:background="@drawable/glass_card_bg"
+        android:padding="28dp"
+        android:orientation="vertical"
+        android:gravity="center_horizontal">
 
-    <Button
-        android:id="@+id/menu_btn_toggle_rotation"
-        style="@style/Widget.FamilyHubTV.Button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="⏸️ Pause / Resume Rotation"
-        android:layout_marginBottom="12dp" />
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📺 TV Quick Menu"
+            android:textColor="@color/text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
 
-    <Button
-        android:id="@+id/menu_btn_screensaver"
-        style="@style/Widget.FamilyHubTV.Button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="🌙 Ambient Mode"
-        android:layout_marginBottom="12dp" />
+        <!-- ZOOM CONTROL SECTION -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#0F172A"
+            android:padding="12dp"
+            android:layout_marginBottom="14dp">
 
-    <Button
-        android:id="@+id/menu_btn_unpair"
-        style="@style/Widget.FamilyHubTV.Button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="⚙️ Unpair This TV"
-        android:textColor="@color/danger"
-        android:layout_marginBottom="16dp" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔍 DISPLAY ZOOM LEVEL"
+                android:textColor="#94A3B8"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="8dp" />
 
-    <Button
-        android:id="@+id/menu_btn_close"
-        style="@style/Widget.FamilyHubTV.Button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Back to Dashboard" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
 
-</LinearLayout>
+                <Button
+                    android:id="@+id/menu_btn_zoom_out"
+                    style="@style/Widget.FamilyHubTV.MiniButton"
+                    android:layout_width="48dp"
+                    android:layout_height="38dp"
+                    android:text="−"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/menu_tv_zoom_display"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:textColor="#60A5FA"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:text="100%" />
+
+                <Button
+                    android:id="@+id/menu_btn_zoom_in"
+                    style="@style/Widget.FamilyHubTV.MiniButton"
+                    android:layout_width="48dp"
+                    android:layout_height="38dp"
+                    android:text="+"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <Button
+                    android:id="@+id/menu_btn_zoom_reset"
+                    style="@style/Widget.FamilyHubTV.MiniButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="38dp"
+                    android:layout_marginStart="8dp"
+                    android:text="Reset (100%)"
+                    android:textSize="12sp"
+                    android:paddingStart="10dp"
+                    android:paddingEnd="10dp" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- VIDEO BACKGROUND SECTION -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#0F172A"
+            android:padding="12dp"
+            android:layout_marginBottom="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎬 VIDEO BACKGROUND ENHANCEMENTS"
+                android:textColor="#94A3B8"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/menu_btn_video_smooth_mode"
+                style="@style/Widget.FamilyHubTV.MiniButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚡ Smooth Video Mode (60FPS): ON"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <Button
+                    android:id="@+id/menu_btn_video_audio"
+                    style="@style/Widget.FamilyHubTV.MiniButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🔇 Video Audio: Muted"
+                    android:layout_marginEnd="6dp" />
+
+                <Button
+                    android:id="@+id/menu_btn_video_resync"
+                    style="@style/Widget.FamilyHubTV.MiniButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="🔄 Resync Video" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- DASHBOARD CONTROLS -->
+        <Button
+            android:id="@+id/menu_btn_refresh"
+            style="@style/Widget.FamilyHubTV.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🔄 Refresh Dashboard"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/menu_btn_toggle_rotation"
+            style="@style/Widget.FamilyHubTV.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⏸️ Pause / Resume Rotation"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/menu_btn_screensaver"
+            style="@style/Widget.FamilyHubTV.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="🌙 Ambient Mode"
+            android:layout_marginBottom="8dp" />
+
+        <Button
+            android:id="@+id/menu_btn_unpair"
+            style="@style/Widget.FamilyHubTV.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⚙️ Unpair This TV"
+            android:textColor="@color/danger"
+            android:layout_marginBottom="12dp" />
+
+        <Button
+            android:id="@+id/menu_btn_close"
+            style="@style/Widget.FamilyHubTV.Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Back to Dashboard" />
+
+    </LinearLayout>
+</ScrollView>

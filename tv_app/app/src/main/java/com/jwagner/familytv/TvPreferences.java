@@ -14,6 +14,9 @@ public class TvPreferences {
     private static final String KEY_ROTATION_PAUSED = "rotation_paused";
     private static final String KEY_AMBIENT_MODE = "ambient_mode";
     private static final String KEY_SERVER_NAME = "server_name";
+    private static final String KEY_ZOOM_LEVEL = "zoom_level";
+    private static final String KEY_VIDEO_SMOOTH_MODE = "video_smooth_mode";
+    private static final String KEY_VIDEO_MUTED = "video_muted";
 
     private final SharedPreferences prefs;
 
@@ -95,6 +98,32 @@ public class TvPreferences {
 
     public void setServerName(String name) {
         prefs.edit().putString(KEY_SERVER_NAME, name).apply();
+    }
+
+    public int getZoomLevel() {
+        return prefs.getInt(KEY_ZOOM_LEVEL, 100);
+    }
+
+    public void setZoomLevel(int zoom) {
+        // Enforce safe bounds for TV zoom (50% to 200%)
+        int clamped = Math.max(50, Math.min(200, zoom));
+        prefs.edit().putInt(KEY_ZOOM_LEVEL, clamped).apply();
+    }
+
+    public boolean isVideoSmoothMode() {
+        return prefs.getBoolean(KEY_VIDEO_SMOOTH_MODE, true);
+    }
+
+    public void setVideoSmoothMode(boolean enabled) {
+        prefs.edit().putBoolean(KEY_VIDEO_SMOOTH_MODE, enabled).apply();
+    }
+
+    public boolean isVideoMuted() {
+        return prefs.getBoolean(KEY_VIDEO_MUTED, true);
+    }
+
+    public void setVideoMuted(boolean muted) {
+        prefs.edit().putBoolean(KEY_VIDEO_MUTED, muted).apply();
     }
 
     public void clearPairing() {

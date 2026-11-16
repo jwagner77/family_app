@@ -20,7 +20,67 @@
             android:background="@color/background"
             android:scrollbars="none" />
 
-        <!-- Subtle Top Ambient HUD -->
+        <!-- Top-Left Floating Zoom Control HUD (Hidden from screen, available in Quick Menu) -->
+        <LinearLayout
+            android:id="@+id/zoom_hud"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|start"
+            android:layout_marginTop="16dp"
+            android:layout_marginStart="28dp"
+            android:background="@drawable/glass_card_bg"
+            android:paddingStart="8dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="10dp"
+            android:paddingBottom="4dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone">
+
+            <Button
+                android:id="@+id/btn_zoom_out"
+                style="@style/Widget.FamilyHubTV.MiniButton"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:text="−"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:padding="0dp" />
+
+            <TextView
+                android:id="@+id/tv_zoom_level"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:text="100%" />
+
+            <Button
+                android:id="@+id/btn_zoom_in"
+                style="@style/Widget.FamilyHubTV.MiniButton"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:text="+"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:padding="0dp" />
+
+            <Button
+                android:id="@+id/btn_zoom_reset"
+                style="@style/Widget.FamilyHubTV.MiniButton"
+                android:layout_width="wrap_content"
+                android:layout_height="34dp"
+                android:layout_marginStart="6dp"
+                android:text="Reset"
+                android:textSize="11sp"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+        </LinearLayout>
+
+        <!-- Subtle Top-Right Ambient HUD -->
         <LinearLayout
             android:id="@+id/ambient_hud"
             android:layout_width="wrap_content"

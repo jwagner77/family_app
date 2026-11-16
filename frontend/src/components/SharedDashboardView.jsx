@@ -22,8 +22,16 @@ export default function SharedDashboardView({ token, onClose }) {
   const [secondsRemaining, setSecondsRemaining] = useState(30);
   const [isPaused, setIsPaused] = useState(false);
 
+  // Header ref for dynamic TV auto-fit measurement
+  const headerRef = useRef(null);
+
+  // TV / Kiosk browser detection
+  const isTvBrowser = typeof navigator !== 'undefined' && (
+    /Android TV|SmartTV|GoogleTV|AppleTV|HbbTV|CrKey|FamilyHubTV/i.test(navigator.userAgent)
+  );
+
   // Screen & TV Scaling state
-  const { scaleMode, setScaleMode, scaleStyles } = useDashboardScale({ widgets, isShared: true });
+  const { scaleMode, setScaleMode, scaleStyles } = useDashboardScale({ widgets, isShared: true, headerRef });
 
   // Cast & Screen state
   const [isCastModalOpen, setIsCastModalOpen] = useState(false);
@@ -353,26 +361,39 @@ export default function SharedDashboardView({ token, onClose }) {
       )}
 
       {/* Header bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'clamp(0.75rem, 1.8vh, 1.5rem)', flexWrap: 'wrap', gap: '0.75rem', position: 'relative', zIndex: 1 }}>
+      <div 
+        ref={headerRef}
+        className="shared-dashboard-header"
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: 'clamp(0.5rem, 1.2vh, 1.2rem)', 
+          flexWrap: isTvBrowser ? 'nowrap' : 'wrap', 
+          gap: '0.6rem', 
+          position: 'relative', 
+          zIndex: 1 
+        }}
+      >
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <h1 style={{ fontSize: 'clamp(1.25rem, calc(1.1rem + 0.5vw), 1.75rem)', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'nowrap' }}>
+          <h1 style={{ fontSize: 'clamp(1.15rem, calc(1.05rem + 0.4vw), 1.6rem)', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', whiteSpace: 'nowrap' }}>
             {dashboardInfo?.brandingIcon !== 'none' && dashboardInfo?.brandingIcon} {dashboardInfo?.appName}
           </h1>
 
           {/* Active Dashboard Indicator Badge */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.1)', padding: '0.25rem 0.65rem', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.2)' }}>
-            <Layers size={14} style={{ color: 'var(--primary)' }} />
-            <span style={{ fontSize: '0.82rem', fontWeight: '700' }}>{currentDashName}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255, 255, 255, 0.1)', padding: '0.2rem 0.6rem', borderRadius: '20px', border: '1px solid rgba(255, 255, 255, 0.2)', whiteSpace: 'nowrap' }}>
+            <Layers size={13} style={{ color: 'var(--primary)' }} />
+            <span style={{ fontSize: '0.8rem', fontWeight: '700' }}>{currentDashName}</span>
             {targetType === 'rotation' && dashboards.length > 1 && (
-              <span style={{ fontSize: '0.72rem', opacity: 0.8, marginLeft: '0.25rem' }}>
+              <span style={{ fontSize: '0.7rem', opacity: 0.8, marginLeft: '0.2rem' }}>
                 ({currentIndex + 1}/{dashboards.length})
               </span>
             )}
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'nowrap' }}>
           {/* Rotation Controls when target_type is rotation */}
           {targetType === 'rotation' && dashboards.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', background: 'rgba(0, 0, 0, 0.2)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius)', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -438,36 +459,41 @@ export default function SharedDashboardView({ token, onClose }) {
             </button>
           )}
 
-          {/* Screen Scaling & TV Auto-Fit Control */}
-          <DashboardScaleControl scaleMode={scaleMode} setScaleMode={setScaleMode} isShared={true} />
+          {/* Web-only controls (hidden on TV companion app since TV remote & TV quick menu cover these) */}
+          {!isTvBrowser && (
+            <>
+              {/* Screen Scaling & TV Auto-Fit Control */}
+              <DashboardScaleControl scaleMode={scaleMode} setScaleMode={setScaleMode} isShared={true} />
 
-          {/* Chromecast Screen Casting Button */}
-          <button
-            type="button"
-            className={`btn ${castState.isCasting ? 'btn-primary' : 'btn-outline'}`}
-            onClick={() => setIsCastModalOpen(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
-            title={castState.isCasting ? `Casting active to ${castState.deviceName || 'screen'}` : "Cast dashboard to a screen using Chromecast"}
-          >
-            <Cast size={14} />
-            <span>{castState.isCasting ? `Casting (${castState.deviceName || 'TV'})` : 'Cast'}</span>
-          </button>
+              {/* Chromecast Screen Casting Button */}
+              <button
+                type="button"
+                className={`btn ${castState.isCasting ? 'btn-primary' : 'btn-outline'}`}
+                onClick={() => setIsCastModalOpen(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
+                title={castState.isCasting ? `Casting active to ${castState.deviceName || 'screen'}` : "Cast dashboard to a screen using Chromecast"}
+              >
+                <Cast size={14} />
+                <span>{castState.isCasting ? `Casting (${castState.deviceName || 'TV'})` : 'Cast'}</span>
+              </button>
 
-          <button 
-            className="btn btn-outline" 
-            onClick={() => setRefreshTrigger(p => p + 1)}
-            style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
-          >
-            <RefreshCw size={14} /> Refresh Data
-          </button>
-          {onClose && (
-            <button 
-              className="btn btn-outline" 
-              onClick={onClose}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
-            >
-              Back to App
-            </button>
+              <button 
+                className="btn btn-outline" 
+                onClick={() => setRefreshTrigger(p => p + 1)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
+              >
+                <RefreshCw size={14} /> Refresh Data
+              </button>
+              {onClose && (
+                <button 
+                  className="btn btn-outline" 
+                  onClick={onClose}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.85rem' }}
+                >
+                  Back to App
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
