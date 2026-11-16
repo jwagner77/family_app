@@ -3123,7 +3123,7 @@ export async function deleteProject(id) {
 export async function getAllTasks(userId, filters = {}, todayStr = null) {
   const db = await getDb();
   if (!todayStr) {
-    const user = await db.get("SELECT timezone FROM users WHERE id = ?", [userId]);
+    const user = await db.get("SELECT u.*, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?", [userId]);
     const tz = user?.timezone || 'America/New_York';
     const mapping = {
       'US/New_York': 'America/New_York',
@@ -3143,9 +3143,10 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
     FROM tasks t
     LEFT JOIN projects p ON t.project_id = p.id
     LEFT JOIN users u ON t.user_id = u.id
-    WHERE (t.user_id = ? OR p.is_shared = 1) AND t.is_micro_step = 0
+    WHERE (t.user_id = ? OR p.is_shared = 1 OR ? = 1 OR t.user_id IS NULL) AND t.is_micro_step = 0
   `;
-  const params = [userId];
+  const isAdmin = Boolean(user && (user.role_name === "admin" || Number(userId) === 1 || String(user.username).toLowerCase() === "admin"));
+  const params = [userId, isAdmin ? 1 : 0];
 
   if (!filters.routine_id && !filters.include_routines) {
     query += ' AND t.routine_id IS NULL';

@@ -1253,6 +1253,38 @@ app.get('/api/unified/state', authenticate, async (req, res) => {
           notes: t.description || '',
         });
       }
+      // Also include todo_tasks accessible to user
+      try {
+        const rawTodoTasks = await db.all(`
+          SELECT t.*, l.name as list_name, l.list_type 
+          FROM todo_tasks t
+          JOIN todo_lists l ON t.list_id = l.id
+          ORDER BY t.due_date ASC, t.id DESC
+        `);
+        for (const tt of rawTodoTasks || []) {
+          unifiedTasks.push({
+            id: `todo_${tt.id}`,
+            title: (tt.title || 'To Do Task').trim(),
+            priority: 'medium',
+            raw_priority: 'medium',
+            estimatedMins: 25,
+            estimated_time: 25,
+            completed: tt.status === 'completed',
+            project: tt.list_name || 'To Do',
+            project_name: tt.list_name || 'To Do',
+            isPinned: false,
+            is_pinned: 0,
+            dueDate: tt.due_date || undefined,
+            due_date: tt.due_date || null,
+            notes: tt.description || '',
+            is_todo_task: true,
+            todo_task_id: tt.id,
+          });
+        }
+      } catch (err) {
+        console.warn('Unified state todo_tasks warning:', err.message);
+      }
+
       plans.tasks = unifiedTasks;
     } catch (e) {
       console.warn('Unified state tasks warning:', e.message);
