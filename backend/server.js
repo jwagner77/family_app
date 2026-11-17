@@ -1253,38 +1253,6 @@ app.get('/api/unified/state', authenticate, async (req, res) => {
           notes: t.description || '',
         });
       }
-      // Also include todo_tasks accessible to user
-      try {
-        const rawTodoTasks = await db.all(`
-          SELECT t.*, l.name as list_name, l.list_type 
-          FROM todo_tasks t
-          JOIN todo_lists l ON t.list_id = l.id
-          ORDER BY t.due_date ASC, t.id DESC
-        `);
-        for (const tt of rawTodoTasks || []) {
-          unifiedTasks.push({
-            id: `todo_${tt.id}`,
-            title: (tt.title || 'To Do Task').trim(),
-            priority: 'medium',
-            raw_priority: 'medium',
-            estimatedMins: 25,
-            estimated_time: 25,
-            completed: tt.status === 'completed',
-            project: tt.list_name || 'To Do',
-            project_name: tt.list_name || 'To Do',
-            isPinned: false,
-            is_pinned: 0,
-            dueDate: tt.due_date || undefined,
-            due_date: tt.due_date || null,
-            notes: tt.description || '',
-            is_todo_task: true,
-            todo_task_id: tt.id,
-          });
-        }
-      } catch (err) {
-        console.warn('Unified state todo_tasks warning:', err.message);
-      }
-
       plans.tasks = unifiedTasks;
     } catch (e) {
       console.warn('Unified state tasks warning:', e.message);
@@ -11773,12 +11741,15 @@ app.get('/api/focusflow/tasks', authenticate, async (req, res) => {
   }
 });
 
-async function canAccessTask(userId, task) {
+async function canAccessTask(userId, task, user = null) {
   if (!task) return false;
-  if (task.user_id === userId) return true;
+  if (!userId) return false;
+  if (task.user_id === userId || task.user_id === null) return true;
+  if (Number(userId) === 1) return true;
+  if (user && (user.role_name === 'Administrator' || user.role_name === 'admin' || user.role === 'admin')) return true;
   if (task.project_id) {
     const project = await getProjectById(task.project_id);
-    if (project && project.is_shared === 1) {
+    if (project && (project.is_shared === 1 || project.name === 'Inbox')) {
       return true;
     }
   }
@@ -11791,16 +11762,23 @@ app.get('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
     if (taskIdStr.startsWith('housekeeping-')) {
       const hkId = parseInt(taskIdStr.split('-')[1]);
       const db = await getDb();
+      const hkProject = await db.get("SELECT id, name FROM projects WHERE name = 'Housekeeping'");
       const task = await db.get(`
-        SELECT 'housekeeping-' || h.id as id, h.assigned_to_user_id as user_id, h.title, h.description, h.status, h.due_date
+        SELECT 'housekeeping-' || h.id as id, h.assigned_to_user_id as user_id, h.title, h.description, h.status, h.due_date,
+               h.reoccurrence, h.reoccurrence_days, h.reoccurrence_months,
+               ? as project_id, 'Housekeeping' as project_name, 'Housekeeping' as project,
+               0 as estimated_time, 0 as estimatedMins,
+               CASE WHEN h.status = 'completed' THEN 1 ELSE 0 END as completed,
+               CASE WHEN h.status = 'completed' THEN 1 ELSE 0 END as is_completed
         FROM housekeeping_tasks h
         WHERE h.id = ?
-      `, [hkId]);
+      `, [hkProject?.id || null, hkId]);
       if (!task) return res.status(404).json({ error: 'Task not found' });
+      task.subtasks = [];
       return res.json(task);
     }
     const task = await getTaskById(req.params.id);
-    const hasAccess = await canAccessTask(req.user.id, task);
+    const hasAccess = await canAccessTask(req.user.id, task, req.user);
     if (!hasAccess) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -11835,7 +11813,7 @@ app.put('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
       return res.json({ message: 'Housekeeping task updated successfully' });
     }
     const existing = await getTaskById(req.params.id);
-    const hasAccess = await canAccessTask(req.user.id, existing);
+    const hasAccess = await canAccessTask(req.user.id, existing, req.user);
     if (!hasAccess) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -11867,7 +11845,7 @@ app.delete('/api/focusflow/tasks/:id', authenticate, async (req, res) => {
       return res.json({ message: 'Housekeeping task deleted successfully' });
     }
     const existing = await getTaskById(req.params.id);
-    const hasAccess = await canAccessTask(req.user.id, existing);
+    const hasAccess = await canAccessTask(req.user.id, existing, req.user);
     if (!hasAccess) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -11928,7 +11906,7 @@ app.post('/api/focusflow/tasks/:id/complete', authenticate, async (req, res) => 
     if (!existingTask) {
       return res.status(404).json({ error: 'Task not found' });
     }
-    const hasAccess = await canAccessTask(req.user.id, existingTask);
+    const hasAccess = await canAccessTask(req.user.id, existingTask, req.user);
     if (!hasAccess) {
       return res.status(404).json({ error: 'Task not found' });
     }
@@ -11987,7 +11965,7 @@ app.post('/api/focusflow/tasks/:id/miss', authenticate, async (req, res) => {
     if (!existingTask) {
       return res.status(404).json({ error: 'Task not found' });
     }
-    const hasAccess = await canAccessTask(req.user.id, existingTask);
+    const hasAccess = await canAccessTask(req.user.id, existingTask, req.user);
     if (!hasAccess) {
       return res.status(404).json({ error: 'Task not found' });
     }

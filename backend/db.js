@@ -973,6 +973,7 @@ export async function getDb() {
       status TEXT DEFAULT 'active',
       schedule_enabled INTEGER DEFAULT 0,
       is_shared INTEGER DEFAULT 0,
+      hide_from_dashboard INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -3055,20 +3056,37 @@ export async function updateInventoryItemsBulk(ids, updates) {
 // --- PROJECT HELPERS ---
 export async function getAllProjects(userId = null) {
   const db = await getDb();
-  if (userId) {
-    return await db.all(`
+  const user = userId ? await db.get("SELECT u.*, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?", [userId]) : null;
+  const isAdmin = !userId || Boolean(user && (user.role_name === "admin" || user.role_name === "Administrator" || Number(userId) === 1 || String(user.username).toLowerCase() === "admin"));
+
+  let projects;
+  if (userId && !isAdmin) {
+    projects = await db.all(`
       SELECT p.*,
-             (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND (t.user_id = ? OR p.is_shared = 1) AND t.routine_id IS NULL AND t.habit_id IS NULL AND t.is_micro_step = 0 AND t.status NOT IN ('completed', 'archived')) as task_count
+             (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND (t.user_id = ? OR p.is_shared = 1 OR t.user_id IS NULL) AND t.routine_id IS NULL AND t.habit_id IS NULL AND t.is_micro_step = 0 AND t.status NOT IN ('completed', 'archived')) as task_count
       FROM projects p
       ORDER BY CASE WHEN p.name = 'Inbox' THEN 0 ELSE 1 END, p.name ASC
     `, [userId]);
+  } else {
+    projects = await db.all(`
+      SELECT p.*,
+             (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.routine_id IS NULL AND t.habit_id IS NULL AND t.is_micro_step = 0 AND t.status NOT IN ('completed', 'archived')) as task_count
+      FROM projects p
+      ORDER BY CASE WHEN p.name = 'Inbox' THEN 0 ELSE 1 END, p.name ASC
+    `);
   }
-  return await db.all(`
-    SELECT p.*,
-           (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id AND t.routine_id IS NULL AND t.habit_id IS NULL AND t.is_micro_step = 0 AND t.status NOT IN ('completed', 'archived')) as task_count
-    FROM projects p
-    ORDER BY CASE WHEN p.name = 'Inbox' THEN 0 ELSE 1 END, p.name ASC
-  `);
+
+  // Also count active housekeeping tasks for the virtual Housekeeping project
+  const hkIndex = projects.findIndex(p => p.name === 'Housekeeping');
+  if (hkIndex !== -1) {
+    const hkCountRow = await db.get(
+      `SELECT COUNT(*) as count FROM housekeeping_tasks WHERE status != 'completed' AND (assigned_to_user_id = ? OR assigned_to_user_id IS NULL OR ? = 1)`,
+      [userId || null, isAdmin ? 1 : 0]
+    );
+    projects[hkIndex].task_count = (projects[hkIndex].task_count || 0) + (hkCountRow?.count || 0);
+  }
+
+  return projects;
 }
 
 export async function getAllProjects_OLD() {
@@ -3122,8 +3140,8 @@ export async function deleteProject(id) {
 // --- TASK HELPERS ---
 export async function getAllTasks(userId, filters = {}, todayStr = null) {
   const db = await getDb();
+  const user = userId ? await db.get("SELECT u.*, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?", [userId]) : null;
   if (!todayStr) {
-    const user = await db.get("SELECT u.*, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?", [userId]);
     const tz = user?.timezone || 'America/New_York';
     const mapping = {
       'US/New_York': 'America/New_York',
@@ -3137,6 +3155,10 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
     const normTz = mapping[tz] || tz || 'America/New_York';
     todayStr = new Date().toLocaleDateString('sv', { timeZone: normTz });
   }
+
+  const isAdmin = !userId || Boolean(user && (user.role_name === "admin" || user.role_name === "Administrator" || Number(userId) === 1 || String(user.username).toLowerCase() === "admin"));
+  const params = [userId, isAdmin ? 1 : 0];
+
   let query = `
     SELECT t.*, p.name as project_name, p.color as project_color, p.is_shared as project_is_shared, COALESCE(p.hide_from_dashboard, 0) as project_hide_from_dashboard,
            u.username as assignee_username, u.display_name as assignee_display_name
@@ -3145,8 +3167,6 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
     LEFT JOIN users u ON t.user_id = u.id
     WHERE (t.user_id = ? OR p.is_shared = 1 OR ? = 1 OR t.user_id IS NULL) AND t.is_micro_step = 0
   `;
-  const isAdmin = Boolean(user && (user.role_name === "admin" || Number(userId) === 1 || String(user.username).toLowerCase() === "admin"));
-  const params = [userId, isAdmin ? 1 : 0];
 
   if (!filters.routine_id && !filters.include_routines) {
     query += ' AND t.routine_id IS NULL';
@@ -3255,10 +3275,10 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
           u.display_name as assignee_display_name
         FROM housekeeping_tasks h
         LEFT JOIN users u ON h.assigned_to_user_id = u.id
-        WHERE h.assigned_to_user_id = ? ${hkStatusFilter}
+        WHERE (h.assigned_to_user_id = ? OR h.assigned_to_user_id IS NULL OR ? = 1) ${hkStatusFilter}
       `;
       
-      const hkParams = [hk.id, hk.name, hk.hide_from_dashboard || 0, userId];
+      const hkParams = [hk.id, hk.name, hk.hide_from_dashboard || 0, userId, isAdmin ? 1 : 0];
       
       if (filters.search) {
         hkQuery += ' AND (h.title LIKE ? OR h.description LIKE ?)';
@@ -3277,6 +3297,19 @@ export async function getAllTasks(userId, filters = {}, todayStr = null) {
       }
       tasks.push(...hkTasks);
     }
+  }
+
+  // Normalize fields across all tasks so widgets, Android companion, and dashboard all have complete properties
+  for (const t of tasks) {
+    const isCompleted = t.status === 'completed' || t.status === 'done';
+    t.completed = isCompleted;
+    t.is_completed = isCompleted ? 1 : 0;
+    t.project = t.project_name || 'Inbox';
+    t.list_name = t.project_name || 'Inbox';
+    t.estimatedMins = Number(t.estimated_time || 25);
+    t.isPinned = t.is_pinned || t.status === 'today' ? 1 : 0;
+    t.dueDate = t.due_date || undefined;
+    t.notes = t.description || '';
   }
   
   return tasks;
@@ -3305,7 +3338,12 @@ export async function createTask(userId, task = {}) {
     if (matchedProj) task = { ...task, project_id: matchedProj.id };
   }
   const estimatedTime = task.estimated_time ?? task.estimated_mins ?? task.estimatedMins ?? 0;
-  task = { ...task, estimated_time: estimatedTime };
+  const taskTitle = (task.title || task.name || 'Untitled Task').trim();
+  const taskDesc = task.description !== undefined ? task.description : (task.notes || null);
+  const taskDue = task.due_date || task.dueDate || null;
+  const taskStatus = task.status || (task.completed ? 'completed' : task.isPinned || task.is_pinned ? 'today' : 'backlog');
+
+  task = { ...task, estimated_time: estimatedTime, title: taskTitle, description: taskDesc, due_date: taskDue, status: taskStatus };
   const db = await getDb();
   let projectId = task.project_id;
   
@@ -3344,7 +3382,7 @@ export async function createTask(userId, task = {}) {
       await db.run(
         `INSERT INTO tasks (user_id, project_id, title, status, parent_id, is_micro_step)
          VALUES (?, ?, ?, 'backlog', ?, 1)`,
-        [userId, projectId || null, sub.title, newTaskId]
+        [userId, projectId || null, sub.title || sub.name, newTaskId]
       );
     }
   }
@@ -3364,18 +3402,32 @@ export async function updateTask(id, task) {
     if (matchedProj) resolvedProjectId = matchedProj.id;
   }
 
+  const finalTitle = task.title !== undefined ? task.title : (task.name !== undefined ? task.name : existing.title);
+  const finalDesc = task.description !== undefined ? task.description : (task.notes !== undefined ? task.notes : existing.description);
+  const finalDue = task.due_date !== undefined ? task.due_date : (task.dueDate !== undefined ? task.dueDate : existing.due_date);
+  const finalEst = task.estimated_time !== undefined ? task.estimated_time : (task.estimated_mins !== undefined ? task.estimated_mins : (task.estimatedMins !== undefined ? task.estimatedMins : existing.estimated_time));
+  
+  let finalStatus = task.status;
+  if (finalStatus === undefined) {
+    if (task.completed !== undefined) {
+      finalStatus = task.completed ? 'completed' : (task.isPinned || task.is_pinned ? 'today' : 'backlog');
+    } else {
+      finalStatus = existing.status;
+    }
+  }
+
   await db.run(
     `UPDATE tasks 
      SET project_id = ?, title = ?, description = ?, status = ?, priority = ?, due_date = ?, estimated_time = ?, is_recurring = ?, recurrence_pattern = ?, parent_id = ?, is_micro_step = ?, routine_id = ?, habit_id = ?, habit_task_type = ?
      WHERE id = ?`,
     [
       resolvedProjectId || null,
-      task.title !== undefined ? task.title : existing.title,
-      task.description !== undefined ? (task.description || null) : existing.description,
-      task.status !== undefined ? (task.status || 'backlog') : existing.status,
+      finalTitle,
+      finalDesc || null,
+      finalStatus || 'backlog',
       task.priority !== undefined ? (task.priority || 'medium') : existing.priority,
-      task.due_date !== undefined ? (task.due_date || null) : existing.due_date,
-      task.estimated_time !== undefined ? (Number(task.estimated_time) || 0) : existing.estimated_time,
+      finalDue || null,
+      Number(finalEst) || 0,
       task.is_recurring !== undefined ? (task.is_recurring ? 1 : 0) : existing.is_recurring,
       task.recurrence_pattern !== undefined ? (task.recurrence_pattern || null) : existing.recurrence_pattern,
       task.parent_id !== undefined ? (task.parent_id || null) : existing.parent_id,

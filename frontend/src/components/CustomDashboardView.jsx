@@ -1843,7 +1843,7 @@ function HomeTasksView({ tasks }) {
   }
 
   // Filter uncompleted tasks
-  const activeTasks = tasks.filter(t => !t.completed).slice(0, 5);
+  const activeTasks = tasks.filter(t => !t.completed && t.status !== "completed" && t.status !== "archived").slice(0, 5);
 
   if (activeTasks.length === 0) {
     return <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.75rem', textAlign: 'center', marginTop: '1.5rem' }}>🎉 All tasks completed!</p>;
@@ -1860,7 +1860,7 @@ function HomeTasksView({ tasks }) {
             <input type="checkbox" checked={false} readOnly style={{ cursor: 'not-allowed', accentColor: 'var(--primary)' }} />
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
               <span style={{ fontWeight: '500', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.title}</span>
-              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>List: {task.list_name}</span>
+              <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>Focus: {task.project_name || task.project || task.list_name || "Inbox"}</span>
             </div>
             {dateStr && (
               <span className={`badge ${isOverdue ? 'badge-danger' : 'badge-primary'}`} style={{ fontSize: '0.65rem', flexShrink: 0 }}>
