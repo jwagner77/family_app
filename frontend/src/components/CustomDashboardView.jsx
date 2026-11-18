@@ -247,6 +247,12 @@ export default function CustomDashboardView({ onOpenModal, onNavigateTab, user, 
   useEffect(() => {
     fetchDashboards();
     fetchDashboardSettings();
+
+    const handleRealtime = () => {
+      setRefreshTrigger(prev => prev + 1);
+    };
+    window.addEventListener('unified-realtime-update', handleRealtime);
+    return () => window.removeEventListener('unified-realtime-update', handleRealtime);
   }, []);
 
   useEffect(() => {

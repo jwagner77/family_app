@@ -4,7 +4,7 @@ export default function YouTubeBackground({ videoId, iframeRef, isMuted = true }
   const embedSrc = useMemo(() => {
     if (!videoId) return '';
     const origin = typeof window !== 'undefined' ? encodeURIComponent(window.location.origin) : '';
-    return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0&fs=0&disablekb=1&playsinline=1&enablejsapi=1&origin=${origin}`;
+    return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&cc_load_policy=0&fs=0&disablekb=1&playsinline=1&enablejsapi=1`;
   }, [videoId]);
 
   const sendPlayerCommand = (func, args = []) => {
@@ -88,10 +88,7 @@ export default function YouTubeBackground({ videoId, iframeRef, isMuted = true }
           // Video ended: seek back to 0 immediately to avoid playlist reload & title bar flash
           sendPlayerCommand('seekTo', [0, true]);
           sendPlayerCommand('playVideo');
-        } else if (playerState === 1) {
-          // Playing: reinforce quality cap for smooth TV playback
-          sendPlayerCommand('setPlaybackQualityRange', ['hd720', 'hd1080']);
-        }
+        } // Smooth playback without quality renegotiation reloads
       } catch (e) {}
     };
     window.addEventListener('message', handleMessage);

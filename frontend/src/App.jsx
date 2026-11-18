@@ -1904,7 +1904,7 @@ export default function App() {
 
         {activeTab === 'dashboard' && (
           <CustomDashboardView 
-            key={`dashboard_${tabSyncTicks.dashboard || 0}`}
+            key="custom_dashboard"
             onOpenModal={() => setIsDemoModalOpen(true)}
             onNavigateTab={(tab) => {
               setActiveTab(tab);
